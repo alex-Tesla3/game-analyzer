@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分析向导 · Steam 竞品一键报告</title>
+    <link rel="stylesheet" href="/static/css/scenario-workspace.css">
+    <script src="/static/js/auth-token.js"></script>
+    <script src="/static/js/auth-nav.js"></script>
+    <script src="/static/js/data-provenance.js"></script>
+    <script src="/static/js/scenario-report.js"></script>
+    <script src="/static/js/usage-badge.js"></script>
+    <style>
+        :root { --bg:#0f1419; --panel:#1a2332; --text:#e7ecf3; --muted:#94a3b8; --accent:#06b6d4; --border:rgba(255,255,255,0.08); }
+        body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; margin:0; }
+        .topbar { display:flex; justify-content:space-between; align-items:center; padding:16px 24px; border-bottom:1px solid var(--border); background:rgba(26,35,50,0.95); }
+        .layout { max-width:960px; margin:0 auto; padding:24px 24px 48px; }
+        .hero { margin-bottom:24px; }
+        .hero h1 { font-size:1.5rem; margin-bottom:8px; }
+        .hero p { color:var(--muted); font-size:0.9rem; line-height:1.5; }
+        .card { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:20px; margin-bottom:16px; }
+        label { font-size:0.75rem; color:var(--muted); display:block; margin-bottom:6px; }
+        textarea, input { width:100%; padding:12px; border-radius:8px; border:1px solid var(--border); background:#243044; color:var(--text); font-size:0.95rem; }
+        .btn { border:1px solid var(--border); background:var(--panel); color:var(--text); padding:10px 16px; border-radius:8px; cursor:pointer; font-size:0.875rem; text-decoration:none; display:inline-block; }
+        .btn-primary { background:linear-gradient(135deg,var(--accent),#0891b2); border:none; font-weight:600; }
+        .btn:disabled { opacity:0.5; cursor:not-allowed; }
+        .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:16px; }
+        .steps { display:flex; flex-direction:column; gap:8px; margin-top:16px; }
+        .step { display:flex; gap:12px; align-items:flex-start; padding:10px 12px; border-radius:8px; background:rgba(0,0,0,0.2); font-size:0.85rem; }
+        .step.ok { border-left:3px solid #22c55e; }
+        .step.warn { border-left:3px solid #f59e0b; }
+        .step.error { border-left:3px solid #ef4444; }
+        .step.skipped { border-left:3px solid #64748b; }
+        .step-id { font-weight:600; min-width:72px; color:var(--accent); }
+        .action-table { width:100%; border-collapse:collapse; font-size:0.8rem; margin-top:12px; }
+        .action-table th, .action-table td { border:1px solid var(--border); padding:8px; text-align:left; vertical-align:top; }
+        .action-table th { background:rgba(255,255,255,0.04); }
+        .hint { font-size:0.8rem; color:var(--muted); margin-top:8px; }
+        .search-item { display:block; width:100%; text-align:left; padding:10px 12px; border:none; background:transparent; color:var(--text); cursor:pointer; font-size:0.875rem; border-bottom:1px solid var(--border); }
+        .search-item:hover { background:rgba(6,182,212,0.12); }
+        .search-item small { color:var(--muted); margin-left:8px; }
+        #report-output { margin-top:16px; }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div>
+            <strong>🧭 分析向导</strong>
+            <span style="color:var(--muted);font-size:0.85rem;margin-left:8px;">AppID → 抓取 → 报告 → 归档</span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+            <span id="usage-badge"></span>
+            <a class="btn" href="/work" style="margin-right:8px;">落地指导</a>
+            <a class="btn" href="/import" style="margin-right:8px;">导入指标</a>
+            <a class="btn" href="/dashboard">← 看板</a>
+        </div>
+    </header>
+    <main class="layout">
+        <div id="onboarding-root"></div>
+        <div id="provenance-banner" style="display:none;margin-bottom:16px;"></div>
+        <div id="demo-banner" style="display:none;margin-bottom:16px;padding:12px 16px;border-radius:10px;background:rgba(6,182,212,0.12);border:1px solid rgba(6,182,212,0.35);font-size:0.85rem;"></div>
+        <div class="hero">
+            <h1>输入游戏名或 AppID，一键生成可执行竞品报告</h1>
+            <p>支持 Steam（PC）、TapTap 与 Google Play（手游）。输入游戏名、包名或 AppID，系统自动搜索、抓取评论、生成报告并归档。</p>
+        </div>
+
+        <div class="card">
+            <label for="platform">数据来源</label>
+            <select id="platform" style="width:100%;max-width:240px;padding:10px;border-radius:8px;border:1px solid var(--border);background:#243044;color:var(--text);margin-bottom:12px;">
+                <option value="steam">Steam（PC）</option>
+                <option value="taptap">TapTap（手游）</option>
+                <option value="google_play">Google Play（手游）</option>
+            </select>
+            <label for="app-ids">游戏名或 AppID（逗号或换行分隔，最多 5 个）</label>
+            <textarea id="app-ids" rows="3" placeholder="Counter-Strike 2, Dota 2&#10;或 CS2, 570"></textarea>
+            <div class="search-wrap" style="position:relative;margin-top:10px;">
+                <label for="game-search" style="margin-bottom:6px;">搜索并添加游戏</label>
+                <input type="search" id="game-search" placeholder="输入英文名搜索 Steam…" autocomplete="off"
+                    style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:#243044;color:var(--text);">
+                <div id="search-results" class="search-dropdown" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;background:#1a2332;border:1px solid var(--border);border-radius:8px;max-height:220px;overflow:auto;z-index:20;"></div>
+            </div>
+            <div class="hint" id="input-hint">Steam 示例：Counter-Strike 2 · Dota 2 · 或 AppID 730, 570</div>
+            <div class="toolbar">
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:0.85rem;">
+                    <input type="checkbox" id="skip-crawl" style="width:auto;"> 跳过抓取（使用已有 MVP 数据）
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:0.85rem;">
+                    <input type="checkbox" id="auto-archive" checked style="width:auto;"> 自动归档
+                </label>
+                <button type="button" class="btn btn-primary" id="btn-run">🚀 开始分析</button>
+                <span id="status" style="color:var(--muted);font-size:0.85rem;"></span>
+            </div>
+            <div class="steps" id="steps"></div>
+        </div>
+
+        <div class="card" id="actions-card" style="display:none;">
+            <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px;">
+                <h2 style="font-size:1rem;margin:0;">📋 可执行行动清单</h2>
+                <button type="button" class="btn" id="btn-export-actions-csv">⬇️ CSV</button>
+                <button type="button" class="btn" id="btn-export-actions-feishu">📋 飞书</button>
+                <button type="button" class="btn" id="btn-export-actions-jira">📋 Jira</button>
+                <button type="button" class="btn btn-primary" id="btn-retest" style="display:none;">🔄 复测验证（重新抓取）</button>
+            </div>
+            <div id="retest-result" class="hint" style="display:none;"></div>
+            <div id="actions-table-wrap"></div>
+        </div>
+
+        <div class="card" id="report-card" style="display:none;">
+            <div class="toolbar" style="margin-top:0;margin-bottom:12px;">
+                <strong>📄 分析报告</strong>
+                <button type="button" class="btn" id="btn-copy">📋 复制 Markdown</button>
+                <button type="button" class="btn" id="btn-download">⬇️ 下载 Markdown</button>
+                <button type="button" class="btn" id="btn-share">🔗 生成分享链接</button>
+                <a class="btn" id="link-compare" href="/games/compare" style="display:none;">打开竞品工作台</a>
+            </div>
+            <div id="report-output"></div>
+            <p id="share-url" class="hint" style="word-break:break-all;"></p>
+        </div>
+    </main>
+    <script src="/static/js/onboarding-wizard.js"></script>
+    <script>
+        let lastResult = null;
+        const WIZARD_STORAGE_KEY = 'ga_wizard_last_result';
+
+        function token() { return typeof getAuthToken === 'function' ? getAuthToken() : ''; }
+
+        function apiErrorMessage(data, fallback) {
+            if (typeof AuthNav !== 'undefined' && AuthNav.apiErrorMessage) {
+                return AuthNav.apiErrorMessage(data, fallback);
+            }
+            if (!data) return fallback || '失败';
+            return data.message || data.detail || fallback || '失败';
+        }
+
+        async function ensureAuth() {
+            const redirect = '/login?redirect=' + encodeURIComponent('/guide');
+            if (!token()) {
+                location.href = redirect;
+                return false;
+            }
+            if (typeof AuthNav !== 'undefined' && AuthNav.validateToken) {
+                const ok = await AuthNav.validateToken(token());
+                if (!ok) {
+                    if (typeof clearAuthToken === 'function') clearAuthToken();
+                    location.href = redirect + '&reason=expired';
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function stepLabels() {
+            const plat = selectedPlatform();
+            const crawlLabel = plat === 'taptap' ? '抓取 TapTap' : (plat === 'google_play' ? '抓取 Google Play' : '抓取 Steam');
+            return { resolve: '识别游戏', crawl: crawlLabel, sync: '同步资料库', report: '生成报告', archive: '归档', validate: '数据校验' };
+        }
+
+        function renderSteps(steps) {
+            const el = document.getElementById('steps');
+            if (!steps?.length) { el.innerHTML = ''; return; }
+            const labels = stepLabels();
+            el.innerHTML = steps.map(s =>
+                '<div class="step ' + (s.status || '') + '">' +
+                '<span class="step-id">' + (labels[s.id] || s.id) + '</span>' +
+                '<span>' + esc(s.detail || '') + '</span></div>'
+            ).join('');
+        }
+
+        function renderActions(items, archiveId) {
+            const card = document.getElementById('actions-card');
+            const wrap = document.getElementById('actions-table-wrap');
+            const retestBtn = document.getElementById('btn-retest');
+            if (!items?.length) { card.style.display = 'none'; return; }
+            card.style.display = 'block';
+            wrap.innerHTML = ScenarioReport.renderActionItems(items, {
+                interactive: !!archiveId,
+                archiveId: archiveId || '',
+            });
+            if (archiveId && retestBtn) {
+                retestBtn.style.display = 'inline-block';
+                retestBtn.dataset.archiveId = archiveId;
+            }
+            if (archiveId) {
+                ScenarioReport.bindActionStatusSelects(wrap, token(), (updated) => {
+                    if (lastResult?.report) lastResult.report.action_items = updated;
+                    lastResult.action_items = updated;
+                });
+            }
+        }
+
+        async function runRetest() {
+            const archiveId = document.getElementById('btn-retest')?.dataset?.archiveId || lastResult?.archive_id;
+            if (!archiveId) { alert('请先完成分析并归档'); return; }
+            const btn = document.getElementById('btn-retest');
+            const box = document.getElementById('retest-result');
+            btn.disabled = true;
+            box.style.display = 'block';
+            box.textContent = '复测中（重新抓取 Steam 评论）…';
+            try {
+                const res = await fetch('/api/wizard/retest?token=' + encodeURIComponent(token()), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ archive_id: archiveId }),
+                });
+                const data = await res.json();
+                if (!res.ok) data.success = false;
+                if (!data.success) {
+                    box.innerHTML = '<span style="color:#f87171;">复测失败：' + esc(apiErrorMessage(data, '未知错误')) + '</span>';
+                    return;
+                }
+                const deltaHtml = (data.deltas || []).map(d => {
+                    const sign = d.delta >= 0 ? '+' : '';
+                    return esc(d.product_name) + '：' + d.positive_rate_before + '%→' + d.positive_rate_after + '% (' + sign + d.delta + '%)';
+                }).join(' · ');
+                box.innerHTML = '✅ 复测完成。口碑变化：' + (deltaHtml || '—') +
+                    (data.archive_id ? ' · <a href="/games/review#archives" style="color:#06b6d4;">查看归档</a>' : '');
+                renderActions(data.action_items || [], data.archive_id || archiveId);
+                if (data.report) {
+                    data.report.action_items = data.action_items;
+                    ScenarioReport.renderResult(document.getElementById('report-output'), data.report);
+                }
+                lastResult = Object.assign({}, lastResult || {}, data);
+            } catch (e) {
+                box.textContent = '网络错误';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function esc(s) {
+            const d = document.createElement('div');
+            d.textContent = s || '';
+            return d.innerHTML;
+        }
+
+        function displayWizardResult(data, restored) {
+            lastResult = data;
+            renderSteps(data.steps || []);
+            const failedStep = (data.steps || []).find(s => s.status === 'error');
+            let statusMsg;
+            if (data.success) {
+                statusMsg = restored ? '✅ 已恢复上次分析结果' : '✅ 完成';
+            } else {
+                const err = apiErrorMessage(data, '失败');
+                statusMsg = '❌ ' + err;
+                if (failedStep?.detail && !err.includes(failedStep.detail)) {
+                    statusMsg += ' · ' + failedStep.detail;
+                }
+            }
+            document.getElementById('status').textContent = statusMsg;
+            if (data.success && data.report) {
+                document.getElementById('report-card').style.display = 'block';
+                if (!data.report.data_source) {
+                    DataProvenance.fetchProvenance(token()).then(p => {
+                        if (p?.source) data.report.data_source = p.source;
+                        ScenarioReport.renderResult(document.getElementById('report-output'), data.report);
+                    });
+                } else {
+                    ScenarioReport.renderResult(document.getElementById('report-output'), data.report);
+                }
+                renderActions(data.action_items || data.report.action_items, data.archive_id);
+                if (data.compare_url) {
+                    const link = document.getElementById('link-compare');
+                    link.href = data.compare_url;
+                    link.style.display = 'inline-block';
+                }
+            }
+        }
+
+        function saveWizardSession(appIds, data) {
+            try {
+                sessionStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify({
+                    savedAt: Date.now(),
+                    app_ids: appIds,
+                    result: data,
+                }));
+            } catch (e) {}
+        }
+
+        function restoreWizardSession() {
+            try {
+                const raw = sessionStorage.getItem(WIZARD_STORAGE_KEY);
+                if (!raw) return;
+                const pack = JSON.parse(raw);
+                if (Date.now() - pack.savedAt > 7 * 24 * 3600 * 1000) return;
+                if (pack.app_ids && !document.getElementById('app-ids').value.trim()) {
+                    document.getElementById('app-ids').value = pack.app_ids;
+                }
+                if (pack.result?.success && pack.result?.report) {
+                    displayWizardResult(pack.result, true);
+                }
+            } catch (e) {}
+        }
+
+        function selectedPlatform() {
+            return (document.getElementById('platform')?.value || 'steam').toLowerCase();
+        }
+
+        function updatePlatformHint() {
+            const hint = document.getElementById('input-hint');
+            const search = document.getElementById('game-search');
+            if (selectedPlatform() === 'taptap') {
+                hint.textContent = 'TapTap 示例：原神, 王者荣耀 · 或 AppID 168332';
+                if (search) search.placeholder = '搜索 TapTap 游戏名…';
+            } else if (selectedPlatform() === 'google_play') {
+                hint.textContent = 'Google Play 示例：原神, 王者荣耀 · 或包名 com.miHoYo.GenshinImpact';
+                if (search) search.placeholder = '搜索 Google Play 游戏名…';
+            } else {
+                hint.textContent = 'Steam 示例：Counter-Strike 2 · Dota 2 · 或 AppID 730, 570';
+                if (search) search.placeholder = '输入英文名搜索 Steam…';
+            }
+        }
+
+        document.getElementById('platform')?.addEventListener('change', updatePlatformHint);
+
+        async function runWizard() {
+            if (!(await ensureAuth())) return;
+            const raw = document.getElementById('app-ids').value.trim();
+            if (!raw) { alert('请输入游戏名或 AppID'); return; }
+            const btn = document.getElementById('btn-run');
+            btn.disabled = true;
+            document.getElementById('status').textContent = '分析中，请稍候（首次抓取约 30–90 秒）…';
+            document.getElementById('report-card').style.display = 'none';
+            document.getElementById('actions-card').style.display = 'none';
+
+            try {
+                const res = await fetch('/api/wizard/run?token=' + encodeURIComponent(token()), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        app_ids: raw,
+                        platform: selectedPlatform(),
+                        skip_crawl: document.getElementById('skip-crawl').checked,
+                        auto_archive: document.getElementById('auto-archive').checked,
+                        max_reviews: 50,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) data.success = false;
+                displayWizardResult(data, false);
+                if (data.success && data.report) {
+                    saveWizardSession(raw, data);
+                    if (typeof OnboardingWizard !== 'undefined') OnboardingWizard.markDone?.();
+                } else if (!res.ok && (res.status === 401 || res.status === 403)) {
+                    if (typeof clearAuthToken === 'function') clearAuthToken();
+                    setTimeout(() => {
+                        location.href = '/login?redirect=' + encodeURIComponent('/guide') + '&reason=expired';
+                    }, 1800);
+                }
+            } catch (e) {
+                document.getElementById('status').textContent = '网络错误：' + (e.message || '请检查服务是否在运行');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function appendGameSelection(name, appId) {
+            const ta = document.getElementById('app-ids');
+            const parts = ta.value.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+            const token = name || appId;
+            if (parts.length >= 5) {
+                document.getElementById('status').textContent = '最多 5 款游戏';
+                return;
+            }
+            if (parts.some(p => p === token || p === appId)) return;
+            ta.value = parts.length ? (ta.value.replace(/\s*$/, '') + ', ' + token) : token;
+        }
+
+        let searchTimer = null;
+        function setupGameSearch() {
+            const input = document.getElementById('game-search');
+            const box = document.getElementById('search-results');
+            if (!input || !box) return;
+
+            input.addEventListener('input', () => {
+                clearTimeout(searchTimer);
+                const q = input.value.trim();
+                if (q.length < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
+                searchTimer = setTimeout(async () => {
+                    try {
+                        const res = await fetch('/api/wizard/search?token=' + encodeURIComponent(token()) +
+                            '&platform=' + encodeURIComponent(selectedPlatform()) +
+                            '&q=' + encodeURIComponent(q));
+                        const data = await res.json();
+                        const rows = data.results || [];
+                        if (!rows.length) {
+                            box.innerHTML = '<div class="hint" style="padding:10px;">未找到匹配游戏</div>';
+                            box.style.display = 'block';
+                            return;
+                        }
+                        box.innerHTML = rows.map(r =>
+                            '<button type="button" class="search-item" data-name="' + esc(r.name) + '" data-id="' + esc(r.app_id) + '">' +
+                            esc(r.name) + '<small>AppID ' + esc(r.app_id) + '</small></button>'
+                        ).join('');
+                        box.style.display = 'block';
+                        box.querySelectorAll('.search-item').forEach(btn => {
+                            btn.onclick = () => {
+                                appendGameSelection(btn.dataset.name, btn.dataset.id);
+                                input.value = '';
+                                box.style.display = 'none';
+                                box.innerHTML = '';
+                            };
+                        });
+                    } catch (e) {
+                        box.style.display = 'none';
+                    }
+                }, 280);
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.search-wrap')) box.style.display = 'none';
+            });
+        }
+
+        document.getElementById('btn-run').onclick = runWizard;
+        document.getElementById('btn-copy').onclick = () => {
+            ScenarioReport.copyMarkdown(document.getElementById('report-output'));
+            document.getElementById('status').textContent = '已复制 Markdown';
+        };
+        document.getElementById('btn-download').onclick = async () => {
+            if (!lastResult?.report) return;
+            const res = await fetch('/api/wizard/export/markdown?token=' + encodeURIComponent(token()), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ report: lastResult.report }),
+            });
+            const blob = await res.blob();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = (lastResult.report.title || 'report') + '.md';
+            a.click();
+        };
+        document.getElementById('btn-share').onclick = async () => {
+            if (!lastResult?.report) {
+                alert('请先生成分析报告');
+                return;
+            }
+            const btn = document.getElementById('btn-share');
+            const shareEl = document.getElementById('share-url');
+            btn.disabled = true;
+            shareEl.innerHTML = '正在生成分享链接…';
+            try {
+                let res;
+                if (lastResult.archive_id) {
+                    res = await fetch('/api/games/archives/' + encodeURIComponent(lastResult.archive_id) + '/share?token=' + encodeURIComponent(token()), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: '{}',
+                    });
+                } else {
+                    res = await fetch('/api/report/share?token=' + encodeURIComponent(token()), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            report_type: 'wizard_competitor',
+                            report_data: lastResult.report,
+                            expires_hours: 168,
+                        }),
+                    });
+                }
+                let data = {};
+                try { data = await res.json(); } catch (_) {}
+                if (!res.ok || !data.success) {
+                    const msg = (typeof data.detail === 'string' ? data.detail : null)
+                        || data.message || ('HTTP ' + res.status);
+                    shareEl.innerHTML = '<span style="color:#f87171;">分享失败：' + esc(msg) + '</span>';
+                    return;
+                }
+                const url = data.share_url;
+                shareEl.innerHTML =
+                    '分享链接（7 天有效）：' +
+                    '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" style="color:#06b6d4;">' +
+                    esc(url) + '</a>' +
+                    ' <button type="button" class="btn" id="btn-copy-share" style="margin-left:8px;padding:4px 10px;">复制</button>' +
+                    ' <button type="button" class="btn" id="btn-open-share" style="margin-left:4px;padding:4px 10px;">新标签打开</button>';
+                document.getElementById('btn-copy-share').onclick = async () => {
+                    try {
+                        await navigator.clipboard.writeText(url);
+                        document.getElementById('status').textContent = '分享链接已复制';
+                    } catch (e) {
+                        document.getElementById('status').textContent = '请手动复制上方链接';
+                    }
+                };
+                document.getElementById('btn-open-share').onclick = () => {
+                    window.open(url, '_blank', 'noopener');
+                };
+            } catch (e) {
+                shareEl.innerHTML = '<span style="color:#f87171;">网络错误，无法生成分享链接</span>';
+            } finally {
+                btn.disabled = false;
+            }
+        };
+
+        document.getElementById('btn-export-actions-csv').onclick = () => {
+            const items = lastResult?.action_items || lastResult?.report?.action_items;
+            if (!items?.length) { alert('暂无行动清单'); return; }
+            ScenarioReport.exportActions(items, token(), 'csv');
+        };
+        document.getElementById('btn-export-actions-feishu').onclick = async () => {
+            const items = lastResult?.action_items || lastResult?.report?.action_items;
+            if (!items?.length) { alert('暂无行动清单'); return; }
+            await ScenarioReport.exportActions(items, token(), 'feishu');
+            document.getElementById('status').textContent = '飞书 Markdown 已复制到剪贴板（或已下载）';
+        };
+        document.getElementById('btn-export-actions-jira').onclick = async () => {
+            const items = lastResult?.action_items || lastResult?.report?.action_items;
+            if (!items?.length) { alert('暂无行动清单'); return; }
+            await ScenarioReport.exportActions(items, token(), 'jira');
+            document.getElementById('status').textContent = 'Jira CSV 已下载，可在 Jira 导入';
+        };
+        document.getElementById('btn-retest').onclick = runRetest;
+
+        async function runDemoBootstrap(autorun) {
+            const banner = document.getElementById('demo-banner');
+            banner.style.display = 'block';
+            banner.textContent = '正在加载 Demo 数据（CS2 + Dota 2）…';
+            try {
+                const res = await fetch('/api/demo/bootstrap?token=' + encodeURIComponent(token()), { method: 'POST' });
+                const data = await res.json();
+                if (!data.success) {
+                    banner.innerHTML = 'Demo 加载失败：' + esc(data.message || '');
+                    return;
+                }
+                document.getElementById('app-ids').value = 'CS2, Dota 2';
+                document.getElementById('skip-crawl').checked = true;
+                if (autorun) {
+                    banner.textContent = '✅ Demo 已就绪，正在自动生成报告…';
+                    await runWizard();
+                    banner.innerHTML = '✅ Demo 报告已生成。可<a href="/work" style="color:#06b6d4;margin-left:4px;">查看落地指导</a>或<a href="/games/review#archives" style="color:#06b6d4;margin-left:4px;">查看归档</a>。';
+                } else {
+                    banner.innerHTML = '✅ Demo 已就绪。点击「开始分析」查看样例报告，或<a href="/import" style="color:#06b6d4;margin-left:6px;">导入 Owner 指标</a>叠加经营数据。';
+                }
+            } catch (e) {
+                banner.textContent = 'Demo 加载失败';
+            }
+        }
+
+        (async function initWizard() {
+            if (!(await ensureAuth())) return;
+            UsageBadge.mount('usage-badge', token, { linkPricing: true });
+            if (typeof OnboardingWizard !== 'undefined') OnboardingWizard.render('onboarding-root');
+            DataProvenance.fetchProvenance(token()).then(p => DataProvenance.renderBanner('provenance-banner', p));
+            const q = new URLSearchParams(location.search);
+            if (q.get('app_ids')) document.getElementById('app-ids').value = q.get('app_ids');
+            if (q.get('platform')) {
+                const sel = document.getElementById('platform');
+                if (sel) sel.value = q.get('platform');
+            }
+            if (q.get('demo') === '1') runDemoBootstrap(q.get('autorun') === '1');
+            updatePlatformHint();
+            setupGameSearch();
+            restoreWizardSession();
+        })();
+    </script>
+</body>
+</html>

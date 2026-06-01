@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 文档 - Game Analytics</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f7;
+            color: #1d1d1f;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .header p {
+            font-size: 20px;
+            opacity: 0.9;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .search-box {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 32px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #e5e5e7;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        .endpoint-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .method {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-right: 12px;
+        }
+        
+        .method-get {
+            background: #34c759;
+            color: white;
+        }
+        
+        .method-post {
+            background: #0071e3;
+            color: white;
+        }
+        
+        .method-put {
+            background: #ff9500;
+            color: white;
+        }
+        
+        .method-delete {
+            background: #ff3b30;
+            color: white;
+        }
+        
+        .endpoint-path {
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            color: #1d1d1f;
+        }
+        
+        .endpoint-description {
+            margin: 16px 0;
+            color: #86868b;
+        }
+        
+        .code-block {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+        
+        .section {
+            margin: 48px 0;
+        }
+        
+        .section-title {
+            font-size: 32px;
+            margin-bottom: 24px;
+            color: #1d1d1f;
+        }
+        
+        .param-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+        }
+        
+        .param-table th,
+        .param-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e5e7;
+        }
+        
+        .param-table th {
+            background: #f5f5f7;
+            font-weight: 600;
+        }
+        
+        .param-name {
+            font-family: 'Courier New', monospace;
+            color: #0071e3;
+        }
+        
+        .param-required {
+            color: #ff3b30;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📖 API 文档</h1>
+        <p>游戏数据分析引擎 REST API 参考文档</p>
+    </div>
+    
+    <div class="container">
+        <div class="search-box">
+            <input type="text" class="search-input" placeholder="🔍 搜索 API 端点..." onkeyup="filterEndpoints(this.value)">
+        </div>
+        
+        <!-- 认证 -->
+        <div class="section">
+            <h2 class="section-title">🔐 认证</h2>
+            
+            <div class="endpoint-card">
+                <span class="method method-post">POST</span>
+                <span class="endpoint-path">/api/token</span>
+                <p class="endpoint-description">获取访问令牌</p>
+                
+                <h4>请求体</h4>
+                <div class="code-block">
+{
+  "username": "admin",
+  "password": "admin123"
+}
+</div>
+                
+                <h4>响应</h4>
+                <div class="code-block">
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "token_type": "bearer"
+}
+</div>
+            </div>
+        </div>
+        
+        <!-- 仪表盘 -->
+        <div class="section">
+            <h2 class="section-title">📊 仪表盘</h2>
+            
+            <div class="endpoint-card">
+                <span class="method method-get">GET</span>
+                <span class="endpoint-path">/api/dashboard</span>
+                <p class="endpoint-description">获取仪表盘数据概览</p>
+                
+                <h4>查询参数</h4>
+                <table class="param-table">
+                    <tr>
+                        <th>参数</th>
+                        <th>类型</th>
+                        <th>说明</th>
+                    </tr>
+                    <tr>
+                        <td class="param-name">token <span class="param-required">*</span></td>
+                        <td>string</td>
+                        <td>访问令牌</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">products</td>
+                        <td>string</td>
+                        <td>产品ID列表，逗号分隔</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">time_period</td>
+                        <td>string</td>
+                        <td>时间周期：today, yesterday, 7d, 30d</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <!-- 高级分析 -->
+        <div class="section">
+            <h2 class="section-title">⚡ 高级分析</h2>
+            
+            <div class="endpoint-card">
+                <span class="method method-get">GET</span>
+                <span class="endpoint-path">/api/advanced/funnel</span>
+                <p class="endpoint-description">获取漏斗分析数据</p>
+                
+                <h4>查询参数</h4>
+                <table class="param-table">
+                    <tr>
+                        <th>参数</th>
+                        <th>类型</th>
+                        <th>说明</th>
+                    </tr>
+                    <tr>
+                        <td class="param-name">token <span class="param-required">*</span></td>
+                        <td>string</td>
+                        <td>访问令牌</td>
+                    </tr>
+                    <tr>
+                        <td class="param-name">product</td>
+                        <td>string</td>
+                        <td>产品ID</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="endpoint-card">
+                <span class="method method-get">GET</span>
+                <span class="endpoint-path">/api/advanced/cohort</span>
+                <p class="endpoint-description">获取群组分析数据</p>
+            </div>
+            
+            <div class="endpoint-card">
+                <span class="method method-get">GET</span>
+                <span class="endpoint-path">/api/advanced/journey</span>
+                <p class="endpoint-description">获取用户路径数据</p>
+            </div>
+            
+            <div class="endpoint-card">
+                <span class="method method-get">GET</span>
+                <span class="endpoint-path">/api/advanced/anomaly</span>
+                <p class="endpoint-description">获取异常检测数据</p>
+            </div>
+            
+            <div class="endpoint-card">
+                <span class="method method-get">GET</span>
+                <span class="endpoint-path">/api/advanced/predictive</span>
+                <p class="endpoint-description">获取预测分析数据</p>
+            </div>
+        </div>
+        
+        <!-- 报告 -->
+        <div class="section">
+            <h2 class="section-title">📄 报告</h2>
+            
+            <div class="endpoint-card">
+                <span class="method method-post">POST</span>
+                <span class="endpoint-path">/api/report/generate</span>
+                <p class="endpoint-description">生成自定义报告</p>
+                
+                <h4>请求体</h4>
+                <div class="code-block">
+{
+  "report_type": "weekly_summary",
+  "products": ["game_a", "game_b"],
+  "date_range": {
+    "start": "2024-01-01",
+    "end": "2024-01-07"
+  },
+  "metrics": ["revenue", "dau", "retention"]
+}
+</div>
+            </div>
+            
+            <div class="endpoint-card">
+                <span class="method method-get">GET</span>
+                <span class="endpoint-path">/api/report/{report_id}</span>
+                <p class="endpoint-description">获取报告详情</p>
+            </div>
+            
+            <div class="endpoint-card">
+                <span class="method method-post">POST</span>
+                <span class="endpoint-path">/api/report/{report_id}/share</span>
+                <p class="endpoint-description">共享报告</p>
+            </div>
+        </div>
+        
+        <!-- 告警 -->
+        <div class="section">
+            <h2 class="section-title">⚠️ 告警</h2>
+            
+            <div class="endpoint-card">
+                <span class="method method-get">GET</span>
+                <span class="endpoint-path">/api/alerts</span>
+                <p class="endpoint-description">获取告警规则列表</p>
+            </div>
+            
+            <div class="endpoint-card">
+                <span class="method method-post">POST</span>
+                <span class="endpoint-path">/api/alerts</span>
+                <p class="endpoint-description">创建告警规则</p>
+                
+                <h4>请求体</h4>
+                <div class="code-block">
+{
+  "name": "收入异常告警",
+  "product": "game_a",
+  "metric": "revenue",
+  "operator": "gt",
+  "threshold": 10000,
+  "email": "alert@example.com",
+  "enabled": true
+}
+</div>
+            </div>
+            
+            <div class="endpoint-card">
+                <span class="method method-put">PUT</span>
+                <span class="endpoint-path">/api/alerts/{alert_id}</span>
+                <p class="endpoint-description">更新告警规则</p>
+            </div>
+            
+            <div class="endpoint-card">
+                <span class="method method-delete">DELETE</span>
+                <span class="endpoint-path">/api/alerts/{alert_id}</span>
+                <p class="endpoint-description">删除告警规则</p>
+            </div>
+        </div>
+        
+        <!-- 团队 -->
+        <div class="section">
+            <h2 class="section-title">👥 团队</h2>
+            
+            <div class="endpoint-card">
+                <span class="method method-get">GET</span>
+                <span class="endpoint-path">/api/teams</span>
+                <p class="endpoint-description">获取用户所在的所有团队</p>
+            </div>
+            
+            <div class="endpoint-card">
+                <span class="method method-post">POST</span>
+                <span class="endpoint-path">/api/teams</span>
+                <p class="endpoint-description">创建新团队</p>
+                
+                <h4>请求体</h4>
+                <div class="code-block">
+{
+  "name": "游戏运营组",
+  "description": "负责游戏日常运营分析"
+}
+</div>
+            </div>
+            
+            <div class="endpoint-card">
+                <span class="method method-get">GET</span>
+                <span class="endpoint-path">/api/teams/{team_id}/members</span>
+                <p class="endpoint-description">获取团队成员列表</p>
+            </div>
+            
+            <div class="endpoint-card">
+                <span class="method method-post">POST</span>
+                <span class="endpoint-path">/api/teams/{team_id}/members</span>
+                <p class="endpoint-description">添加团队成员</p>
+                
+                <h4>请求体</h4>
+                <div class="code-block">
+{
+  "username": "new_user",
+  "role": "editor"
+}
+</div>
+            </div>
+        </div>
+        
+        <!-- 指标 -->
+        <div class="section">
+            <h2 class="section-title">📈 指标</h2>
+            
+            <div class="endpoint-card">
+                <span class="method method-get">GET</span>
+                <span class="endpoint-path">/api/metrics</span>
+                <p class="endpoint-description">获取所有指标数据</p>
+                
+                <h4>响应示例</h4>
+                <div class="code-block">
+{
+  "success": true,
+  "data": [
+    {
+      "metric": "revenue",
+      "value": 125000,
+      "product": "game_a",
+      "timestamp": "2024-01-15T10:00:00Z"
+    }
+  ]
+}
+</div>
+            </div>
+        </div>
+        
+        <!-- SDK -->
+        <div class="section">
+            <h2 class="section-title">🛠️ SDK 集成</h2>
+            
+            <div class="endpoint-card">
+                <h3>Python SDK</h3>
+                <div class="code-block">
+pip install game-analytics-sdk
+
+import game_analytics as ga
+
+client = ga.Client(api_key='your_api_key')
+
+# 获取今日数据
+data = client.dashboard.get(time_period='today')
+
+# 获取漏斗分析
+funnel = client.analytics.get_funnel(product='game_a')
+
+# 创建告警
+alert = client.alerts.create(
+    name='收入告警',
+    metric='revenue',
+    operator='gt',
+    threshold=10000
+)
+</div>
+            </div>
+            
+            <div class="endpoint-card">
+                <h3>JavaScript SDK</h3>
+                <div class="code-block">
+npm install game-analytics-sdk
+
+import { GameAnalytics } from 'game-analytics-sdk';
+
+const client = new GameAnalytics({ apiKey: 'your_api_key' });
+
+// 获取今日数据
+const data = await client.dashboard.get({ timePeriod: 'today' });
+
+// 获取漏斗分析
+const funnel = await client.analytics.getFunnel({ product: 'game_a' });
+</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function filterEndpoints(query) {
+            const cards = document.querySelectorAll('.endpoint-card');
+            const lowerQuery = query.toLowerCase();
+            
+            cards.forEach(card => {
+                const text = card.textContent.toLowerCase();
+                card.style.display = text.includes(lowerQuery) ? 'block' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>

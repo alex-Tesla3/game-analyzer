@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>游戏资料库 · 玩法拆解</title>
+    <link rel="stylesheet" href="/static/css/analysis-guide.css">
+    <script src="/static/js/device-id.js"></script>
+    <script src="/static/js/auth-token.js"></script>
+    <link rel="stylesheet" href="/static/css/scenario-workspace.css">
+    <script src="/static/js/analysis-guide.js"></script>
+    <script src="/static/js/scenario-report.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0f1419;
+            --panel: #1a2332;
+            --panel-2: #243044;
+            --text: #e7ecf3;
+            --muted: #94a3b8;
+            --accent: #06b6d4;
+            --accent-2: #8b5cf6;
+            --border: rgba(255,255,255,0.08);
+            --ok: #22c55e;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(26,35,50,0.9);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .topbar h1 { font-size: 1.25rem; font-weight: 600; }
+        .topbar p { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+        .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn {
+            border: 1px solid var(--border);
+            background: var(--panel);
+            color: var(--text);
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        .btn:hover { border-color: var(--accent); }
+        .btn-primary { background: linear-gradient(135deg, var(--accent), #0891b2); border: none; }
+        .btn-ghost { background: transparent; }
+        .layout {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            padding: 20px 24px 40px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        @media (max-width: 960px) {
+            .layout { grid-template-columns: 1fr; }
+        }
+        .sidebar-panel, .main-panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .filters {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            display: grid;
+            gap: 10px;
+        }
+        .filters input, .filters select {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--panel-2);
+            color: var(--text);
+        }
+        .game-list { max-height: calc(100vh - 220px); overflow-y: auto; }
+        .game-item {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.15s;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+        .game-item:hover, .game-item.active { background: var(--panel-2); }
+        .game-item-body { flex: 1; min-width: 0; }
+        .game-item h3 { font-size: 0.95rem; margin-bottom: 6px; }
+        .game-item .meta { font-size: 0.75rem; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn-icon-delete {
+            flex-shrink: 0;
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 0.85rem;
+            line-height: 1;
+            margin-top: 2px;
+        }
+        .btn-icon-delete:hover {
+            color: #f87171;
+            border-color: rgba(248,113,113,0.5);
+            background: rgba(248,113,113,0.1);
+        }
+        .btn-danger {
+            background: rgba(239,68,68,0.15);
+            border: 1px solid rgba(239,68,68,0.35);
+            color: #fca5a5;
+        }
+        .btn-danger:hover { border-color: #ef4444; color: #fecaca; }
+        .btn-danger-solid {
+            background: #dc2626;
+            border: none;
+            color: #fff;
+        }
+        .btn-danger-solid:hover { background: #b91c1c; }
+        .btn-danger-solid:disabled { opacity: 0.45; cursor: not-allowed; }
+        .delete-warning {
+            padding: 14px;
+            border-radius: 10px;
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.25);
+            color: #fca5a5;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+        .delete-target {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 12px;
+        }
+        .delete-check {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-bottom: 4px;
+            cursor: pointer;
+        }
+        .delete-check input { margin-top: 3px; accent-color: #ef4444; }
+        .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(6,182,212,0.15);
+            color: var(--accent);
+            font-size: 0.7rem;
+        }
+        .main-panel { min-height: 600px; }
+        .empty {
+            padding: 80px 24px;
+            text-align: center;
+            color: var(--muted);
+        }
+        .detail-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        .cover {
+            width: 72px;
+            height: 72px;
+            border-radius: 16px;
+            background: var(--panel-2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+        }
+        .tabs {
+            display: flex;
+            gap: 4px;
+            padding: 0 24px;
+            border-bottom: 1px solid var(--border);
+        }
+        .tab {
+            padding: 12px 16px;
+            cursor: pointer;
+            color: var(--muted);
+            border-bottom: 2px solid transparent;
+            font-size: 0.9rem;
+        }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .tab-content { padding: 24px; display: none; }
+        .tab-content.active { display: block; }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .info-card {
+            background: var(--panel-2);
+            border-radius: 12px;
+            padding: 14px;
+        }
+        .info-card label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; }
+        .info-card div { margin-top: 6px; font-weight: 500; }
+        .breakdown-section {
+            margin-bottom: 20px;
+            background: var(--panel-2);
+            border-radius: 12px;
+            padding: 16px;
+        }
+        .breakdown-section h4 { margin-bottom: 4px; color: var(--accent); }
+        .breakdown-section .hint { font-size: 0.75rem; color: var(--muted); margin-bottom: 10px; }
+        .breakdown-section textarea {
+            width: 100%;
+            min-height: 88px;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #0f1419;
+            color: var(--text);
+            resize: vertical;
+            font-family: inherit;
+            line-height: 1.5;
+        }
+        .competitor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        .comp-card {
+            background: var(--panel-2);
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+        .comp-card:hover { border-color: var(--accent); }
+        .ref-box {
+            margin-top: 16px;
+            padding: 14px;
+            border-radius: 12px;
+            background: rgba(139,92,246,0.1);
+            border: 1px solid rgba(139,92,246,0.25);
+            font-size: 0.85rem;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+        .ref-box strong { color: var(--accent-2); }
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-backdrop.open { display: flex; }
+        .modal {
+            width: 100%;
+            max-width: 480px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 24px 48px rgba(0,0,0,0.4);
+        }
+        .modal h3 { margin-bottom: 16px; font-size: 1.1rem; }
+        .form-row { margin-bottom: 14px; }
+        .form-row label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+        .form-row input, .form-row select, .form-row textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--panel-2);
+            color: var(--text);
+            font-family: inherit;
+        }
+        .form-row textarea { min-height: 72px; resize: vertical; }
+        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 12px 18px;
+            border-radius: 10px;
+            background: var(--panel-2);
+            border: 1px solid var(--border);
+            z-index: 200;
+            font-size: 0.9rem;
+            display: none;
+        }
+        .toast.show { display: block; }
+        .toast.error { border-color: #ef4444; color: #fca5a5; }
+        .toast.ok { border-color: var(--ok); }
+        .ai-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 16px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: rgba(6,182,212,0.08);
+            border: 1px solid rgba(6,182,212,0.2);
+        }
+        .ai-bar p { font-size: 0.8rem; color: var(--muted); flex: 1 1 200px; margin: 0; }
+        .btn-ai {
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            border: none;
+            color: #fff;
+        }
+        .btn-ai:disabled { opacity: 0.6; cursor: wait; }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div>
+            <h1>🎮 游戏资料库 · 玩法拆解</h1>
+            <p>参考 GameRefinery / Sensor Tower 档案结构，沉淀竞品信息与核心玩法分析</p>
+        </div>
+        <div class="actions">
+            <button class="btn btn-ghost" onclick="location.href='/dashboard'">← 返回看板</button>
+            <button class="btn btn-ghost" onclick="location.href='/games/compare'">竞品工作台</button>
+            <button class="btn btn-ghost" onclick="location.href='/games/review'">复盘与归档</button>
+            <button class="btn btn-ghost" onclick="location.href='/dashboard#analysis-guide'">分析指引</button>
+            <button class="btn" onclick="syncMvp()">同步 Steam MVP</button>
+            <button class="btn btn-primary" onclick="openCreateModal()">+ 添加游戏</button>
+        </div>
+    </header>
+
+    <div id="module-guide-root" style="max-width:1400px;margin:0 auto;padding:16px 24px 0;"></div>
+
+    <div class="layout">
+        <aside class="sidebar-panel">
+            <div class="filters">
+                <input type="search" id="search-input" placeholder="搜索游戏名、标签…" oninput="debouncedLoad()">
+                <select id="genre-filter" onchange="loadGames()">
+                    <option value="all">全部品类</option>
+                </select>
+            </div>
+            <div class="game-list" id="game-list"></div>
+        </aside>
+
+        <main class="main-panel" id="main-panel">
+            <div class="empty" id="empty-state">
+                <div style="font-size:3rem;margin-bottom:12px;">📚</div>
+                <p>从左侧选择游戏，查看资料与玩法拆解</p>
+                <p style="margin-top:8px;font-size:0.85rem;">或点击「同步 Steam MVP」导入已抓取的真实竞品</p>
+            </div>
+            <div id="detail-view" style="display:none;"></div>
+        </main>
+    </div>
+
+    <div class="modal-backdrop" id="create-modal" onclick="if(event.target===this)closeCreateModal()">
+        <div class="modal" role="dialog" aria-labelledby="create-modal-title">
+            <h3 id="create-modal-title">添加游戏到资料库</h3>
+            <div class="form-row">
+                <label for="create-name">游戏名称 *</label>
+                <input id="create-name" type="text" placeholder="如：王者荣耀 / CS2" autocomplete="off">
+            </div>
+            <div class="form-row">
+                <label for="create-genre">品类</label>
+                <select id="create-genre"></select>
+            </div>
+            <div class="form-row">
+                <label for="create-steam">Steam AppID（可选）</label>
+                <input id="create-steam" type="text" placeholder="如：730" inputmode="numeric">
+            </div>
+            <div class="form-row">
+                <label for="create-summary">简介（可选）</label>
+                <textarea id="create-summary" placeholder="一句话描述产品定位…"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn" onclick="closeCreateModal()">取消</button>
+                <button type="button" class="btn btn-primary" id="create-submit-btn" onclick="submitCreateGame()">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="delete-modal" onclick="if(event.target===this)closeDeleteModal()">
+        <div class="modal" role="alertdialog" aria-labelledby="delete-modal-title">
+            <h3 id="delete-modal-title">确认删除游戏</h3>
+            <div class="delete-target" id="delete-target-name"></div>
+            <div class="delete-warning">
+                删除后该游戏将从资料库列表中移除，关联的玩法拆解也不再显示。
+                此操作不可在界面内撤销，之后可通过「添加游戏」或「同步 Steam MVP」重新导入。
+            </div>
+            <label class="delete-check">
+                <input type="checkbox" id="delete-confirm-check" onchange="updateDeleteConfirmState()">
+                <span>我已了解后果，确认删除该游戏</span>
+            </label>
+            <div class="modal-actions">
+                <button type="button" class="btn" onclick="closeDeleteModal()">取消</button>
+                <button type="button" class="btn btn-danger-solid" id="delete-confirm-btn" disabled onclick="confirmDeleteGame()">确认删除</button>
+            </div>
+        </div>
+    </div>
+    <div class="toast" id="toast"></div>
+
+    <script>
+        let currentGameId = null;
+        let metaGenres = [];
+        let llmConfigured = false;
+        let debounceTimer = null;
+        let pendingDelete = null;
+
+        function getToken() {
+            return typeof getAuthToken === 'function' ? getAuthToken() : '';
+        }
+
+        function debouncedLoad() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(loadGames, 300);
+        }
+
+        async function api(path, options = {}) {
+            const token = getToken();
+            if (!token) {
+                location.href = '/login?redirect=' + encodeURIComponent('/games/library');
+                return null;
+            }
+            const sep = path.includes('?') ? '&' : '?';
+            const url = path + sep + 'token=' + encodeURIComponent(token);
+            const response = await fetch(url, options);
+            if (response.status === 401) {
+                location.href = '/login?redirect=' + encodeURIComponent('/games/library');
+                return null;
+            }
+            let data = null;
+            try {
+                data = await response.json();
+            } catch (_) {
+                data = { success: false, message: '服务器响应异常' };
+            }
+            if (!response.ok && data && !data.message) {
+                data.message = data.detail || ('请求失败 (' + response.status + ')');
+            }
+            return data;
+        }
+
+        function showToast(message, type) {
+            const el = document.getElementById('toast');
+            el.textContent = message;
+            el.className = 'toast show ' + (type || '');
+            clearTimeout(showToast._timer);
+            showToast._timer = setTimeout(() => { el.className = 'toast'; }, 3500);
+        }
+
+        async function init() {
+            if (!getToken()) {
+                location.href = '/login?redirect=' + encodeURIComponent('/games/library');
+                return;
+            }
+            if (window.AnalysisGuide) {
+                AnalysisGuide.renderModuleGuide('module-guide-root', 'breakdown');
+            }
+            const meta = await api('/api/games/library/meta');
+            if (meta?.success) {
+                llmConfigured = !!meta.llm_configured;
+                metaGenres = meta.genres || [];
+                const filterSelect = document.getElementById('genre-filter');
+                const createSelect = document.getElementById('create-genre');
+                metaGenres.forEach(g => {
+                    const opt = document.createElement('option');
+                    opt.value = g;
+                    opt.textContent = g;
+                    filterSelect.appendChild(opt);
+                    const opt2 = opt.cloneNode(true);
+                    createSelect.appendChild(opt2);
+                });
+            }
+            await loadGames();
+            const params = new URLSearchParams(location.search);
+            if (params.get('game_id')) {
+                selectGame(params.get('game_id'));
+            }
+        }
+
+        async function loadGames() {
+            const search = document.getElementById('search-input').value.trim();
+            const genre = document.getElementById('genre-filter').value;
+            let path = '/api/games/library';
+            const q = new URLSearchParams();
+            if (genre && genre !== 'all') q.set('genre', genre);
+            if (search) q.set('search', search);
+            if (q.toString()) path += '?' + q.toString();
+
+            const result = await api(path);
+            const list = document.getElementById('game-list');
+            if (!result?.success || !result.games.length) {
+                list.innerHTML = '<div class="empty" style="padding:40px 16px;">暂无游戏，请添加或同步 MVP 数据</div>';
+                if (!result?.games?.length) {
+                    currentGameId = null;
+                    clearDetailView();
+                }
+                return;
+            }
+            list.innerHTML = result.games.map(g => `
+                <div class="game-item ${g.game_id === currentGameId ? 'active' : ''}" onclick="selectGame('${escapeJs(g.game_id)}')">
+                    <div class="game-item-body">
+                        <h3>${g.cover_emoji || '🎮'} ${escapeHtml(g.name)}</h3>
+                        <div class="meta">
+                            ${g.genre ? `<span class="tag">${escapeHtml(g.genre)}</span>` : ''}
+                            <span>${escapeHtml(g.business_model || '')}</span>
+                            <span>${escapeHtml(g.source || '')}</span>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-icon-delete" title="删除" onclick="event.stopPropagation(); openDeleteModal('${escapeJs(g.game_id)}', '${escapeJs(g.name)}')">🗑</button>
+                </div>
+            `).join('');
+        }
+
+        async function selectGame(gameId) {
+            currentGameId = gameId;
+            loadGames();
+            const result = await api('/api/games/library/' + encodeURIComponent(gameId));
+            if (!result?.success) return;
+            renderDetail(result);
+            history.replaceState(null, '', '?game_id=' + encodeURIComponent(gameId));
+        }
+
+        function renderDetail(data) {
+            const g = data.game;
+            const b = data.breakdown || {};
+            document.getElementById('empty-state').style.display = 'none';
+            const view = document.getElementById('detail-view');
+            view.style.display = 'block';
+
+            const platforms = (g.platforms || []).join(' · ') || '—';
+            const tags = (g.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join(' ');
+
+            view.innerHTML = `
+                <div class="detail-header">
+                    <div class="cover">${g.cover_emoji || '🎮'}</div>
+                    <div style="flex:1;">
+                        <h2 style="font-size:1.4rem;margin-bottom:6px;">${escapeHtml(g.name)}</h2>
+                        <p style="color:var(--muted);font-size:0.9rem;line-height:1.5;">${escapeHtml(g.summary || '暂无简介')}</p>
+                        <div style="margin-top:10px;">${tags}</div>
+                    </div>
+                    <button type="button" class="btn btn-danger" onclick="openDeleteModal('${escapeJs(g.game_id)}', '${escapeJs(g.name)}')">🗑 删除</button>
+                </div>
+                <div class="tabs">
+                    <div class="tab active" data-tab="overview" onclick="switchTab('overview', this)">📋 资料概览</div>
+                    <div class="tab" data-tab="breakdown" onclick="switchTab('breakdown', this)">🧩 玩法拆解</div>
+                    <div class="tab" data-tab="versions" onclick="switchTab('versions', this)">📅 版本迭代</div>
+                    <div class="tab" data-tab="competitors" onclick="switchTab('competitors', this)">⚔️ 对标竞品</div>
+                    <div class="tab" data-tab="ai-report" onclick="switchTab('ai-report', this)">🤖 AI 总结</div>
+                </div>
+                <div class="tab-content active" id="tab-overview">
+                    <div class="info-grid">
+                        <div class="info-card"><label>品类</label><div>${escapeHtml(g.genre || '—')} / ${escapeHtml(g.sub_genre || '—')}</div></div>
+                        <div class="info-card"><label>平台</label><div>${escapeHtml(platforms)}</div></div>
+                        <div class="info-card"><label>商业模式</label><div>${escapeHtml(g.business_model || '—')}</div></div>
+                        <div class="info-card"><label>开发商</label><div>${escapeHtml(g.developer || '—')}</div></div>
+                        <div class="info-card"><label>Steam AppID</label><div>${escapeHtml(g.steam_app_id || '—')}</div></div>
+                        <div class="info-card"><label>数据来源</label><div>${escapeHtml(g.source || 'manual')}</div></div>
+                    </div>
+                    <div class="ref-box">
+                        <strong>同类平台参考：</strong>GameRefinery 用 Feature Tags 标注玩法特征；
+                        Sensor Tower 用 App Profile 聚合品类、变现与受众；
+                        Gamalytic 侧重 Steam 标签与趋势。本模块将「档案 + 玩法拆解」合并为可编辑的竞品知识库。
+                    </div>
+                </div>
+                <div class="tab-content" id="tab-breakdown">
+                    <div class="ai-bar">
+                        <p id="ai-hint">${llmConfigured
+                            ? '🤖 已接入 LLM：可基于档案与 Steam MVP 评论自动生成七维玩法拆解，减少手工填写。'
+                            : '⚠️ 未配置 LLM，AI 将回退为规则引擎初稿。管理员可在 <a href="/admin" style="color:var(--accent);">系统管理 → LLM配置</a> 接入 OpenAI / Ollama。'}</p>
+                        <button type="button" class="btn btn-ai" id="btn-ai-generate" onclick="generateBreakdownAI(false)">🤖 AI 生成拆解</button>
+                        <button type="button" class="btn btn-ai" id="btn-ai-refine" onclick="generateBreakdownAI(true)">✨ AI 优化当前</button>
+                    </div>
+                    ${(data.sections || []).map(s => `
+                        <div class="breakdown-section">
+                            <h4>${escapeHtml(s.title)}</h4>
+                            <div class="hint">${escapeHtml(s.hint)}</div>
+                            <textarea id="bd-${s.key}" placeholder="填写 ${escapeHtml(s.title)}…">${escapeHtml(b[s.key] || '')}</textarea>
+                        </div>
+                    `).join('')}
+                    <div class="breakdown-section">
+                        <h4>分析备注</h4>
+                        <div class="hint">综合结论、调研来源、待验证假设</div>
+                        <textarea id="bd-analysis_notes">${escapeHtml(b.analysis_notes || '')}</textarea>
+                    </div>
+                    ${b.auto_generated ? '<p style="color:var(--muted);font-size:0.8rem;margin-bottom:12px;">⚡ 含系统自动生成的初稿，保存后将标记为人工确认版本</p>' : ''}
+                    <button class="btn btn-primary" onclick="saveBreakdown()">保存玩法拆解</button>
+                </div>
+                <div class="tab-content" id="tab-versions">
+                    <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;">记录版本号、上线时间与更新摘要，形成单款游戏的迭代时间线。</p>
+                    <div id="version-timeline" class="version-timeline"></div>
+                    <div class="version-form card" style="margin-top:16px;padding:16px;">
+                        <h4 style="margin-bottom:12px;">添加版本记录</h4>
+                        <div class="info-grid" style="margin-bottom:12px;">
+                            <div><label style="font-size:0.75rem;color:var(--muted)">版本号</label>
+                                <input id="ver-label" type="text" placeholder="v1.2.0" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);"></div>
+                            <div><label style="font-size:0.75rem;color:var(--muted)">发布日期</label>
+                                <input id="ver-date" type="date" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);"></div>
+                            <div><label style="font-size:0.75rem;color:var(--muted)">类型</label>
+                                <select id="ver-type" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);">
+                                    <option value="major">大版本</option><option value="minor">小版本</option>
+                                    <option value="patch">补丁</option><option value="balance">平衡性</option>
+                                    <option value="content">内容更新</option><option value="other">其他</option>
+                                </select></div>
+                        </div>
+                        <textarea id="ver-summary" placeholder="更新摘要：新地图、平衡性调整、付费活动…" style="width:100%;min-height:80px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);margin-bottom:12px;"></textarea>
+                        <button type="button" class="btn btn-primary" onclick="addVersionRecord()">添加记录</button>
+                        <button type="button" class="btn btn-ghost" onclick="importVersionsFromMvp()">📡 从 MVP 信号导入</button>
+                        <button type="button" class="btn btn-ghost" onclick="importVersionsFromSteamNews()">📰 从 Steam 新闻导入</button>
+                    </div>
+                    <details style="margin-top:16px;color:var(--muted);font-size:0.85rem;">
+                        <summary style="cursor:pointer;color:var(--accent);">批量粘贴导入</summary>
+                        <p style="margin:8px 0;">每行：<code>版本号 | 日期 | 摘要</code>，例如 <code>v1.2.0 | 2024-06-01 | 平衡性调整</code></p>
+                        <textarea id="ver-import-text" style="width:100%;min-height:80px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);"></textarea>
+                        <button type="button" class="btn" style="margin-top:8px;" onclick="importVersionsPaste()">导入</button>
+                    </details>
+                </div>
+                <div class="tab-content" id="tab-competitors">
+                    <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;">在本页直接对比当前游戏与对标竞品，无需跳转。MVP 同步后按品类自动关联；单品类时会补相近品类。</p>
+                    <button type="button" class="btn btn-primary" onclick="runInlineCompare()">⚔️ 对比当前 + 对标竞品</button>
+                    <div id="inline-compare-result" style="margin-top:16px;"></div>
+                    <div class="competitor-grid" id="competitor-grid" style="margin-top:16px;">
+                        ${(data.competitors || []).length ? data.competitors.map(c => `
+                            <div class="comp-card" onclick="selectGame('${c.game_id}')">
+                                <div style="font-size:1.5rem;">${c.cover_emoji || '🎮'}</div>
+                                <div style="margin-top:8px;font-weight:600;">${escapeHtml(c.name)}</div>
+                                <div style="font-size:0.8rem;color:var(--muted);margin-top:4px;">${escapeHtml(c.genre || '')}</div>
+                            </div>
+                        `).join('') : '<p style="color:var(--muted);">暂未关联对标竞品。请点顶部「同步 Steam MVP」或刷新本页自动补链。</p>'}
+                    </div>
+                </div>
+                <div class="tab-content" id="tab-ai-report">
+                    <div class="sr-panel" style="padding:0;border:none;background:transparent;">
+                        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;">基于当前游戏玩法拆解生成总结报告，可归档到案例库。</p>
+                        <div class="sr-toolbar" id="library-ai-toolbar"></div>
+                        <div id="library-ai-output" data-markdown=""></div>
+                    </div>
+                </div>
+            `;
+            wireLibraryAiToolbar();
+            renderVersionTimeline(data.versions || []);
+        }
+
+        function renderVersionTimeline(versions) {
+            const el = document.getElementById('version-timeline');
+            if (!el) return;
+            if (!versions.length) {
+                el.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">暂无版本记录，可在下方添加。</p>';
+                return;
+            }
+            el.innerHTML = versions.map(v =>
+                '<div class="version-item" style="padding:12px 0;border-bottom:1px solid var(--border);">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+                '<strong>' + escapeHtml(v.version_label) + '</strong>' +
+                '<span style="font-size:0.75rem;color:var(--muted);">' + escapeHtml(v.released_at || '') +
+                ' · ' + escapeHtml(v.change_type || '') + '</span></div>' +
+                '<p style="font-size:0.85rem;margin-top:6px;color:var(--text);">' + escapeHtml(v.change_summary || '—') + '</p>' +
+                '<button type="button" class="btn btn-ghost" style="font-size:0.75rem;margin-top:6px;padding:4px 8px;" onclick="deleteVersion(\'' +
+                escapeJs(v.version_id) + '\')">删除</button></div>').join('');
+        }
+
+        async function addVersionRecord() {
+            if (!currentGameId) return;
+            const body = {
+                version_label: document.getElementById('ver-label').value.trim(),
+                released_at: document.getElementById('ver-date').value,
+                change_type: document.getElementById('ver-type').value,
+                change_summary: document.getElementById('ver-summary').value.trim(),
+            };
+            if (!body.version_label) { showToast('请填写版本号', 'error'); return; }
+            const res = await api('/api/games/library/' + encodeURIComponent(currentGameId) + '/versions', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+            });
+            if (res?.success) {
+                showToast('版本记录已添加', 'ok');
+                document.getElementById('ver-label').value = '';
+                document.getElementById('ver-summary').value = '';
+                selectGame(currentGameId);
+            }
+        }
+
+        async function deleteVersion(versionId) {
+            if (!currentGameId || !confirm('删除此版本记录？')) return;
+            await api('/api/games/library/' + encodeURIComponent(currentGameId) + '/versions/' + encodeURIComponent(versionId), { method: 'DELETE' });
+            selectGame(currentGameId);
+        }
+
+        async function importVersionsPaste() {
+            if (!currentGameId) return;
+            const text = document.getElementById('ver-import-text').value;
+            const res = await api('/api/games/library/' + encodeURIComponent(currentGameId) + '/versions/import', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: 'paste', text }),
+            });
+            if (res?.success) { showToast('已导入 ' + (res.created || 0) + ' 条', 'ok'); selectGame(currentGameId); }
+        }
+
+        async function importVersionsFromMvp() {
+            if (!currentGameId) return;
+            const res = await api('/api/games/library/' + encodeURIComponent(currentGameId) + '/versions/import', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: 'mvp_signals' }),
+            });
+            if (res?.success) showToast(res.created ? '已导入 ' + res.created + ' 条 MVP 信号' : '暂无 MVP 更新信号', res.created ? 'ok' : '');
+            if (res?.created) selectGame(currentGameId);
+        }
+
+        async function importVersionsFromSteamNews() {
+            if (!currentGameId) return;
+            const res = await api('/api/games/library/' + encodeURIComponent(currentGameId) + '/versions/import', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: 'steam_news', max_items: 8 }),
+            });
+            if (!res?.success) return;
+            if (res.warning === 'no_steam_news') {
+                showToast('未拉取到 Steam 新闻（请确认 App ID 或网络）', '');
+                return;
+            }
+            const msg = res.created
+                ? ('已导入 ' + res.created + ' 条 Steam 新闻' + (res.skipped ? '，跳过 ' + res.skipped + ' 条重复' : ''))
+                : (res.fetched ? '新闻已存在，未新增记录' : '暂无可用新闻');
+            showToast(msg, res.created ? 'ok' : '');
+            if (res.created) selectGame(currentGameId);
+        }
+
+        let libraryLastReport = null;
+
+        function wireLibraryAiToolbar() {
+            const bar = document.getElementById('library-ai-toolbar');
+            if (!bar) return;
+            ScenarioReport.mountToolbar({
+                toolbarId: 'library-ai-toolbar',
+                generateBtnId: 'lib-btn-gen',
+                copyBtnId: 'lib-btn-copy',
+                archiveBtnId: 'lib-btn-archive',
+                statusId: 'lib-ai-status',
+                generateLabel: '🤖 生成玩法总结报告',
+            });
+            document.getElementById('lib-btn-gen').onclick = async () => {
+                if (!currentGameId) return;
+                document.getElementById('lib-ai-status').textContent = '生成中…';
+                const data = await ScenarioReport.generate('breakdown', { game_ids: [currentGameId] }, getToken());
+                libraryLastReport = data;
+                ScenarioReport.renderResult(document.getElementById('library-ai-output'), data);
+                document.getElementById('lib-ai-status').textContent = ScenarioReport.formatStatus(data);
+            };
+            document.getElementById('lib-btn-copy').onclick = () => {
+                ScenarioReport.copyMarkdown(document.getElementById('library-ai-output'));
+            };
+            document.getElementById('lib-btn-archive').onclick = async () => {
+                if (!libraryLastReport?.success) { alert('请先生成报告'); return; }
+                const res = await ScenarioReport.archiveReport(libraryLastReport, getToken());
+                if (res.success) alert('已归档');
+            };
+        }
+
+        async function runInlineCompare() {
+            if (!currentGameId) return;
+            const detail = await api('/api/games/library/' + encodeURIComponent(currentGameId));
+            const compIds = (detail?.competitors || []).map(c => c.game_id);
+            const ids = [currentGameId, ...compIds].slice(0, 5);
+            if (ids.length < 2) {
+                alert('需要至少 2 款产品（当前 + 对标竞品）');
+                return;
+            }
+            const res = await fetch('/api/games/compare?token=' + encodeURIComponent(getToken()) + '&ids=' + encodeURIComponent(ids.join(',')));
+            const data = await res.json();
+            const el = document.getElementById('inline-compare-result');
+            if (!data.items?.length) { el.innerHTML = '<p style="color:var(--muted)">无对比数据</p>'; return; }
+            el.innerHTML = '<div class="bd-inline-grid">' + data.items.map(item =>
+                '<div class="bd-inline-card"><h4>' + escapeHtml(item.name) + '</h4><p style="font-size:0.8rem;color:var(--muted)">样本好评率 ' +
+                (item.positive_rate ?? '—') + '% · ' + escapeHtml(item.genre || '') + '</p><p style="font-size:0.8rem;margin-top:6px;">' +
+                escapeHtml(item.recommendation || '') + '</p></div>').join('') + '</div>';
+        }
+
+        function switchTab(name, el) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+            document.getElementById('tab-' + name).classList.add('active');
+        }
+
+        async function saveBreakdown() {
+            if (!currentGameId) return;
+            const keys = ['core_loop','progression','level_design','monetization','social_features','session_design','differentiation','benchmarks','analysis_notes'];
+            const body = {};
+            keys.forEach(k => {
+                const el = document.getElementById('bd-' + k);
+                if (el) body[k] = el.value;
+            });
+            const result = await api('/api/games/library/' + encodeURIComponent(currentGameId) + '/breakdown', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (result?.success) showToast('玩法拆解已保存', 'ok');
+            else showToast(result?.message || '保存失败', 'error');
+        }
+
+        async function generateBreakdownAI(refine) {
+            if (!currentGameId) return;
+            const btnGen = document.getElementById('btn-ai-generate');
+            const btnRef = document.getElementById('btn-ai-refine');
+            if (btnGen) btnGen.disabled = true;
+            if (btnRef) btnRef.disabled = true;
+            const label = refine ? 'AI 优化中…' : 'AI 生成中…';
+            if (btnGen) btnGen.textContent = refine ? '🤖 AI 生成拆解' : label;
+            if (btnRef) btnRef.textContent = refine ? label : '✨ AI 优化当前';
+            showToast(refine ? '正在 AI 优化玩法拆解…' : '正在 AI 生成玩法拆解…', '');
+            try {
+                const payload = { refine: !!refine, save: true };
+                if (refine) {
+                    const keys = ['core_loop','progression','level_design','monetization','social_features','session_design','differentiation','benchmarks','analysis_notes'];
+                    const current = {};
+                    keys.forEach(k => {
+                        const el = document.getElementById('bd-' + k);
+                        if (el) current[k] = el.value;
+                    });
+                    payload.current_breakdown = current;
+                }
+                const result = await api(
+                    '/api/games/library/' + encodeURIComponent(currentGameId) + '/breakdown/generate-ai',
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    }
+                );
+                if (result?.success) {
+                    const badge = result.using_llm ? '（LLM）' : '（规则引擎）';
+                    showToast('玩法拆解已更新 ' + badge, 'ok');
+                    if (result.message && !result.using_llm) {
+                        setTimeout(() => showToast(result.message, ''), 3600);
+                    }
+                    await selectGame(currentGameId);
+                    switchTab('breakdown', document.querySelector('.tab[data-tab="breakdown"]'));
+                } else {
+                    showToast(result?.message || 'AI 生成失败', 'error');
+                }
+            } finally {
+                if (btnGen) {
+                    btnGen.disabled = false;
+                    btnGen.textContent = '🤖 AI 生成拆解';
+                }
+                if (btnRef) {
+                    btnRef.disabled = false;
+                    btnRef.textContent = '✨ AI 优化当前';
+                }
+            }
+        }
+
+        async function syncMvp() {
+            const result = await api('/api/games/library/sync-mvp', { method: 'POST' });
+            if (!result) return;
+            if (result.success) {
+                alert(`已同步 ${result.total} 款 Steam 竞品（新建 ${result.created}，更新 ${result.updated}）`);
+                await loadGames();
+                if (result.total > 0) {
+                    const first = document.querySelector('.game-item');
+                    if (first) first.click();
+                }
+            } else {
+                showToast(result.message || '同步失败', 'error');
+            }
+        }
+
+        function openCreateModal() {
+            document.getElementById('create-name').value = '';
+            document.getElementById('create-steam').value = '';
+            document.getElementById('create-summary').value = '';
+            if (metaGenres.length) {
+                document.getElementById('create-genre').value = metaGenres[0];
+            }
+            document.getElementById('create-modal').classList.add('open');
+            setTimeout(() => document.getElementById('create-name').focus(), 50);
+        }
+
+        function closeCreateModal() {
+            document.getElementById('create-modal').classList.remove('open');
+        }
+
+        async function submitCreateGame() {
+            const name = document.getElementById('create-name').value.trim();
+            if (!name) {
+                showToast('请填写游戏名称', 'error');
+                document.getElementById('create-name').focus();
+                return;
+            }
+            const genre = document.getElementById('create-genre').value || '';
+            const steam_app_id = document.getElementById('create-steam').value.trim();
+            const summary = document.getElementById('create-summary').value.trim();
+            const btn = document.getElementById('create-submit-btn');
+            btn.disabled = true;
+            btn.textContent = '创建中…';
+            try {
+                const body = { name, genre, platforms: ['PC'], tags: [] };
+                if (steam_app_id) body.steam_app_id = steam_app_id;
+                if (summary) body.summary = summary;
+                const result = await api('/api/games/library', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                if (result?.success) {
+                    closeCreateModal();
+                    showToast('已添加「' + name + '」', 'ok');
+                    await loadGames();
+                    await selectGame(result.game_id);
+                } else {
+                    showToast(result?.message || '添加失败，请重试', 'error');
+                }
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '创建';
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeDeleteModal();
+                closeCreateModal();
+            }
+            if (e.key === 'Enter' && document.getElementById('create-modal').classList.contains('open')) {
+                const tag = (e.target && e.target.tagName) || '';
+                if (tag !== 'TEXTAREA') submitCreateGame();
+            }
+        });
+
+        function openDeleteModal(gameId, gameName) {
+            pendingDelete = { gameId, gameName: gameName || gameId };
+            document.getElementById('delete-target-name').textContent = '「' + (gameName || gameId) + '」';
+            const check = document.getElementById('delete-confirm-check');
+            check.checked = false;
+            updateDeleteConfirmState();
+            document.getElementById('delete-modal').classList.add('open');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('delete-modal').classList.remove('open');
+            pendingDelete = null;
+            const check = document.getElementById('delete-confirm-check');
+            if (check) check.checked = false;
+            updateDeleteConfirmState();
+        }
+
+        function updateDeleteConfirmState() {
+            const btn = document.getElementById('delete-confirm-btn');
+            const check = document.getElementById('delete-confirm-check');
+            if (btn && check) btn.disabled = !check.checked;
+        }
+
+        async function confirmDeleteGame() {
+            if (!pendingDelete) return;
+            const check = document.getElementById('delete-confirm-check');
+            if (!check || !check.checked) {
+                showToast('请先勾选确认项', 'error');
+                return;
+            }
+            const { gameId, gameName } = pendingDelete;
+            const btn = document.getElementById('delete-confirm-btn');
+            btn.disabled = true;
+            btn.textContent = '删除中…';
+            try {
+                const result = await api('/api/games/library/' + encodeURIComponent(gameId), {
+                    method: 'DELETE',
+                });
+                if (result?.success) {
+                    closeDeleteModal();
+                    showToast('已删除「' + gameName + '」', 'ok');
+                    if (currentGameId === gameId) {
+                        currentGameId = null;
+                        clearDetailView();
+                        history.replaceState(null, '', '/games/library');
+                    }
+                    await loadGames();
+                } else {
+                    showToast(result?.message || '删除失败', 'error');
+                    updateDeleteConfirmState();
+                }
+            } finally {
+                btn.textContent = '确认删除';
+            }
+        }
+
+        function clearDetailView() {
+            document.getElementById('detail-view').style.display = 'none';
+            document.getElementById('empty-state').style.display = 'block';
+        }
+
+        function escapeHtml(str) {
+            return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function escapeJs(str) {
+            return String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        }
+
+        init();
+    </script>
+</body>
+</html>

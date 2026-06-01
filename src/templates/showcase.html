@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Analyzer — Project Showcase</title>
+    <link rel="stylesheet" href="/static/css/app-nav.css">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #f5f5f7; color: #1d1d1f; }
+        .wrap { max-width: 960px; margin: 0 auto; padding: 72px 24px 48px; }
+        h1 { font-size: 2rem; margin-bottom: 8px; }
+        .subtitle { color: #6e6e73; margin-bottom: 32px; }
+        .card { background: #fff; border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+        .card h2 { font-size: 1.1rem; margin: 0 0 12px; }
+        .links { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+        .links a { display: block; padding: 12px 16px; background: #f5f5f7; border-radius: 10px; text-decoration: none; color: #0071e3; font-weight: 500; }
+        .links a:hover { background: #e8e8ed; }
+        ul { margin: 0; padding-left: 20px; line-height: 1.7; }
+        code { background: #f5f5f7; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+        .nav-slot { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(255,255,255,.9); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(0,0,0,.06); padding: 10px 24px; }
+        .badge { display: inline-block; background: #0071e3; color: #fff; font-size: 0.75rem; padding: 4px 10px; border-radius: 999px; margin-left: 8px; vertical-align: middle; }
+        .demo-url { word-break: break-all; font-size: 0.95rem; color: #0071e3; }
+        .demo-hint { color: #6e6e73; font-size: 0.875rem; margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <div class="nav-slot" id="app-nav-mount" data-active="home"></div>
+    <div class="wrap" style="padding-top: 88px;">
+        <h1>Game Analyzer <span class="badge">Portfolio</span></h1>
+        <p class="subtitle">Full-stack game BI &amp; competitor intelligence — FastAPI · vanilla JS · pytest (170+) · Playwright · Docker</p>
+
+        <div class="card">
+            <h2>Demo video（~60s）</h2>
+            <video controls playsinline style="width:100%;max-width:720px;border-radius:12px;background:#000;" poster="/static/img/showcase/01-dashboard.png">
+                <source src="/static/demo/game-analyzer-demo.mp4" type="video/mp4">
+            </video>
+            <p class="demo-hint">重录：<code>./scripts/record_demo_video.sh</code></p>
+        </div>
+
+        <div class="card" id="public-demo-card" style="display:none;">
+            <h2>Live Demo（公网）</h2>
+            <p class="demo-url"><a id="public-demo-link" href="{{PUBLIC_DEMO_BASE_URL}}/showcase" target="_blank" rel="noopener">{{PUBLIC_DEMO_BASE_URL}}/showcase</a></p>
+            <p class="demo-hint">Demo 账号：<code>demo</code> / <code>demo123</code> · 推荐路径：<code>/showcase</code> → <code>/dashboard</code> → <code>/games/compare</code></p>
+        </div>
+
+        <div class="card">
+            <h2>Try the product（本地）</h2>
+            <div class="links">
+                <a href="/">产品首页</a>
+                <a href="/dashboard">数据看板</a>
+                <a href="/guide">分析向导</a>
+                <a href="/games/compare">竞品分析</a>
+                <a href="/games/review">复盘归档</a>
+                <a href="/team">团队协作</a>
+                <a href="/login?redirect=%2Fdashboard">登录 Demo</a>
+            </div>
+            <p style="margin-top:16px;color:#6e6e73;font-size:0.875rem;">Demo 账号（如已启用）：<code>demo</code> / <code>demo123</code></p>
+        </div>
+
+        <div class="card">
+            <h2>Architecture</h2>
+            <ul>
+                <li><strong>API</strong> — 17 FastAPI routers (data, wizard, competitor, team, billing, support)</li>
+                <li><strong>Data</strong> — SQLite + MVP snapshots + CSV import; provenance-aware fallback</li>
+                <li><strong>Frontend</strong> — Multi-page dashboard; <code>dashboard-filters.js</code> modular filter pipeline</li>
+                <li><strong>Quality</strong> — 170+ pytest cases, Playwright E2E, GitHub Actions CI</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>Resume highlights</h2>
+            <ul>
+                <li>统一多源数据目录（CSV / MVP Steam / mock），修复看板筛选与 KPI 服务端重算</li>
+                <li>端到端链路：采集 → 报告 → 归档 → 团队共享 → 复测（CS2/Dota2 可复现案例）</li>
+                <li>工程化：模块化前端、健康检查、Docker/Fly/Cloudflare 隧道部署文档</li>
+            </ul>
+            <p class="demo-hint">完整 STAR 描述见仓库 <code>docs/RESUME.md</code></p>
+        </div>
+
+        <div class="card">
+            <h2>Documentation</h2>
+            <ul>
+                <li><code>docs/RESUME.md</code> — 简历 STAR bullet（中英文）</li>
+                <li><code>docs/PROJECT_SHOWCASE.md</code> — architecture + portfolio</li>
+                <li><code>docs/GITHUB_PUBLISH.md</code> — 独立 GitHub 仓库发布指南</li>
+                <li><code>docs/DEPLOY.md</code> — Fly.io / Railway / Docker / 隧道</li>
+                <li><code>docs/CASE_STUDY_CS2_DOTA2.md</code> — CS vs Dota 2 demo script</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>Screenshots</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;">
+                <figure><img src="/static/img/showcase/01-dashboard.png" alt="Dashboard" style="width:100%;border-radius:8px;border:1px solid #e5e5ea;"><figcaption style="font-size:0.8rem;color:#6e6e73;margin-top:6px;">数据看板</figcaption></figure>
+                <figure><img src="/static/img/showcase/02-guide.png" alt="Guide" style="width:100%;border-radius:8px;border:1px solid #e5e5ea;"><figcaption style="font-size:0.8rem;color:#6e6e73;margin-top:6px;">分析向导</figcaption></figure>
+                <figure><img src="/static/img/showcase/03-compare.png" alt="Compare" style="width:100%;border-radius:8px;border:1px solid #e5e5ea;"><figcaption style="font-size:0.8rem;color:#6e6e73;margin-top:6px;">竞品分析</figcaption></figure>
+                <figure><img src="/static/img/showcase/04-team.png" alt="Team" style="width:100%;border-radius:8px;border:1px solid #e5e5ea;"><figcaption style="font-size:0.8rem;color:#6e6e73;margin-top:6px;">团队协作</figcaption></figure>
+                <figure><img src="/static/img/showcase/05-showcase.png" alt="Showcase" style="width:100%;border-radius:8px;border:1px solid #e5e5ea;"><figcaption style="font-size:0.8rem;color:#6e6e73;margin-top:6px;">作品集页</figcaption></figure>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Health</h2>
+            <pre id="health-json" style="background:#f5f5f7;padding:12px;border-radius:8px;overflow:auto;font-size:0.8rem;">Loading…</pre>
+        </div>
+    </div>
+    <script src="/static/js/app-nav.js"></script>
+    <script>
+        if (window.AppNav) AppNav.mount('#app-nav-mount');
+        if ('{{HAS_PUBLIC_DEMO}}' === 'true') {
+            document.getElementById('public-demo-card').style.display = 'block';
+        }
+        fetch('/api/health').then(r => r.json()).then(j => {
+            document.getElementById('health-json').textContent = JSON.stringify(j, null, 2);
+        }).catch(() => {
+            document.getElementById('health-json').textContent = 'Health check unavailable';
+        });
+    </script>
+</body>
+</html>

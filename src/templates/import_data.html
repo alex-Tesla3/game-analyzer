@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>导入 Owner 指标</title>
+    <script src="/static/js/auth-token.js"></script>
+    <script src="/static/js/data-provenance.js"></script>
+    <style>
+        :root { --bg:#0f1419; --panel:#1a2332; --text:#e7ecf3; --muted:#94a3b8; --accent:#06b6d4; --border:rgba(255,255,255,0.08); }
+        body { font-family:-apple-system,BlinkMacSystemFont,sans-serif; background:var(--bg); color:var(--text); margin:0; min-height:100vh; }
+        .topbar { display:flex; justify-content:space-between; align-items:center; padding:16px 24px; border-bottom:1px solid var(--border); }
+        .layout { max-width:720px; margin:0 auto; padding:24px; }
+        .card { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:20px; margin-bottom:16px; }
+        .btn { border:1px solid var(--border); background:var(--panel); color:var(--text); padding:10px 16px; border-radius:8px; cursor:pointer; text-decoration:none; display:inline-block; }
+        .btn-primary { background:linear-gradient(135deg,var(--accent),#0891b2); border:none; font-weight:600; }
+        .hint { color:var(--muted); font-size:0.85rem; line-height:1.5; margin-bottom:12px; }
+        pre { background:#243044; padding:12px; border-radius:8px; overflow:auto; font-size:0.8rem; }
+        #status { margin-top:12px; font-size:0.85rem; color:var(--muted); }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <strong>📥 导入 Owner 指标</strong>
+        <a class="btn" href="/guide">← 分析向导</a>
+    </header>
+    <main class="layout">
+        <div id="provenance-banner" style="display:none;margin-bottom:16px;"></div>
+        <div class="card">
+            <h1 style="font-size:1.2rem;margin-bottom:8px;">上传 CSV 指标数据</h1>
+            <p class="hint">导入后系统将优先使用您的 DAU、留存、收入等指标（覆盖 Mock）。Steam 口碑仍来自公开评论抓取。必填列：<code>product</code>、<code>metric</code>、<code>值</code>（或 value）。</p>
+            <input type="file" id="file-input" accept=".csv,.xlsx,.xls">
+            <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+                <button type="button" class="btn btn-primary" id="btn-upload">上传并导入</button>
+                <button type="button" class="btn" id="btn-template">下载 CSV 模板</button>
+            </div>
+            <p id="status"></p>
+        </div>
+        <div class="card">
+            <h2 style="font-size:1rem;margin-bottom:8px;">示例格式</h2>
+            <pre id="sample-pre">加载中…</pre>
+        </div>
+    </main>
+    <script>
+        function token() { return typeof getAuthToken === 'function' ? getAuthToken() : ''; }
+        if (!token()) location.href = '/login?redirect=' + encodeURIComponent('/import');
+
+        document.getElementById('btn-template').onclick = async () => {
+            const res = await fetch('/api/import/template?dataset_type=metrics&token=' + encodeURIComponent(token()));
+            const blob = await res.blob();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'metrics_template.csv';
+            a.click();
+        };
+
+        document.getElementById('btn-upload').onclick = async () => {
+            const file = document.getElementById('file-input').files[0];
+            if (!file) { alert('请选择文件'); return; }
+            const status = document.getElementById('status');
+            status.textContent = '导入中…';
+            const form = new FormData();
+            form.append('file', file);
+            const res = await fetch('/api/import/file?token=' + encodeURIComponent(token()) + '&dataset_type=metrics', {
+                method: 'POST',
+                body: form,
+            });
+            const data = await res.json();
+            status.textContent = data.success
+                ? ('✅ 已导入 metrics=' + (data.counts?.metrics || 0) + '，comments=' + (data.counts?.comments || 0))
+                : ('❌ ' + (data.message || '导入失败'));
+            if (data.success) {
+                const prov = await DataProvenance.fetchProvenance(token());
+                DataProvenance.renderBanner('provenance-banner', prov);
+            }
+        };
+
+        fetch('/api/import/template?dataset_type=metrics&token=' + encodeURIComponent(token()))
+            .then(r => r.text())
+            .then(t => { document.getElementById('sample-pre').textContent = t.slice(0, 800); })
+            .catch(() => {});
+
+        DataProvenance.fetchProvenance(token()).then(p => DataProvenance.renderBanner('provenance-banner', p));
+    </script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Analytics · Steam 竞品分析</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(160deg, #0f1419 0%, #1a2332 50%, #0f3460 100%);
+            color: #e7ecf3;
+            min-height: 100vh;
+        }
+        .wrap { max-width: 880px; margin: 0 auto; padding: 72px 24px 64px; text-align: center; }
+        h1 { font-size: 2rem; margin-bottom: 12px; letter-spacing: -0.02em; }
+        .sub { color: #94a3b8; font-size: 1.05rem; line-height: 1.6; margin-bottom: 32px; }
+        .user-bar { font-size: 0.85rem; color: #86efac; margin-bottom: 16px; display: none; }
+        .landing-topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            display: flex; align-items: center; justify-content: center;
+            padding: 8px 20px; background: rgba(15, 20, 25, 0.88);
+            backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .landing-topbar .app-nav-item { color: #94a3b8; }
+        .landing-topbar .app-nav-item:hover { color: #e7ecf3; background: rgba(255,255,255,0.06); }
+        .landing-topbar .app-nav-item.active { color: #67e8f9; }
+        .landing-topbar .app-nav-dropdown { background: #1a2332; border-color: rgba(255,255,255,0.1); }
+        .landing-topbar .app-nav-dropdown a { color: #e7ecf3; }
+        .landing-topbar .app-nav-dropdown a:hover { background: rgba(255,255,255,0.06); }
+        .cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-bottom: 48px; }
+        .btn {
+            padding: 14px 28px; border-radius: 12px; font-size: 1rem; font-weight: 600;
+            text-decoration: none; border: none; cursor: pointer;
+        }
+        .btn-primary { background: linear-gradient(135deg, #06b6d4, #0891b2); color: #fff; }
+        .btn-ghost { background: rgba(255,255,255,0.08); color: #e7ecf3; border: 1px solid rgba(255,255,255,0.15); }
+        .btn-demo { background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; }
+        .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; text-align: left; }
+        .feat { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 20px; }
+        .feat h3 { font-size: 0.95rem; margin-bottom: 8px; color: #06b6d4; }
+        .feat p { font-size: 0.85rem; color: #94a3b8; line-height: 1.5; }
+        .steps { text-align: left; margin: 32px 0; padding: 20px; border-radius: 14px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); }
+        .steps h2 { font-size: 1rem; margin-bottom: 12px; color: #c4b5fd; }
+        .steps ol { padding-left: 20px; color: #94a3b8; font-size: 0.9rem; line-height: 1.8; }
+        .boundary { margin-top: 24px; padding: 16px; border-radius: 12px; background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); font-size: 0.85rem; color: #fcd34d; text-align: left; }
+        #demo-status { font-size: 0.85rem; color: #94a3b8; margin-top: 12px; min-height: 1.2em; }
+        .user-bar { font-size: 0.85rem; color: #86efac; margin-bottom: 16px; display: none; }
+    </style>
+    <script src="/static/js/auth-token.js"></script>
+    <script src="/static/js/auth-nav.js"></script>
+    <link rel="stylesheet" href="/static/css/app-nav.css">
+    <script src="/static/js/app-nav.js" defer></script>
+</head>
+<body>
+    <header class="landing-topbar">
+        <div id="app-nav-mount" data-active="home"></div>
+    </header>
+    <div class="wrap">
+        <p id="user-bar" class="user-bar"></p>
+        <h1>🎮 游戏竞品口碑分析</h1>
+        <p class="sub">支持 Steam / TapTap / Google Play。输入游戏名或 AppID，自动生成可执行竞品报告、行动清单与复测闭环。<br>面向制作人 / 策划 / 运营的一站式竞品调研与落地指导。</p>
+        <div class="cta">
+            <button type="button" class="btn btn-demo" id="btn-demo">⚡ 一键体验 Demo（CS2 vs Dota2）</button>
+            <a class="btn btn-primary" id="btn-start" href="#">开始分析 →</a>
+            <a class="btn btn-ghost" id="btn-work" href="#">落地指导</a>
+            <a class="btn btn-ghost" id="btn-dashboard" href="#">查看看板</a>
+        </div>
+        <p id="demo-status"></p>
+        <div class="steps">
+            <h2>3 分钟 Demo 剧本</h2>
+            <ol>
+                <li>点击「一键体验 Demo」→ 自动加载 CS2 / Dota 2 样本数据</li>
+                <li>在分析向导生成报告 → 查看 P0/P1 行动清单</li>
+                <li>在「落地指导」导出 CSV/飞书 → 分享给团队 → 2 周后复测验证</li>
+            </ol>
+        </div>
+        <div class="features">
+            <div class="feat"><h3>① 游戏名搜索</h3><p>支持英文名、简称（CS2）或 AppID，无需查数字 ID。</p></div>
+            <div class="feat"><h3>② 可执行清单</h3><p>负责人、验证指标、逾期提醒；可导出 CSV / 飞书 / Jira。</p></div>
+            <div class="feat"><h3>③ 团队协作</h3><p>分享报告链接，团队成员在协作页查看归档与行动项。</p></div>
+            <div class="feat"><h3>④ 多平台</h3><p>Steam PC、TapTap 与 Google Play 手游，支持中文游戏名。</p></div>
+        </div>
+        <div class="boundary">
+            <strong>数据边界</strong>：Steam 口碑来自公开评论（真数据）；看板高级漏斗/实时曲线可能为演示模型（页面会标注）。Owner DAU/收入请通过「导入指标」上传 CSV。
+        </div>
+    </div>
+    <script>
+        const statusEl = document.getElementById('demo-status');
+
+        document.getElementById('btn-demo').onclick = () => {
+            statusEl.textContent = '正在进入 Demo…';
+            AuthNav.goWithAuth('/guide?demo=1&autorun=1', { statusEl, statusHint: '跳转登录后将自动加载 Demo…' });
+        };
+        document.getElementById('btn-start').onclick = (e) => {
+            e.preventDefault();
+            AuthNav.goWithAuth('/guide');
+        };
+        document.getElementById('btn-work').onclick = (e) => {
+            e.preventDefault();
+            AuthNav.goWithAuth('/work');
+        };
+        document.getElementById('btn-dashboard').onclick = (e) => {
+            e.preventDefault();
+            AuthNav.goWithAuth('/dashboard');
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.AppNav) AppNav.mount('#app-nav-mount');
+        });
+
+        (async function initWelcome() {
+            const token = typeof getAuthToken === 'function' ? getAuthToken() : '';
+            if (!token || !(await AuthNav.validateToken(token))) return;
+            try {
+                const res = await fetch('/api/user?token=' + encodeURIComponent(token));
+                const me = await res.json();
+                const bar = document.getElementById('user-bar');
+                bar.style.display = 'block';
+                bar.textContent = '已登录：' + (me.full_name || me.username || '') +
+                    (me.api_remaining != null && me.api_quota_monthly >= 0
+                        ? ' · API 剩余 ' + me.api_remaining + '/' + me.api_quota_monthly
+                        : '');
+            } catch (_) {}
+        })();
+    </script>
+</body>
+</html>

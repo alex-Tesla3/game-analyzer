@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>团队协作 · Game Analyzer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #0f1419; color: #e7ecf3; min-height: 100vh; padding: 24px;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+        }
+        .header h1 { font-size: 1.4rem; }
+        .header p { color: #94a3b8; font-size: 0.85rem; margin-top: 4px; }
+        .btn {
+            padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);
+            background: #1a2332; color: #e7ecf3; cursor: pointer; text-decoration: none; font-size: 0.875rem;
+        }
+        .btn-primary { background: linear-gradient(135deg, #06b6d4, #0891b2); border: none; }
+        .grid { display: grid; grid-template-columns: 280px 1fr; gap: 16px; }
+        @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+        .panel { background: #1a2332; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; }
+        .team-card {
+            padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);
+            margin-bottom: 8px; cursor: pointer;
+        }
+        .team-card.active, .team-card:hover { border-color: #06b6d4; background: rgba(6,182,212,0.08); }
+        .member { font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .archive-row {
+            padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 0.875rem;
+        }
+        .archive-row a { color: #67e8f9; }
+        .hint { color: #94a3b8; font-size: 0.85rem; }
+        .create-form { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+        .create-form input {
+            flex: 1; min-width: 160px; padding: 8px 10px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.12); background: #243044; color: #e7ecf3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>👥 团队协作</h1>
+                <p>查看成员与已分享的竞品分析归档（需先在复盘页生成分享链接）</p>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <a class="btn" href="/games/review">复盘归档</a>
+                <a class="btn" href="/guide">分析向导</a>
+                <a class="btn" href="/dashboard">看板</a>
+            </div>
+        </div>
+        <div class="grid">
+            <div class="panel">
+                <strong>我的团队</strong>
+                <div id="team-list" style="margin-top:12px;"></div>
+                <div class="create-form">
+                    <input id="new-team-name" placeholder="新团队名称">
+                    <button class="btn btn-primary" type="button" onclick="createTeam()">创建</button>
+                </div>
+            </div>
+            <div class="panel">
+                <div id="team-detail"><p class="hint">选择左侧团队查看成员与共享报告</p></div>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/auth-token.js"></script>
+    <script>
+        function token() { return typeof getAuthToken === 'function' ? getAuthToken() : ''; }
+        if (!token()) location.href = '/login?redirect=' + encodeURIComponent('/team');
+
+        let teams = [];
+        let activeTeamId = null;
+        let detailRequestId = 0;
+
+        function teamIdEq(a, b) {
+            return Number(a) === Number(b);
+        }
+
+        function esc(s) {
+            const d = document.createElement('div');
+            d.textContent = s || '';
+            return d.innerHTML;
+        }
+
+        function apiMessage(data, res) {
+            if (!data || typeof data !== 'object') {
+                return (res && !res.ok) ? ('HTTP ' + res.status) : '未知错误';
+            }
+            if (typeof data.detail === 'string') return data.detail;
+            if (Array.isArray(data.detail) && data.detail[0]) {
+                return data.detail[0].msg || String(data.detail[0]);
+            }
+            return data.message || (res && !res.ok ? 'HTTP ' + res.status : '未知错误');
+        }
+
+        function renderTeamList() {
+            const el = document.getElementById('team-list');
+            if (!teams.length) {
+                el.innerHTML = '<p class="hint">暂无团队，可下方创建</p>';
+                return;
+            }
+            el.innerHTML = teams.map(t =>
+                '<div class="team-card' + (teamIdEq(t.id, activeTeamId) ? ' active' : '') + '" onclick="selectTeam(' + t.id + ')">' +
+                '<strong>' + esc(t.name) + '</strong><div class="hint">角色：' + esc(t.role || 'member') + '</div></div>'
+            ).join('');
+        }
+
+        async function loadTeams(options) {
+            const opts = options || {};
+            const res = await fetch('/api/teams?token=' + encodeURIComponent(token()));
+            let data = {};
+            try { data = await res.json(); } catch (_) {}
+            if (!res.ok || data.success === false) {
+                if (!opts.silent) {
+                    document.getElementById('team-list').innerHTML =
+                        '<p class="hint">加载失败：' + esc(apiMessage(data, res)) + '</p>';
+                }
+                return false;
+            }
+            teams = data.teams || [];
+            renderTeamList();
+            if (!activeTeamId && teams[0]) await selectTeam(teams[0].id);
+            return true;
+        }
+
+        async function selectTeam(teamId) {
+            activeTeamId = Number(teamId);
+            renderTeamList();
+            const requestId = ++detailRequestId;
+            const detail = document.getElementById('team-detail');
+            detail.innerHTML = '<p class="hint">加载中…</p>';
+            try {
+                const [membersRes, archivesRes] = await Promise.all([
+                    fetch('/api/teams/' + teamId + '/members?token=' + encodeURIComponent(token())),
+                    fetch('/api/teams/' + teamId + '/archives?token=' + encodeURIComponent(token())),
+                ]);
+                if (requestId !== detailRequestId) return;
+                const membersData = await membersRes.json().catch(() => ({}));
+                const archivesData = await archivesRes.json().catch(() => ({}));
+                if (!membersRes.ok) {
+                    detail.innerHTML = '<p class="hint">加载成员失败：' + esc(membersData.detail || membersData.message || membersRes.status) + '</p>';
+                    return;
+                }
+                const team = teams.find(t => teamIdEq(t.id, teamId));
+                let html = '<h2 style="font-size:1.05rem;margin-bottom:8px;">' + esc(team?.name || ('团队 #' + teamId)) + '</h2>';
+                html += '<h3 style="font-size:0.9rem;margin:16px 0 8px;">成员</h3>';
+                const members = membersData.members || [];
+                html += members.length
+                    ? members.map(m => '<div class="member">' + esc(m.username) + ' · ' + esc(m.role || 'member') + '</div>').join('')
+                    : '<p class="hint">暂无成员</p>';
+                html += '<div class="create-form" style="margin-top:12px;">' +
+                    '<input id="invite-username" placeholder="输入用户名邀请加入">' +
+                    '<button class="btn btn-primary" type="button" onclick="inviteMember(' + teamId + ')">邀请成员</button></div>';
+                html += '<h3 style="font-size:0.9rem;margin:16px 0 8px;">共享分析归档</h3>';
+                if (!archivesRes.ok || archivesData.success === false) {
+                    html += '<p class="hint">归档加载失败：' + esc(archivesData.message || archivesData.detail || archivesRes.status) + '</p>';
+                } else {
+                    const archives = archivesData.archives || [];
+                    if (!archives.length) {
+                        html += '<p class="hint">暂无共享报告。成员可在「复盘与归档」中为案例点击「生成分享链接」。</p>';
+                    } else {
+                        html += archives.map(a =>
+                            '<div class="archive-row"><strong>' + esc(a.title) + '</strong><br>' +
+                            '<span class="hint">' + esc(a.owner) + ' · ' + esc(a.updated_at || '') + '</span><br>' +
+                            '<a href="' + esc(a.share_url) + '" target="_blank" rel="noopener">打开分享报告 →</a></div>'
+                        ).join('');
+                    }
+                }
+                detail.innerHTML = html;
+            } catch (err) {
+                if (requestId !== detailRequestId) return;
+                detail.innerHTML = '<p class="hint">加载失败：' + esc(err.message || String(err)) + '</p>';
+            }
+        }
+
+        async function inviteMember(teamId) {
+            const username = document.getElementById('invite-username')?.value?.trim();
+            if (!username) { alert('请输入用户名'); return; }
+            const res = await fetch('/api/teams/' + teamId + '/members?token=' + encodeURIComponent(token()), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, role: 'member' }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                await selectTeam(teamId);
+            } else {
+                alert(data.message || data.detail || '邀请失败');
+            }
+        }
+
+        async function createTeam() {
+            const name = document.getElementById('new-team-name').value.trim();
+            if (!name) return;
+            const res = await fetch('/api/teams?token=' + encodeURIComponent(token()), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('new-team-name').value = '';
+                activeTeamId = Number(data.team_id);
+                await loadTeams();
+                if (data.team_id) await selectTeam(data.team_id);
+            } else {
+                alert(apiMessage(data, res) || '创建失败');
+            }
+        }
+
+        loadTeams();
+    </script>
+</body>
+</html>

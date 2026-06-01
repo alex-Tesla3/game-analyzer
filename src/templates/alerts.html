@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>告警规则管理 - Game Analytics</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            color: #1d1d1f;
+            margin-bottom: 8px;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .account-badge {
+            display: inline-flex;
+            align-items: center;
+            max-width: 240px;
+            padding: 6px 12px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: #515154;
+            background: #f5f5f7;
+            border-radius: 980px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .breadcrumb {
+            color: #86868b;
+            font-size: 14px;
+        }
+        
+        .breadcrumb a {
+            color: #0071e3;
+            text-decoration: none;
+        }
+        
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        
+        .content {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 24px;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .panel-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1d1d1f;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 980px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #0071e3;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #0077ed;
+        }
+        
+        .btn-secondary {
+            background: #f5f5f7;
+            color: #1d1d1f;
+        }
+        
+        .btn-secondary:hover {
+            background: #e5e5e7;
+        }
+        
+        .alert-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .alert-item {
+            padding: 16px;
+            border: 1px solid #e5e5e7;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .alert-item:hover {
+            border-color: #0071e3;
+            background: #f5f5f7;
+        }
+        
+        .alert-item.active {
+            border-color: #0071e3;
+            background: rgba(0, 113, 227, 0.05);
+        }
+        
+        .alert-name {
+            font-weight: 600;
+            color: #1d1d1f;
+            margin-bottom: 8px;
+        }
+        
+        .alert-condition {
+            font-size: 13px;
+            color: #86868b;
+            margin-bottom: 8px;
+        }
+        
+        .alert-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 980px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-enabled {
+            background: rgba(52, 199, 89, 0.1);
+            color: #34c759;
+        }
+        
+        .status-disabled {
+            background: rgba(142, 142, 147, 0.1);
+            color: #86868b;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #1d1d1f;
+            margin-bottom: 8px;
+        }
+        
+        .form-input, .form-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #e5e5e7;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #0071e3;
+            box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.1);
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #86868b;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .empty-state-text {
+            font-size: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .stat-card {
+            background: #f5f5f7;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #0071e3;
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #86868b;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .modal-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1d1d1f;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 32px;
+            color: #86868b;
+            cursor: pointer;
+            line-height: 1;
+        }
+        
+        .modal-close:hover {
+            color: #1d1d1f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-top">
+                <div>
+                    <h1>⚠️ 告警规则管理</h1>
+                    <div class="breadcrumb">
+                        <a href="/">首页</a> / <a href="/">仪表盘</a> / 告警规则管理
+                    </div>
+                </div>
+                <span class="account-badge" data-account-badge>…</span>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">告警规则</div>
+                    <button class="btn btn-primary" onclick="showCreateModal()">+ 新建规则</button>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="total-count">0</div>
+                        <div class="stat-label">总规则数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="enabled-count">0</div>
+                        <div class="stat-label">已启用</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="triggered-count">0</div>
+                        <div class="stat-label">已触发</div>
+                    </div>
+                </div>
+                
+                <div class="alert-list" id="alert-list">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📊</div>
+                        <div class="empty-state-text">暂无告警规则</div>
+                        <button class="btn btn-primary" onclick="showCreateModal()">创建第一个规则</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">规则详情</div>
+                </div>
+                
+                <div id="alert-detail">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👈</div>
+                        <div class="empty-state-text">请从左侧选择一个规则查看详情</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 创建/编辑规则模态框 -->
+    <div class="modal" id="alert-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modal-title">新建告警规则</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            
+            <form id="alert-form">
+                <input type="hidden" id="alert-id">
+                
+                <div class="form-group">
+                    <label class="form-label">规则名称 *</label>
+                    <input type="text" class="form-input" id="alert-name" placeholder="例如：收入异常告警" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">监控产品</label>
+                    <select class="form-select" id="alert-product">
+                        <option value="">全部产品</option>
+                        <option value="game_a">游戏A - 战神传说</option>
+                        <option value="game_b">游戏B - 星际争霸</option>
+                        <option value="game_c">游戏C - 魔法大陆</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">监控指标 *</label>
+                    <select class="form-select" id="alert-metric" required>
+                        <option value="">请选择指标</option>
+                        <option value="revenue">收入</option>
+                        <option value="dau">日活跃用户 (DAU)</option>
+                        <option value="retention">留存率</option>
+                        <option value="arpu">用户平均收入 (ARPU)</option>
+                        <option value="conversion">转化率</option>
+                        <option value="downloads">下载量</option>
+                        <option value="paying_users">付费用户数</option>
+                    </select>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">条件</label>
+                        <select class="form-select" id="alert-operator" required>
+                            <option value="gt">大于</option>
+                            <option value="lt">小于</option>
+                            <option value="gte">大于等于</option>
+                            <option value="lte">小于等于</option>
+                            <option value="eq">等于</option>
+                            <option value="change_gt">变化率大于 (%)</option>
+                            <option value="change_lt">变化率小于 (%)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">阈值 *</label>
+                        <input type="number" class="form-input" id="alert-threshold" placeholder="例如：10000" step="any" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">单位</label>
+                        <select class="form-select" id="alert-unit">
+                            <option value="">无</option>
+                            <option value="元">元 (¥)</option>
+                            <option value="%">百分比 (%)</option>
+                            <option value="人">人数</option>
+                            <option value="次">次数</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">通知邮箱</label>
+                    <input type="email" class="form-input" id="alert-email" placeholder="alert@example.com">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Webhook URL (可选)</label>
+                    <input type="url" class="form-input" id="alert-webhook" placeholder="https://your-webhook-url.com/alert">
+                </div>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" class="checkbox" id="alert-enabled" checked>
+                        <label for="alert-enabled">立即启用此规则</label>
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">保存规则</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/auth-token.js"></script>
+    <script src="/static/js/account-display.js" defer></script>
+    <script>
+        function getToken() {
+            return typeof getAuthToken === 'function' ? getAuthToken() : localStorage.getItem('access_token');
+        }
+
+        let token = getToken();
+        if (!token) {
+            window.location.href = '/login?redirect=' + encodeURIComponent('/alerts');
+        }
+        let alerts = [];
+        let currentAlertId = null;
+        
+        // 加载告警规则列表
+        async function loadAlerts() {
+            try {
+                const response = await fetch('/api/alerts?token=' + token);
+                const result = await response.json();
+                
+                if (result.success) {
+                    alerts = result.alerts || [];
+                    renderAlertList();
+                    updateStats();
+                }
+            } catch (error) {
+                console.error('Failed to load alerts:', error);
+            }
+        }
+        
+        // 渲染告警列表
+        function renderAlertList() {
+            const container = document.getElementById('alert-list');
+            
+            if (alerts.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📊</div>
+                        <div class="empty-state-text">暂无告警规则</div>
+                        <button class="btn btn-primary" onclick="showCreateModal()">创建第一个规则</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = alerts.map(alert => `
+                <div class="alert-item ${currentAlertId === alert.id ? 'active' : ''}" onclick="selectAlert(${alert.id})">
+                    <div class="alert-name">${alert.name}</div>
+                    <div class="alert-condition">${getConditionText(alert)}</div>
+                    <span class="alert-status ${alert.enabled ? 'status-enabled' : 'status-disabled'}">
+                        ${alert.enabled ? '✓ 已启用' : '✗ 已禁用'}
+                    </span>
+                </div>
+            `).join('');
+        }
+        
+        // 获取条件文本
+        function getConditionText(alert) {
+            const operatorMap = {
+                'gt': '>',
+                'lt': '<',
+                'gte': '≥',
+                'lte': '≤',
+                'eq': '=',
+                'change_gt': '变化 >',
+                'change_lt': '变化 <'
+            };
+            
+            const metricMap = {
+                'revenue': '收入',
+                'dau': 'DAU',
+                'retention': '留存率',
+                'arpu': 'ARPU',
+                'conversion': '转化率',
+                'downloads': '下载量',
+                'paying_users': '付费用户'
+            };
+            
+            const operator = operatorMap[alert.operator] || alert.operator;
+            const metric = metricMap[alert.metric] || alert.metric;
+            
+            return `${metric} ${operator} ${alert.threshold}`;
+        }
+        
+        // 更新统计信息
+        function updateStats() {
+            document.getElementById('total-count').textContent = alerts.length;
+            document.getElementById('enabled-count').textContent = alerts.filter(a => a.enabled).length;
+            document.getElementById('triggered-count').textContent = alerts.filter(a => a.last_triggered).length;
+        }
+        
+        // 选择告警规则
+        function selectAlert(id) {
+            currentAlertId = id;
+            const alert = alerts.find(a => a.id === id);
+            
+            if (!alert) return;
+            
+            renderAlertList();
+            renderAlertDetail(alert);
+        }
+        
+        // 渲染告警详情
+        function renderAlertDetail(alert) {
+            const container = document.getElementById('alert-detail');
+            
+            const lastTriggered = alert.last_triggered ? 
+                new Date(alert.last_triggered).toLocaleString('zh-CN') : '从未触发';
+            
+            container.innerHTML = `
+                <div style="margin-bottom: 24px;">
+                    <h3 style="font-size: 24px; color: #1d1d1f; margin-bottom: 8px;">${alert.name}</h3>
+                    <span class="alert-status ${alert.enabled ? 'status-enabled' : 'status-disabled'}" style="font-size: 14px; padding: 6px 16px;">
+                        ${alert.enabled ? '✓ 已启用' : '✗ 已禁用'}
+                    </span>
+                </div>
+                
+                <div style="display: grid; gap: 16px; margin-bottom: 24px;">
+                    <div style="padding: 16px; background: #f5f5f7; border-radius: 12px;">
+                        <div style="font-size: 14px; color: #86868b; margin-bottom: 4px;">监控条件</div>
+                        <div style="font-size: 18px; font-weight: 600; color: #1d1d1f;">${getConditionText(alert)}</div>
+                    </div>
+                    
+                    <div style="padding: 16px; background: #f5f5f7; border-radius: 12px;">
+                        <div style="font-size: 14px; color: #86868b; margin-bottom: 4px;">通知邮箱</div>
+                        <div style="font-size: 16px; color: #1d1d1f;">${alert.email || '未设置'}</div>
+                    </div>
+                    
+                    <div style="padding: 16px; background: #f5f5f7; border-radius: 12px;">
+                        <div style="font-size: 14px; color: #86868b; margin-bottom: 4px;">最后触发时间</div>
+                        <div style="font-size: 16px; color: #1d1d1f;">${lastTriggered}</div>
+                    </div>
+                    
+                    <div style="padding: 16px; background: #f5f5f7; border-radius: 12px;">
+                        <div style="font-size: 14px; color: #86868b; margin-bottom: 4px;">创建时间</div>
+                        <div style="font-size: 16px; color: #1d1d1f;">${new Date(alert.created_at).toLocaleString('zh-CN')}</div>
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <button class="btn ${alert.enabled ? 'btn-secondary' : 'btn-primary'}" onclick="toggleAlert(${alert.id}, ${!alert.enabled})">
+                        ${alert.enabled ? '禁用规则' : '启用规则'}
+                    </button>
+                    <button class="btn btn-secondary" onclick="showEditModal(${alert.id})">编辑规则</button>
+                    <button class="btn btn-secondary" style="color: #ff3b30;" onclick="deleteAlert(${alert.id})">删除规则</button>
+                </div>
+            `;
+        }
+        
+        // 显示创建模态框
+        function showCreateModal() {
+            document.getElementById('modal-title').textContent = '新建告警规则';
+            document.getElementById('alert-form').reset();
+            document.getElementById('alert-id').value = '';
+            document.getElementById('alert-enabled').checked = true;
+            document.getElementById('alert-modal').classList.add('active');
+        }
+        
+        // 显示编辑模态框
+        function showEditModal(id) {
+            const alert = alerts.find(a => a.id === id);
+            if (!alert) return;
+            
+            document.getElementById('modal-title').textContent = '编辑告警规则';
+            document.getElementById('alert-id').value = alert.id;
+            document.getElementById('alert-name').value = alert.name;
+            document.getElementById('alert-product').value = alert.product || '';
+            document.getElementById('alert-metric').value = alert.metric;
+            document.getElementById('alert-operator').value = alert.operator;
+            document.getElementById('alert-threshold').value = alert.threshold;
+            document.getElementById('alert-email').value = alert.email || '';
+            document.getElementById('alert-enabled').checked = alert.enabled == 1;
+            document.getElementById('alert-modal').classList.add('active');
+        }
+        
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('alert-modal').classList.remove('active');
+        }
+        
+        // 保存告警规则
+        document.getElementById('alert-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const id = document.getElementById('alert-id').value;
+            const alertData = {
+                name: document.getElementById('alert-name').value,
+                product: document.getElementById('alert-product').value,
+                metric: document.getElementById('alert-metric').value,
+                operator: document.getElementById('alert-operator').value,
+                threshold: document.getElementById('alert-threshold').value,
+                email: document.getElementById('alert-email').value,
+                enabled: document.getElementById('alert-enabled').checked ? 1 : 0
+            };
+            
+            try {
+                let response;
+                if (id) {
+                    // 更新
+                    response = await fetch(`/api/alerts/${id}?token=${token}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(alertData)
+                    });
+                } else {
+                    // 创建
+                    response = await fetch(`/api/alerts?token=${token}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(alertData)
+                    });
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeModal();
+                    loadAlerts();
+                    if (id) {
+                        selectAlert(parseInt(id));
+                    }
+                } else {
+                    alert(result.message || '保存失败');
+                }
+            } catch (error) {
+                console.error('Failed to save alert:', error);
+                alert('保存失败');
+            }
+        });
+        
+        // 切换告警启用状态
+        async function toggleAlert(id, enabled) {
+            try {
+                const response = await fetch(`/api/alerts/${id}?token=${token}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: enabled ? 1 : 0 })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    loadAlerts();
+                    selectAlert(id);
+                }
+            } catch (error) {
+                console.error('Failed to toggle alert:', error);
+            }
+        }
+        
+        // 删除告警规则
+        async function deleteAlert(id) {
+            if (!confirm('确定要删除这个告警规则吗？')) return;
+            
+            try {
+                const response = await fetch(`/api/alerts/${id}?token=${token}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentAlertId = null;
+                    document.getElementById('alert-detail').innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">👈</div>
+                            <div class="empty-state-text">请从左侧选择一个规则查看详情</div>
+                        </div>
+                    `;
+                    loadAlerts();
+                }
+            } catch (error) {
+                console.error('Failed to delete alert:', error);
+            }
+        }
+        
+        // 页面加载时获取告警列表
+        loadAlerts();
+    </script>
+</body>
+</html>

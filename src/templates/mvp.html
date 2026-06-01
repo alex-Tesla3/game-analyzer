@@ -1,0 +1,407 @@
+
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game Analyzer MVP</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #1d2433;
+      --muted: #657083;
+      --line: #dfe4ea;
+      --accent: #136f63;
+      --accent-2: #b54708;
+      --ok: #0f766e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      border-bottom: 1px solid var(--line);
+      background: #ffffff;
+    }
+    .wrap {
+      width: min(1160px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+    .topbar {
+      min-height: 84px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.2;
+      font-weight: 750;
+      letter-spacing: 0;
+    }
+    .subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    button, a.button {
+      border: 1px solid var(--line);
+      background: #ffffff;
+      color: var(--text);
+      min-height: 38px;
+      padding: 0 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      text-decoration: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    main { padding: 24px 0 36px; }
+    .status {
+      min-height: 24px;
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 14px;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .metric, .panel, .game {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .metric { padding: 16px; min-height: 92px; }
+    .label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .value {
+      font-size: 28px;
+      line-height: 1.1;
+      font-weight: 760;
+      letter-spacing: 0;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .strategy-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .strategy-item {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px;
+      min-height: 112px;
+    }
+    .strategy-item h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+    .panel { padding: 18px; }
+    .panel h2, .game h2 {
+      margin: 0 0 14px;
+      font-size: 18px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+    .games {
+      display: grid;
+      gap: 12px;
+    }
+    .game { padding: 18px; }
+    .game-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      border-radius: 999px;
+      padding: 0 9px;
+      background: #e9f7f4;
+      color: var(--ok);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .badge.warn {
+      background: #fff4e6;
+      color: var(--accent-2);
+    }
+    .split {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .mini {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      min-height: 70px;
+    }
+    .mini strong { display: block; font-size: 18px; margin-top: 4px; }
+    ul { margin: 8px 0 0; padding-left: 18px; }
+    li { margin: 7px 0; color: #2c3442; }
+    .checks {
+      display: grid;
+      gap: 8px;
+    }
+    .check {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      border-bottom: 1px solid var(--line);
+      padding: 9px 0;
+      font-size: 14px;
+    }
+    .check:last-child { border-bottom: 0; }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--ok);
+      margin-top: 4px;
+      flex: 0 0 auto;
+    }
+    code {
+      background: #eef1f5;
+      border-radius: 5px;
+      padding: 2px 5px;
+      font-size: 13px;
+    }
+    .empty {
+      padding: 24px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+    }
+    @media (max-width: 860px) {
+      .topbar, .game-head { align-items: stretch; flex-direction: column; }
+      .actions { justify-content: flex-start; }
+      .metrics, .grid, .split, .strategy-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap topbar">
+      <div>
+        <h1>Game Analyzer MVP</h1>
+        <p class="subtitle">Steam 真实评论抓取、确定性分析、源数据一致性验证</p>
+      </div>
+      <div class="actions">
+        <button id="refresh" class="primary" type="button">重新抓取</button>
+        <a class="button" href="/api/mvp/latest" target="_blank">查看 JSON</a>
+      </div>
+    </div>
+  </header>
+  <main class="wrap">
+    <div id="status" class="status">正在读取最新 MVP 结果...</div>
+    <section id="content"></section>
+  </main>
+  <script>
+    const statusEl = document.getElementById('status');
+    const contentEl = document.getElementById('content');
+    const refreshButton = document.getElementById('refresh');
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[ch]));
+    }
+
+    function render(payload) {
+      const analysis = payload.analysis || {};
+      const validation = payload.validation || {};
+      const summary = analysis.summary || {};
+      const strategy = analysis.ai_strategy || {};
+      const reports = analysis.product_reports || [];
+      const checks = validation.checks || [];
+      statusEl.textContent = `最新结果生成时间：${summary.generated_at || validation.checked_at || '未知'}`;
+
+      if (!reports.length) {
+        contentEl.innerHTML = '<div class="empty">还没有可展示的 MVP 分析结果，请点击“重新抓取”。</div>';
+        return;
+      }
+
+      const gameHtml = reports.map((report) => {
+        const themes = (report.top_negative_themes || []).map((item) =>
+          `<li>${escapeHtml(item.theme)}：${escapeHtml(item.count)}</li>`
+        ).join('') || '<li>未在样本中识别到高频负面主题</li>';
+        const negatives = (report.representative_negative_reviews || []).map((text) =>
+          `<li>${escapeHtml(text)}</li>`
+        ).join('') || '<li>暂无负面样本</li>';
+        const riskClass = report.risk_level === 'low' ? '' : 'warn';
+        return `
+          <article class="game">
+            <div class="game-head">
+              <div>
+                <h2>${escapeHtml(report.product_name)}</h2>
+                <div class="label">Steam App ID：${escapeHtml(report.product)}</div>
+              </div>
+              <span class="badge ${riskClass}">风险：${escapeHtml(report.risk_level)}</span>
+            </div>
+            <div class="split">
+              <div class="mini"><span class="label">样本数</span><strong>${escapeHtml(report.sample_size)}</strong></div>
+              <div class="mini"><span class="label">好评</span><strong>${escapeHtml(report.positive_reviews)}</strong></div>
+              <div class="mini"><span class="label">差评</span><strong>${escapeHtml(report.negative_reviews)}</strong></div>
+            </div>
+            <p><strong>样本好评率：</strong>${escapeHtml(report.positive_rate)}%</p>
+            <p><strong>建议：</strong>${escapeHtml(report.recommendation)}</p>
+            <div class="split">
+              <div>
+                <div class="label">负面主题</div>
+                <ul>${themes}</ul>
+              </div>
+              <div style="grid-column: span 2;">
+                <div class="label">代表性负面评论</div>
+                <ul>${negatives}</ul>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join('');
+
+      const checkHtml = checks.map((check) => `
+        <div class="check">
+          <span class="dot"></span>
+          <div>
+            <strong>${escapeHtml(check.name)}</strong><br>
+            <span class="label">${escapeHtml(check.detail)}</span>
+          </div>
+        </div>
+      `).join('');
+
+      const peerHtml = (strategy.peer_comparison || []).map((item) => `
+        <div class="strategy-item">
+          <h3>${escapeHtml(item.product_name)}</h3>
+          <div class="label">${escapeHtml(item.relative_position)} · Steam 汇总好评率 ${escapeHtml(item.steam_total_positive_rate)}%</div>
+          <p>${escapeHtml(item.what_to_learn)}</p>
+          <div class="label">中位总游玩：${escapeHtml(item.median_playtime_hours)} 小时 · 汇总评论：${escapeHtml(item.steam_total_reviews)}</div>
+        </div>
+      `).join('');
+
+      const needsHtml = (strategy.user_needs || []).slice(0, 6).map((item) => `
+        <div class="strategy-item">
+          <h3>${escapeHtml(item.need)}</h3>
+          <div class="label">评论信号：${escapeHtml(item.signal_count)}</div>
+          <p>${escapeHtml(item.product_action)}</p>
+          <ul>${(item.evidence || []).slice(0, 2).map((text) => `<li>${escapeHtml(text)}</li>`).join('')}</ul>
+        </div>
+      `).join('');
+
+      const actionHtml = (strategy.prioritized_actions || []).map((item) => `
+        <div class="strategy-item">
+          <h3>${escapeHtml(item.priority)}. ${escapeHtml(item.title)}</h3>
+          <p>${escapeHtml(item.why)}</p>
+          <p><strong>改进：</strong>${escapeHtml(item.action)}</p>
+          <p><strong>验证：</strong>${escapeHtml(item.experiment)}</p>
+        </div>
+      `).join('');
+
+      const segmentHtml = (strategy.target_user_segments || []).map((item) => `
+        <li>${escapeHtml(item.segment)}：${escapeHtml(item.sample_count)} 条样本，核心需求：${escapeHtml(item.primary_need)}</li>
+      `).join('');
+
+      const strategyHtml = `
+        <section class="panel" style="margin-bottom: 18px;">
+          <h2>AI 产品改进分析</h2>
+          <p>${escapeHtml(strategy.opportunity_summary || '正在等待真实数据生成产品策略。')}</p>
+          <p class="label">模式：${escapeHtml(strategy.mode || 'local_ai_grounded_in_steam_data')}。分析基于真实 Steam 评论、评论汇总指标和同类产品对比生成。</p>
+          <h2>同类产品结果对比</h2>
+          <div class="strategy-grid">${peerHtml || '<div class="empty">暂无同类产品对比。</div>'}</div>
+          <h2>面向用户的需求</h2>
+          <div class="strategy-grid">${needsHtml || '<div class="empty">暂无可识别需求，请扩大评论样本。</div>'}</div>
+          <h2>优先改进路线</h2>
+          <div class="strategy-grid">${actionHtml || '<div class="empty">暂无建议。</div>'}</div>
+          <h2>目标用户段</h2>
+          <ul>${segmentHtml || '<li>暂无用户段数据。</li>'}</ul>
+        </section>
+      `;
+
+      contentEl.innerHTML = `
+        <section class="metrics">
+          <div class="metric"><div class="label">产品数</div><div class="value">${escapeHtml(summary.total_products)}</div></div>
+          <div class="metric"><div class="label">真实评论样本</div><div class="value">${escapeHtml(summary.total_comments)}</div></div>
+          <div class="metric"><div class="label">整体好评率</div><div class="value">${escapeHtml(summary.overall_positive_rate)}%</div></div>
+          <div class="metric"><div class="label">验证状态</div><div class="value">${validation.passed ? '通过' : '失败'}</div></div>
+        </section>
+        ${strategyHtml}
+        <section class="grid">
+          <div class="games">${gameHtml}</div>
+          <aside class="panel">
+            <h2>验证结果</h2>
+            <div class="checks">${checkHtml}</div>
+            <p class="label">验证会从源评论重算样本量、正负评论数和好评率，确认分析结果没有脱离爬取数据。</p>
+          </aside>
+        </section>
+      `;
+    }
+
+    async function loadLatest() {
+      const response = await fetch('/api/mvp/latest');
+      if (!response.ok) throw new Error(await response.text());
+      render(await response.json());
+    }
+
+    async function refreshData() {
+      refreshButton.disabled = true;
+      statusEl.textContent = '正在重新抓取 Steam 真实评论并验证分析结果...';
+      try {
+        const response = await fetch('/api/mvp/steam?app_ids=730,570,1172470,440,252490,578080,381210,236390,1091500,1245620&max_reviews=20');
+        if (!response.ok) throw new Error(await response.text());
+        await loadLatest();
+      } catch (error) {
+        statusEl.textContent = `刷新失败：${error.message}`;
+      } finally {
+        refreshButton.disabled = false;
+      }
+    }
+
+    refreshButton.addEventListener('click', refreshData);
+    loadLatest().catch((error) => {
+      statusEl.textContent = `读取失败：${error.message}`;
+      contentEl.innerHTML = '<div class="empty">还没有结果。点击“重新抓取”生成 MVP 展示数据。</div>';
+    });
+  </script>
+</body>
+</html>
+    

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分享报告</title>
+    <link rel="stylesheet" href="/static/css/scenario-workspace.css">
+    <script src="/static/js/data-provenance.js"></script>
+    <script src="/static/js/scenario-report.js"></script>
+    <style>
+        body { font-family:-apple-system,BlinkMacSystemFont,sans-serif; background:#0f1419; color:#e7ecf3; margin:0; padding:24px; }
+        .wrap { max-width:880px; margin:0 auto; }
+        .banner { padding:12px 16px; background:rgba(6,182,212,0.12); border-left:4px solid #06b6d4; border-radius:0 8px 8px 0; margin-bottom:20px; font-size:0.85rem; color:#94a3b8; }
+        .error { color:#f87171; text-align:center; padding:48px; }
+        .meta { font-size:0.8rem; color:#64748b; margin-bottom:16px; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="banner" id="share-banner">📎 分享报告 · 公开评论样本分析 · 仅供参考</div>
+        <div class="meta" id="share-meta"></div>
+        <div id="content"><p class="error">加载中…</p></div>
+    </div>
+    <script>
+        const token = location.pathname.split('/').pop();
+        const SOURCE_HINT = {
+            mvp_steam: 'Steam 公开评论样本',
+            taptap_public: 'TapTap 公开评论样本',
+            mvp_multi: 'Steam + TapTap 公开评论样本',
+            imported: '用户导入经营指标 + 公开口碑',
+        };
+
+        async function load() {
+            const el = document.getElementById('content');
+            try {
+                const res = await fetch('/api/report/shared/' + encodeURIComponent(token));
+                const data = await res.json();
+                if (!data.success) {
+                    el.innerHTML = '<p class="error">' + (data.message || '链接已过期') + '</p>';
+                    return;
+                }
+                const report = data.report?.report_data || {};
+                const platform = report.platform || '';
+                const source = report.data_source || '';
+                const hint = SOURCE_HINT[source] || (platform === 'taptap' ? 'TapTap 公开评论样本' : 'Steam 公开评论样本');
+                document.getElementById('share-banner').textContent = '📎 分享报告 · ' + hint + ' · 仅供参考';
+                document.getElementById('share-meta').textContent =
+                    '类型：' + (data.report?.report_type || 'report') +
+                    ' · 创建于 ' + ((data.report?.created_at || '').slice(0, 19));
+
+                if (report.success !== false && (report.title || report.executive_summary || report.markdown)) {
+                    ScenarioReport.renderResult(el, report);
+                    return;
+                }
+
+                const md = report.markdown || '';
+                const html = report.html || '';
+                if (html) {
+                    el.innerHTML = html;
+                } else if (md) {
+                    el.innerHTML = '<pre style="white-space:pre-wrap;font-size:0.9rem;">' + md.replace(/</g, '&lt;') + '</pre>';
+                } else {
+                    el.innerHTML = '<p>' + (report.executive_summary || '无内容') + '</p>';
+                }
+            } catch (e) {
+                el.innerHTML = '<p class="error">加载失败</p>';
+            }
+        }
+        load();
+    </script>
+</body>
+</html>

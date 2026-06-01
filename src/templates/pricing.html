@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>订阅套餐 - 游戏数据分析引擎</title>
+    <style>
+        :root {
+            --primary: #06b6d4;
+            --primary-dark: #0891b2;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .account-badge {
+            display: inline-flex;
+            align-items: center;
+            max-width: 240px;
+            padding: 6px 12px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 980px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-secondary {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        .page-title {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .page-title h2 {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .page-title p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .plans-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-bottom: 48px;
+        }
+
+        .plan-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 32px;
+            position: relative;
+            transition: all 0.3s;
+        }
+
+        .plan-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--primary);
+        }
+
+        .plan-card.featured {
+            border: 2px solid var(--primary);
+            box-shadow: 0 0 30px rgba(6, 182, 212, 0.2);
+        }
+
+        .plan-badge {
+            position: absolute;
+            top: -12px;
+            right: 24px;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .plan-name {
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+        }
+
+        .plan-price {
+            margin-bottom: 24px;
+        }
+
+        .plan-price .amount {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .plan-price .unit {
+            color: var(--text-secondary);
+            font-size: 1rem;
+        }
+
+        .plan-price .contact {
+            color: var(--warning);
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .plan-description {
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+            font-size: 0.95rem;
+        }
+
+        .plan-features {
+            list-style: none;
+            margin-bottom: 32px;
+        }
+
+        .plan-features li {
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .plan-features li:last-child {
+            border-bottom: none;
+        }
+
+        .plan-features li::before {
+            content: '✓';
+            color: var(--success);
+            font-weight: bold;
+        }
+
+        .btn-select {
+            width: 100%;
+            padding: 14px;
+            font-size: 1rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            padding: 32px;
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-header h3 {
+            font-size: 1.5rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 2rem;
+            cursor: pointer;
+        }
+
+        .payment-methods {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .payment-method {
+            background: var(--bg-dark);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .payment-method:hover {
+            border-color: var(--primary);
+        }
+
+        .payment-method.selected {
+            border-color: var(--primary);
+            background: rgba(6, 182, 212, 0.1);
+        }
+
+        .payment-method .icon {
+            font-size: 2.5rem;
+            margin-bottom: 8px;
+        }
+
+        .payment-method .name {
+            font-weight: 600;
+        }
+
+        .qr-code-container {
+            text-align: center;
+            padding: 24px;
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 24px;
+        }
+
+        .qr-code-container img {
+            max-width: 200px;
+        }
+
+        .order-info {
+            background: var(--bg-dark);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+
+        .order-info .row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .order-info .row:last-child {
+            border-bottom: none;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .payment-status {
+            text-align: center;
+            padding: 24px;
+        }
+
+        .payment-status.success {
+            color: var(--success);
+        }
+
+        .payment-status.pending {
+            color: var(--warning);
+        }
+
+        .spinner {
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .current-plan {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+
+        .current-plan h3 {
+            color: var(--primary);
+            margin-bottom: 16px;
+        }
+
+        .current-plan .plan-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-orders {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+        }
+
+        .user-orders h3 {
+            margin-bottom: 16px;
+        }
+
+        .orders-list {
+            list-style: none;
+        }
+
+        .orders-list li {
+            background: var(--bg-dark);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .order-status {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .order-status.paid {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .order-status.pending {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+
+        @media (max-width: 768px) {
+            .plans-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎮 游戏数据分析引擎</h1>
+        <div class="header-actions">
+            <span class="account-badge" data-account-badge>…</span>
+            <button class="btn btn-secondary" onclick="goBack()">返回首页</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="page-title">
+            <h2>选择您的订阅套餐</h2>
+            <p>解锁更多高级功能，提升游戏数据分析能力</p>
+        </div>
+
+        <div id="demo-payment-notice" style="max-width:900px;margin:0 auto 24px;padding:14px 18px;border-radius:10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);font-size:0.875rem;color:#fcd34d;text-align:center;">
+            ⚠️ 演示环境：支付为模拟流程，不会产生真实扣款。订阅升级仅供产品演示与 POC 评估。
+        </div>
+
+        <div class="current-plan" id="currentPlan" style="display: none;">
+            <h3>📌 当前订阅</h3>
+            <div class="plan-info">
+                <div>
+                    <strong id="currentPlanName"></strong>
+                    <span style="color: var(--text-secondary); margin-left: 12px;">本月 API 剩余: <span id="apiQuota"></span></span>
+                </div>
+                <div style="color: var(--text-secondary);">
+                    游戏限制: <span id="gamesLimit"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="plans-grid" id="plansGrid">
+        </div>
+
+        <div class="user-orders">
+            <h3>📋 订单历史</h3>
+            <ul class="orders-list" id="ordersList">
+                <li style="text-align: center; color: var(--text-secondary);">暂无订单记录</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="modal" id="paymentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>💳 订单支付</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+
+            <div id="paymentForm">
+                <div class="payment-methods">
+                    <div class="payment-method selected" onclick="selectPaymentMethod('wechat')">
+                        <div class="icon">💚</div>
+                        <div class="name">微信支付</div>
+                    </div>
+                    <div class="payment-method" onclick="selectPaymentMethod('alipay')">
+                        <div class="icon">💙</div>
+                        <div class="name">支付宝</div>
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-select" onclick="createOrder()">生成订单</button>
+            </div>
+
+            <div id="paymentQRCode" style="display: none;">
+                <div class="qr-code-container">
+                    <img id="qrCode" src="" alt="支付二维码">
+                </div>
+                <div class="order-info">
+                    <div class="row">
+                        <span>订单号</span>
+                        <span id="orderId"></span>
+                    </div>
+                    <div class="row">
+                        <span>金额</span>
+                        <span id="orderAmount"></span>
+                    </div>
+                    <div class="row">
+                        <span>状态</span>
+                        <span>待支付</span>
+                    </div>
+                </div>
+                <p style="text-align: center; color: var(--text-secondary); margin-bottom: 16px;">
+                    请使用<span id="paymentMethodName">微信</span>扫描二维码完成支付
+                </p>
+                <p style="text-align:center;color:#f59e0b;font-size:0.8rem;margin-bottom:12px;">演示模式：扫码后点击「支付完成」即可模拟开通，无真实扣款</p>
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn btn-primary" id="checkPaymentBtn" onclick="checkPayment()" style="flex: 1;">支付完成</button>
+                    <div id="checkingSpinner" class="spinner" style="display: none; margin: auto;"></div>
+                    <button class="btn btn-secondary" onclick="closeModal()" style="flex: 1;">取消</button>
+                </div>
+            </div>
+
+            <div id="paymentSuccess" class="payment-status success" style="display: none;">
+                <div style="font-size: 4rem; margin-bottom: 16px;">✅</div>
+                <h3 style="margin-bottom: 8px;">支付成功！</h3>
+                <p style="color: var(--text-secondary);">恭喜您已成功订阅，将为您跳转到首页...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/auth-token.js"></script>
+    <script src="/static/js/account-display.js" defer></script>
+    <script>
+        function getToken() {
+            return typeof getAuthToken === 'function' ? getAuthToken() : localStorage.getItem('access_token');
+        }
+
+        let token = getToken();
+        if (!token) {
+            window.location.href = '/login?redirect=' + encodeURIComponent('/pricing');
+        }
+
+        let selectedPlan = null;
+        let selectedPaymentMethod = 'wechat';
+        let currentOrderId = null;
+
+        async function loadPlans() {
+            try {
+                const response = await fetch(`/api/plans?token=${token}`);
+                const result = await response.json();
+                if (result.success) {
+                    renderPlans(result.plans);
+                    if (result.payment_mode === 'demo' && result.message) {
+                        const box = document.getElementById('demo-payment-notice');
+                        if (box) box.textContent = '⚠️ ' + result.message;
+                    }
+                }
+            } catch (e) {
+                console.error('加载套餐失败:', e);
+            }
+        }
+
+        async function loadCurrentPlan() {
+            try {
+                const response = await fetch(`/api/user?token=${token}`);
+                const user = await response.json();
+                if (user && user.username) {
+                    const planName = user.plan === 'free' ? '免费版' :
+                                    user.plan === 'pro' ? '专业版' : '企业版';
+
+                    document.getElementById('currentPlanName').textContent = planName;
+                    const remaining = user.api_remaining;
+                    const quota = user.api_quota_monthly ?? user.api_quota;
+                    if (remaining != null && quota >= 0) {
+                        document.getElementById('apiQuota').textContent = remaining + ' / ' + quota;
+                    } else {
+                        document.getElementById('apiQuota').textContent = quota > 0 ? quota : '无限制';
+                    }
+                    document.getElementById('gamesLimit').textContent = user.games_limit > 0 ? user.games_limit : '无限制';
+                    document.getElementById('currentPlan').style.display = 'block';
+                }
+            } catch (e) {
+                console.error('加载当前套餐失败:', e);
+            }
+        }
+
+        async function loadOrders() {
+            try {
+                const response = await fetch(`/api/payment/orders?token=${token}`);
+                const result = await response.json();
+                if (result.success && result.orders.length > 0) {
+                    renderOrders(result.orders);
+                }
+            } catch (e) {
+                console.error('加载订单失败:', e);
+            }
+        }
+
+        function renderPlans(plans) {
+            const grid = document.getElementById('plansGrid');
+            grid.innerHTML = plans.map((plan, index) => {
+                let priceHtml = '';
+                let buttonText = '';
+                let buttonClass = 'btn-secondary';
+                
+                if (plan.id === 'free') {
+                    priceHtml = '<span class="amount" style="color: var(--success);">免费</span>';
+                    buttonText = '开始使用';
+                    buttonClass = 'btn-success';
+                } else if (plan.id === 'enterprise') {
+                    priceHtml = '<span class="contact">联系销售</span>';
+                    buttonText = '联系销售';
+                } else {
+                    priceHtml = `<span class="amount">¥${plan.price}</span><span class="unit">/年</span>`;
+                    buttonText = '立即订阅';
+                    buttonClass = plan.id === 'pro' ? 'btn-primary' : 'btn-secondary';
+                }
+                
+                return `
+                    <div class="plan-card ${plan.id === 'pro' ? 'featured' : ''}">
+                        ${plan.id === 'pro' ? '<div class="plan-badge">推荐</div>' : ''}
+                        <h3 class="plan-name">${plan.name}</h3>
+                        <div class="plan-price">${priceHtml}</div>
+                        <p class="plan-description">${plan.description}</p>
+                        <ul class="plan-features">
+                            ${plan.features.map(f => `<li>${f}</li>`).join('')}
+                        </ul>
+                        <button class="btn ${buttonClass} btn-select" 
+                                onclick="${plan.id === 'free' || plan.id === 'enterprise' ? 'contactSales()' : `selectPlan('${plan.id}')`}">
+                            ${buttonText}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function contactSales() {
+            alert('感谢您的关注！\n\n企业版和定制服务请联系我们的销售团队：\n📧 sales@gameanalyzer.com\n📞 400-888-8888');
+        }
+
+        function renderOrders(orders) {
+            const list = document.getElementById('ordersList');
+            list.innerHTML = orders.map(order => {
+                const planName = order.plan_id === 'free' ? '免费版' : 
+                                order.plan_id === 'pro' ? '专业版' : '企业版';
+                const status = order.payment_status === 'paid' ? 'paid' : 'pending';
+                const statusText = order.payment_status === 'paid' ? '已支付' : '待支付';
+                const date = new Date(order.created_at).toLocaleDateString('zh-CN');
+                
+                return `
+                    <li>
+                        <div>
+                            <strong>${planName}</strong>
+                            <span style="color: var(--text-secondary); margin-left: 12px;">${date}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="color: var(--primary);">¥${order.amount}</span>
+                            <span class="order-status ${status}">${statusText}</span>
+                        </div>
+                    </li>
+                `;
+            }).join('');
+        }
+
+        function selectPlan(planId) {
+            selectedPlan = planId;
+            document.getElementById('paymentModal').classList.add('active');
+            document.getElementById('paymentForm').style.display = 'block';
+            document.getElementById('paymentQRCode').style.display = 'none';
+            document.getElementById('paymentSuccess').style.display = 'none';
+        }
+
+        function selectPaymentMethod(method) {
+            selectedPaymentMethod = method;
+            document.querySelectorAll('.payment-method').forEach(el => {
+                el.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+        }
+
+        async function createOrder() {
+            try {
+                const response = await fetch(`/api/payment/create-order?token=${token}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        plan_id: selectedPlan,
+                        payment_method: selectedPaymentMethod
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    currentOrderId = result.order_id;
+                    document.getElementById('qrCode').src = result.qr_code_url;
+                    document.getElementById('orderId').textContent = result.order_id;
+                    document.getElementById('orderAmount').textContent = '¥' + result.amount;
+                    document.getElementById('paymentMethodName').textContent = 
+                        selectedPaymentMethod === 'wechat' ? '微信' : '支付宝';
+                    
+                    document.getElementById('paymentForm').style.display = 'none';
+                    document.getElementById('paymentQRCode').style.display = 'block';
+                } else {
+                    alert(result.message);
+                }
+            } catch (e) {
+                console.error('创建订单失败:', e);
+                alert('创建订单失败，请重试');
+            }
+        }
+
+        async function checkPayment() {
+            try {
+                document.getElementById('checkPaymentBtn').style.display = 'none';
+                document.getElementById('checkingSpinner').style.display = 'block';
+                
+                const response = await fetch(`/api/payment/confirm?token=${token}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        order_id: currentOrderId
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('paymentQRCode').style.display = 'none';
+                    document.getElementById('paymentSuccess').style.display = 'block';
+                    
+                    setTimeout(() => {
+                        closeModal();
+                        window.location.href = '/';
+                    }, 2000);
+                } else {
+                    alert(result.message);
+                    document.getElementById('checkPaymentBtn').style.display = 'block';
+                    document.getElementById('checkingSpinner').style.display = 'none';
+                }
+            } catch (e) {
+                console.error('确认支付失败:', e);
+                alert('确认支付失败，请重试');
+                document.getElementById('checkPaymentBtn').style.display = 'block';
+                document.getElementById('checkingSpinner').style.display = 'none';
+            }
+        }
+        
+        function selectPlan(planId) {
+            selectedPlan = planId;
+            document.getElementById('paymentModal').classList.add('active');
+            document.getElementById('paymentForm').style.display = 'block';
+            document.getElementById('paymentQRCode').style.display = 'none';
+            document.getElementById('paymentSuccess').style.display = 'none';
+        }
+
+        function closeModal() {
+            document.getElementById('paymentModal').classList.remove('active');
+        }
+
+        function goBack() {
+            window.location.href = '/';
+        }
+
+        loadPlans();
+        loadCurrentPlan();
+        loadOrders();
+    </script>
+</body>
+</html>

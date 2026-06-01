@@ -1,0 +1,363 @@
+/* 移动端响应式样式 */
+
+/* 基础响应式设置 */
+* {
+    box-sizing: border-box;
+}
+
+/* 断点定义 */
+:root {
+    --breakpoint-xs: 0;
+    --breakpoint-sm: 576px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 992px;
+    --breakpoint-xl: 1200px;
+    --breakpoint-xxl: 1400px;
+}
+
+/* 超小屏幕 (手机, < 576px) */
+@media (max-width: 575.98px) {
+    /* 通用容器 */
+    .container {
+        padding: 0 12px !important;
+    }
+    
+    /* 按钮 */
+    .btn {
+        padding: 10px 16px !important;
+        font-size: 14px !important;
+        min-width: 80px !important;
+    }
+    
+    /* 卡片 */
+    .card {
+        padding: 12px !important;
+        margin-bottom: 12px !important;
+    }
+    
+    /* 网格布局 */
+    .grid {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+    }
+    
+    .grid-2 {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .grid-3 {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .grid-4 {
+        grid-template-columns: 1fr !important;
+    }
+    
+    /* 图表容器 */
+    .chart-container {
+        height: 200px !important;
+        min-height: 200px !important;
+    }
+    
+    /* 表格 */
+    .data-table {
+        overflow-x: auto !important;
+        font-size: 12px !important;
+    }
+    
+    .data-table th,
+    .data-table td {
+        padding: 6px 8px !important;
+        min-width: 80px !important;
+    }
+    
+    /* 导航栏 */
+    .navbar {
+        padding: 8px 12px !important;
+    }
+    
+    .navbar-brand {
+        font-size: 16px !important;
+    }
+    
+    .navbar-menu {
+        display: none !important;
+    }
+    
+    .navbar-toggle {
+        display: block !important;
+    }
+    
+    /* 侧边栏 */
+    .sidebar {
+        width: 100% !important;
+        position: fixed !important;
+        left: -100% !important;
+        z-index: 1000 !important;
+        height: 100vh !important;
+        overflow-y: auto !important;
+        transition: left 0.3s ease !important;
+    }
+    
+    .sidebar.open {
+        left: 0 !important;
+    }
+    
+    /* 主内容区 */
+    .main-content {
+        margin-left: 0 !important;
+        padding: 12px !important;
+    }
+    
+    /* 模态框 */
+    .modal {
+        padding: 12px !important;
+    }
+    
+    .modal-content {
+        width: calc(100% - 24px) !important;
+        max-height: 85vh !important;
+    }
+    
+    /* 表单控件 */
+    .form-control {
+        padding: 10px 12px !important;
+        font-size: 14px !important;
+    }
+    
+    .form-select {
+        padding: 10px 12px !important;
+        font-size: 14px !important;
+    }
+    
+    /* 标签页 */
+    .tabs {
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+        padding-bottom: 8px !important;
+    }
+    
+    .tab-button {
+        padding: 10px 16px !important;
+        font-size: 14px !important;
+        flex-shrink: 0 !important;
+    }
+    
+    /* KPI卡片 */
+    .kpi-card {
+        padding: 16px !important;
+    }
+    
+    .kpi-value {
+        font-size: 28px !important;
+    }
+    
+    .kpi-label {
+        font-size: 13px !important;
+    }
+    
+    /* 开关控件 */
+    .switch {
+        width: 44px !important;
+        height: 24px !important;
+    }
+    
+    .switch::before {
+        width: 20px !important;
+        height: 20px !important;
+    }
+    
+    /* 滑块 */
+    input[type="range"] {
+        width: 100% !important;
+    }
+    
+    /* 进度条 */
+    .progress {
+        height: 6px !important;
+    }
+    
+    /* 头像 */
+    .avatar {
+        width: 36px !important;
+        height: 36px !important;
+    }
+    
+    /* 徽章 */
+    .badge {
+        padding: 2px 8px !important;
+        font-size: 11px !important;
+    }
+    
+    /* 页脚 */
+    .footer {
+        padding: 16px 12px !important;
+        font-size: 12px !important;
+    }
+}
+
+/* 小屏幕 (平板, >= 576px) */
+@media (min-width: 576px) and (max-width: 767.98px) {
+    .container {
+        padding: 0 16px !important;
+    }
+    
+    .grid-2 {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    
+    .grid-3 {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    
+    .grid-4 {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    
+    .sidebar {
+        width: 200px !important;
+    }
+    
+    .main-content {
+        margin-left: 200px !important;
+    }
+    
+    .modal-content {
+        width: 90% !important;
+        max-width: 500px !important;
+    }
+}
+
+/* 中等屏幕 (桌面, >= 768px) */
+@media (min-width: 768px) and (max-width: 991.98px) {
+    .grid-3 {
+        grid-template-columns: repeat(3, 1fr) !important;
+    }
+    
+    .grid-4 {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    
+    .sidebar {
+        width: 220px !important;
+    }
+    
+    .main-content {
+        margin-left: 220px !important;
+    }
+    
+    .modal-content {
+        width: 80% !important;
+        max-width: 600px !important;
+    }
+}
+
+/* 大屏幕 (桌面, >= 992px) */
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    .grid-4 {
+        grid-template-columns: repeat(4, 1fr) !important;
+    }
+    
+    .sidebar {
+        width: 240px !important;
+    }
+    
+    .main-content {
+        margin-left: 240px !important;
+    }
+}
+
+/* 超大屏幕 (>= 1200px) */
+@media (min-width: 1200px) {
+    .container {
+        max-width: 1140px !important;
+    }
+}
+
+/* 超超大屏幕 (>= 1400px) */
+@media (min-width: 1400px) {
+    .container {
+        max-width: 1320px !important;
+    }
+}
+
+/* 横向模式优化 */
+@media (max-width: 767.98px) and (orientation: landscape) {
+    .chart-container {
+        height: 150px !important;
+    }
+    
+    .modal-content {
+        max-height: 70vh !important;
+    }
+}
+
+/* 触摸优化 */
+@media (hover: none) {
+    .btn:active {
+        transform: scale(0.98);
+    }
+    
+    .card:active {
+        transform: scale(0.99);
+    }
+}
+
+/* 高对比度模式 */
+@media (prefers-contrast: high) {
+    .card {
+        border-width: 2px !important;
+    }
+    
+    .btn {
+        border-width: 2px !important;
+    }
+}
+
+/* 减少动画模式 */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* 打印样式 */
+@media print {
+    .navbar,
+    .sidebar,
+    .btn,
+    .modal {
+        display: none !important;
+    }
+    
+    .main-content {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+    
+    .card {
+        break-inside: avoid !important;
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+    }
+    
+    .chart-container canvas {
+        max-width: 100% !important;
+    }
+}
+
+/* 顶栏当前登录账号 */
+.account-badge {
+    display: inline-flex;
+    align-items: center;
+    max-width: 240px;
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border-radius: 980px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

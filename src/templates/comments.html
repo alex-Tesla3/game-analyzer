@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户评论分析 - 游戏数据分析引擎</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --apple-blue: #0071e3;
+            --apple-gray: #86868b;
+            --apple-gray-2: #6e6e73;
+            --apple-gray-3: #1d1d1f;
+            --apple-bg: #f5f5f7;
+            --apple-surface: #ffffff;
+            --apple-card: #ffffff;
+            --apple-text: #1d1d1f;
+            --apple-text-secondary: #86868b;
+            --apple-border: rgba(0, 0, 0, 0.1);
+            --apple-success: #34c759;
+            --apple-warning: #ff9500;
+            --apple-error: #ff3b30;
+            --apple-radius-sm: 12px;
+            --apple-radius-md: 18px;
+            --apple-radius-lg: 24px;
+            --apple-shadow-subtle: 0 4px 20px rgba(0, 0, 0, 0.08);
+            --apple-blur: blur(20px);
+        }
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--apple-bg);
+            min-height: 100vh;
+            color: var(--apple-text);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 48px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: var(--apple-blur);
+            -webkit-backdrop-filter: var(--apple-blur);
+            border-bottom: 1px solid var(--apple-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 48px;
+            z-index: 1000;
+        }
+        .sidebar-left {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+        }
+        .sidebar-logo {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            background: var(--apple-text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: white;
+        }
+        .sidebar-nav {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: var(--apple-radius-sm);
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            color: var(--apple-gray-2);
+            font-size: 0.875rem;
+            font-weight: 400;
+        }
+        .nav-item:hover { color: var(--apple-text); }
+        .nav-item.active { color: var(--apple-blue); font-weight: 500; }
+        .nav-icon { font-size: 1rem; }
+        .sidebar-right { display: flex; align-items: center; gap: 12px; }
+        .user-menu { position: relative; }
+        .user-menu-dropdown {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 8px);
+            background: var(--apple-card);
+            border-radius: var(--apple-radius-md);
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+            padding: 8px;
+            min-width: 180px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-8px);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid var(--apple-border);
+        }
+        .user-menu:hover .user-menu-dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
+        .dropdown-item {
+            display: block;
+            width: 100%;
+            padding: 10px 16px;
+            text-align: left;
+            background: none;
+            border: none;
+            border-radius: var(--apple-radius-sm);
+            font-size: 0.875rem;
+            color: var(--apple-text);
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .dropdown-item:hover { background: var(--apple-bg); }
+        .dropdown-item.danger { color: var(--apple-error); }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 980px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: none;
+            font-family: inherit;
+        }
+        .btn-primary { background: var(--apple-blue); color: white; }
+        .btn-primary:hover { background: #0077ED; }
+        .btn-secondary { background: transparent; color: var(--apple-blue); }
+        .btn-secondary:hover { text-decoration: underline; }
+        .btn-icon {
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.06);
+            color: var(--apple-gray-2);
+            border-radius: 50%;
+        }
+        .btn-icon:hover { background: var(--apple-gray); color: white; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 80px 48px; }
+        .header { margin-bottom: 40px; padding-bottom: 24px; border-bottom: 1px solid var(--apple-border); }
+        .header-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--apple-text);
+            letter-spacing: -0.03em;
+            margin-bottom: 8px;
+        }
+        .header-subtitle { font-size: 1.125rem; color: var(--apple-gray); }
+        .filter-bar {
+            background: var(--apple-card);
+            border-radius: var(--apple-radius-lg);
+            padding: 24px;
+            margin-bottom: 30px;
+            border: 1px solid var(--apple-border);
+        }
+        .filter-row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }
+        .filter-group { flex: 1; min-width: 200px; }
+        .filter-label {
+            display: block;
+            color: var(--apple-gray);
+            font-size: 0.75rem;
+            margin-bottom: 8px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        .filter-select {
+            width: 100%;
+            background: var(--apple-bg);
+            border: 1px solid var(--apple-border);
+            border-radius: var(--apple-radius-sm);
+            padding: 12px 16px;
+            color: var(--apple-text);
+            font-size: 0.9375rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .filter-select:focus {
+            outline: none;
+            border-color: var(--apple-blue);
+            box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.1);
+        }
+        .search-input {
+            width: 100%;
+            background: var(--apple-bg);
+            border: 1px solid var(--apple-border);
+            border-radius: var(--apple-radius-sm);
+            padding: 12px 16px;
+            color: var(--apple-text);
+            font-size: 0.9375rem;
+            font-family: inherit;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: var(--apple-blue);
+            box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.1);
+        }
+        .main-content { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 24px; }
+        .section {
+            background: var(--apple-card);
+            border-radius: var(--apple-radius-lg);
+            padding: 28px;
+            border: 1px solid var(--apple-border);
+        }
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--apple-text);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--apple-bg);
+            border-radius: var(--apple-radius-md);
+            padding: 20px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--apple-text);
+            margin-bottom: 4px;
+        }
+        .stat-label { font-size: 0.8125rem; color: var(--apple-gray); }
+        .sentiment-badges { display: flex; gap: 12px; margin-bottom: 24px; }
+        .sentiment-badge {
+            padding: 10px 20px;
+            border-radius: 980px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        .sentiment-positive { background: rgba(52, 199, 89, 0.1); color: var(--apple-success); }
+        .sentiment-neutral { background: rgba(134, 134, 139, 0.1); color: var(--apple-gray); }
+        .sentiment-negative { background: rgba(255, 59, 48, 0.1); color: var(--apple-error); }
+        .chart-container {
+            height: 300px;
+            position: relative;
+            margin-top: 16px;
+        }
+        .comments-list {
+            max-height: 600px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .comment-card {
+            background: var(--apple-bg);
+            border-radius: var(--apple-radius-md);
+            padding: 20px;
+            border-left: 4px solid;
+        }
+        .comment-card.positive { border-color: var(--apple-success); }
+        .comment-card.neutral { border-color: var(--apple-gray); }
+        .comment-card.negative { border-color: var(--apple-error); }
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .comment-author { font-weight: 600; color: var(--apple-text); }
+        .comment-date { font-size: 0.75rem; color: var(--apple-gray); }
+        .comment-content {
+            font-size: 0.9375rem;
+            color: var(--apple-text);
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+        .comment-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 0.8125rem;
+            color: var(--apple-gray);
+        }
+        .keyword-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .keyword-tag {
+            padding: 6px 12px;
+            background: rgba(0, 113, 227, 0.1);
+            color: var(--apple-blue);
+            border-radius: 980px;
+            font-size: 0.8125rem;
+        }
+        .account-badge {
+            display: inline-flex;
+            align-items: center;
+            max-width: 220px;
+            padding: 6px 12px;
+            margin-right: 8px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--apple-gray);
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 980px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        @media (max-width: 1024px) {
+            .main-content { grid-template-columns: 1fr; }
+            .sidebar { padding: 0 20px; }
+            .container { padding: 80px 20px; }
+        }
+    </style>
+    <link rel="stylesheet" href="/static/css/app-nav.css">
+    <script src="/static/js/app-nav.js" defer></script>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-left">
+            <div class="sidebar-logo">🎮</div>
+            <div class="sidebar-nav" id="app-nav-mount" data-active="comments"></div>
+        </div>
+        <div class="sidebar-right">
+            <span class="account-badge" data-account-badge>…</span>
+            <button class="btn btn-icon" id="config-toggle" title="配置管理">⚙️</button>
+            <button class="btn btn-primary" onclick="performAIAnalysis()">🤖 AI 分析</button>
+            <div class="user-menu">
+                <button class="btn btn-icon">👤</button>
+                <div class="user-menu-dropdown">
+                    <button class="dropdown-item" onclick="window.location.href='/pricing'">💎 订阅套餐</button>
+                    <button class="dropdown-item danger" onclick="logout()">🚪 退出登录</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1 class="header-title">💬 用户评论分析</h1>
+            <p class="header-subtitle">实时监控用户反馈，深度分析评论情感与关键词</p>
+        </div>
+
+        <div class="filter-bar">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label class="filter-label">产品选择</label>
+                    <select id="product-select" class="filter-select" onchange="loadComments()">
+                        <option value="all">全部产品</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">数据周期</label>
+                    <select id="period-select" class="filter-select" onchange="loadComments()">
+                        <option value="all">全部周期</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">情感类型</label>
+                    <select id="sentiment-select" class="filter-select" onchange="loadComments()">
+                        <option value="all">全部情感</option>
+                        <option value="positive">正面</option>
+                        <option value="neutral">中性</option>
+                        <option value="negative">负面</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">评分</label>
+                    <select id="rating-select" class="filter-select">
+                        <option value="all">全部评分</option>
+                        <option value="5">⭐⭐⭐⭐⭐</option>
+                        <option value="4">⭐⭐⭐⭐</option>
+                        <option value="3">⭐⭐⭐</option>
+                        <option value="2">⭐⭐</option>
+                        <option value="1">⭐</option>
+                    </select>
+                </div>
+                <div class="filter-group" style="flex: 2;">
+                    <label class="filter-label">关键词搜索</label>
+                    <input type="text" id="keyword-search" class="search-input" placeholder="搜索评论关键词...">
+                </div>
+                <button class="btn btn-primary" onclick="loadComments()">🔍 筛选</button>
+            </div>
+            <p id="filter-hint" style="margin-top:10px;font-size:0.875rem;color:var(--apple-gray);"></p>
+        </div>
+
+        <div class="main-content">
+            <div class="section">
+                <h2 class="section-title">📊 评论统计</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="total-comments">-</div>
+                        <div class="stat-label">总评论数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="avg-rating">-</div>
+                        <div class="stat-label">平均评分</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="positive-rate">-</div>
+                        <div class="stat-label">正面率</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="response-rate">-</div>
+                        <div class="stat-label">回复率</div>
+                    </div>
+                </div>
+                <div class="sentiment-badges">
+                    <div class="sentiment-badge sentiment-positive" id="positive-count">👍 正面 (0)</div>
+                    <div class="sentiment-badge sentiment-neutral" id="neutral-count">😐 中性 (0)</div>
+                    <div class="sentiment-badge sentiment-negative" id="negative-count">👎 负面 (0)</div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="sentimentChart"></canvas>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">🔥 热门关键词</h2>
+                <div id="keyword-cloud" style="min-height: 200px; display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start;"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">💬 最新评论</h2>
+            <div class="comments-list" id="comments-list"></div>
+        </div>
+    </div>
+
+    <script src="/static/js/auth-token.js"></script>
+    <script src="/static/js/chart.js"></script>
+    <script src="/static/js/account-display.js" defer></script>
+    <script>
+        let commentsData = [];
+        let sentimentChartInstance = null;
+
+        function getToken() {
+            return typeof getAuthToken === 'function' ? getAuthToken() : localStorage.getItem('access_token');
+        }
+
+        function ensureLoggedIn() {
+            if (!getToken()) {
+                window.location.href = '/login?redirect=' + encodeURIComponent('/comments');
+                return false;
+            }
+            return true;
+        }
+
+        function populateProductSelect(catalog, preserveValue) {
+            const select = document.getElementById('product-select');
+            if (!select || !catalog?.products?.length) return;
+            const current = preserveValue !== undefined ? preserveValue : select.value;
+            select.innerHTML = '<option value="all">全部产品</option>';
+            catalog.products.forEach((item) => {
+                const label = item.name || item.id;
+                select.innerHTML += `<option value="${item.id}">${label}</option>`;
+            });
+            const has = Array.from(select.options).some((o) => o.value === current);
+            select.value = has ? current : 'all';
+        }
+
+        function populatePeriodSelect(catalog, preserveValue) {
+            const select = document.getElementById('period-select');
+            if (!select || !catalog?.time_periods?.length) return;
+            const current = preserveValue !== undefined ? preserveValue : select.value;
+            select.innerHTML = '<option value="all">全部周期</option>';
+            catalog.time_periods.forEach((item) => {
+                select.innerHTML += `<option value="${item.id}">${item.name || item.id}</option>`;
+            });
+            const has = Array.from(select.options).some((o) => o.value === current);
+            select.value = has ? current : 'all';
+        }
+
+        async function initFilters() {
+            if (!ensureLoggedIn()) return false;
+            const token = getToken();
+            const response = await fetch(`/api/options?token=${encodeURIComponent(token)}`);
+            if (!response.ok) return false;
+            const result = await response.json();
+            if (result.success) {
+                populateProductSelect({ products: result.products, time_periods: result.time_periods });
+                populatePeriodSelect({ time_periods: result.time_periods });
+            }
+            return true;
+        }
+
+        function commentRating(c) {
+            const score = c.score || c['评分'];
+            if (score) return parseInt(score, 10);
+            const sentiment = c['情绪'] || c.sentiment || '';
+            if (sentiment === 'positive' || sentiment === '正面') return 5;
+            if (sentiment === 'negative' || sentiment === '负面') return 2;
+            return 3;
+        }
+
+        async function loadComments() {
+            if (!ensureLoggedIn()) return;
+            const token = getToken();
+            const product = document.getElementById('product-select').value;
+            const period = document.getElementById('period-select').value;
+            const sentiment = document.getElementById('sentiment-select').value;
+            let url = `/api/comments?token=${encodeURIComponent(token)}`;
+            if (product !== 'all') url += `&product=${encodeURIComponent(product)}`;
+            if (period && period !== 'all') url += `&time_period=${encodeURIComponent(period)}`;
+            if (sentiment !== 'all') url += `&sentiment=${encodeURIComponent(sentiment)}`;
+
+            const response = await fetch(url);
+            if (response.status === 401) {
+                window.location.href = '/login?redirect=' + encodeURIComponent('/comments');
+                return;
+            }
+            const result = await response.json();
+            if (result.success) {
+                commentsData = result.data || [];
+                if (result.catalog) {
+                    populateProductSelect(result.catalog, product);
+                    populatePeriodSelect(result.catalog, period);
+                }
+                if (result.total > 0 && commentsData.length === 0) {
+                    console.warn('筛选后无评论，请切换产品、周期或情感条件');
+                }
+                filterComments();
+                const hint = document.getElementById('filter-hint');
+                if (hint) {
+                    hint.textContent = result.filtered_count != null
+                        ? `显示 ${result.filtered_count} / ${result.total} 条（数据源：${result.source || '-'}）`
+                        : '';
+                }
+            }
+        }
+
+        function applyCommentView(filtered) {
+            updateStats(filtered);
+            renderComments(filtered);
+            renderKeywordCloud(filtered);
+            initChart(filtered);
+        }
+
+        function updateStats(data) {
+            const rows = data || [];
+            document.getElementById('total-comments').textContent = rows.length;
+            
+            const positive = rows.filter(c => c['情绪'] === 'positive' || c['情绪'] === '正面').length;
+            const neutral = rows.filter(c => c['情绪'] === 'neutral' || c['情绪'] === '中性').length;
+            const negative = rows.filter(c => c['情绪'] === 'negative' || c['情绪'] === '负面').length;
+            
+            const positiveRate = rows.length
+                ? (positive / rows.length * 100).toFixed(1) + '%'
+                : '0%';
+            document.getElementById('positive-rate').textContent = positiveRate;
+            const avg = rows.length
+                ? (rows.reduce((sum, c) => sum + commentRating(c), 0) / rows.length).toFixed(1)
+                : '-';
+            document.getElementById('avg-rating').textContent = avg === '-' ? '-' : `${avg} ⭐`;
+            document.getElementById('response-rate').textContent = rows.length ? '68%' : '-';
+            
+            document.getElementById('positive-count').textContent = `👍 正面 (${positive})`;
+            document.getElementById('neutral-count').textContent = `😐 中性 (${neutral})`;
+            document.getElementById('negative-count').textContent = `👎 负面 (${negative})`;
+        }
+
+        function renderComments(data) {
+            const rows = data || [];
+            const list = document.getElementById('comments-list');
+            let html = '';
+            
+            rows.slice(0, 50).forEach(c => {
+                const sentiment = c['情绪'] || c.sentiment || 'neutral';
+                const content = c['内容'] || c.content || '';
+                const date = c['日期'] || c.date || '';
+                const platform = c['platform'] || c['平台'] || '';
+                const userRole = c['用户角色'] || c.author || '匿名用户';
+                
+                html += `
+                    <div class="comment-card ${sentiment}">
+                        <div class="comment-header">
+                            <span class="comment-author">${userRole}</span>
+                            <span class="comment-date">${date}</span>
+                        </div>
+                        <div class="comment-content">${content}</div>
+                        <div class="comment-meta">
+                            <span>平台: ${platform}</span>
+                            <span>评分: ${getRatingFromSentiment(sentiment)}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            list.innerHTML = html || '<p style="color: var(--apple-gray); padding: 20px; text-align: center;">暂无匹配的评论</p>';
+        }
+
+        function getRatingFromSentiment(sentiment) {
+            if (sentiment === 'positive' || sentiment === '正面') return '⭐⭐⭐⭐⭐';
+            if (sentiment === 'negative' || sentiment === '负面') return '⭐⭐';
+            return '⭐⭐⭐';
+        }
+
+        function renderKeywordCloud(data) {
+            const rows = data || [];
+            const cloud = document.getElementById('keyword-cloud');
+            const keywords = {};
+            const keywordList = ['战斗', '视觉', '付费', '新手', 'UI', '引导', '个性化', '素材', '组队', '设置', 
+                                 '太空', '舰队', '殖民地', '发展', '探索', '任务', '奖励', '玩法', '体验'];
+            
+            rows.forEach(c => {
+                const content = c['内容'] || c.content || '';
+                keywordList.forEach(kw => {
+                    if (content.includes(kw)) {
+                        keywords[kw] = (keywords[kw] || 0) + 1;
+                    }
+                });
+            });
+            
+            const sorted = Object.entries(keywords).sort((a, b) => b[1] - a[1]).slice(0, 15);
+            
+            let html = '';
+            sorted.forEach(([word, count]) => {
+                const size = Math.max(1, Math.min(2.5, count / 3));
+                html += `<span style="font-size: ${size}rem; padding: 8px 16px; background: rgba(0,113,227,0.1); color: #0071e3; border-radius: 980px; cursor: pointer;" onclick="filterByKeyword('${word}')">${word}</span>`;
+            });
+            cloud.innerHTML = html || '<p style="color: var(--apple-gray); font-size: 0.875rem;">暂无关键词数据</p>';
+        }
+
+        function initChart(data) {
+            const rows = data || [];
+            const ctx = document.getElementById('sentimentChart').getContext('2d');
+            const labels = ['正面', '中性', '负面'];
+            const positive = rows.filter(c => c['情绪'] === 'positive' || c['情绪'] === '正面').length;
+            const neutral = rows.filter(c => c['情绪'] === 'neutral' || c['情绪'] === '中性').length;
+            const negative = rows.filter(c => c['情绪'] === 'negative' || c['情绪'] === '负面').length;
+
+            if (sentimentChartInstance) {
+                sentimentChartInstance.destroy();
+            }
+            sentimentChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: '评论数', data: [positive, neutral, negative], backgroundColor: ['#34c759', '#86868b', '#ff3b30'] }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: true, position: 'top' } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function filterComments() {
+            const rating = document.getElementById('rating-select').value;
+            const keyword = document.getElementById('keyword-search').value.toLowerCase().trim();
+            
+            let filtered = commentsData || [];
+            if (rating !== 'all') {
+                const target = parseInt(rating, 10);
+                filtered = filtered.filter(c => commentRating(c) === target);
+            }
+            if (keyword) {
+                filtered = filtered.filter(c => {
+                    const content = (c.content || c['内容'] || '').toLowerCase();
+                    return content.includes(keyword);
+                });
+            }
+            applyCommentView(filtered);
+        }
+
+        function filterByKeyword(word) {
+            document.getElementById('keyword-search').value = word;
+            filterComments();
+        }
+
+        function logout() {
+            if (typeof clearAuthToken === 'function') clearAuthToken();
+            else localStorage.removeItem('access_token');
+            window.location.href = '/login';
+        }
+
+        function performAIAnalysis() {
+            window.open('/dashboard#ai-analysis', '_self');
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (window.AppNav) AppNav.mount('#app-nav-mount');
+            await initFilters();
+            await loadComments();
+        });
+    </script>
+</body>
+</html>

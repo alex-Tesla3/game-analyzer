@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  game-analyzer:
+    build: .
+    container_name: game-analyzer
+    ports:
+      - "8080:8000"
+    environment:
+      - APP_ENV=production
+      - LOG_LEVEL=info
+      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY in .env before starting production}
+      - INITIAL_ADMIN_PASSWORD=${INITIAL_ADMIN_PASSWORD:?Set INITIAL_ADMIN_PASSWORD in .env before starting production}
+      - PAYMENT_WEBHOOK_SECRET=${PAYMENT_WEBHOOK_SECRET:?Set PAYMENT_WEBHOOK_SECRET in .env before starting production}
+      - ALLOW_DEMO_ACCOUNTS=false
+      - PAYMENT_TEST_MODE=false
+    volumes:
+      - ./mock_data:/app/mock_data
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    image: nginx:alpine
+    container_name: game-analyzer-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - game-analyzer
+    restart: unless-stopped

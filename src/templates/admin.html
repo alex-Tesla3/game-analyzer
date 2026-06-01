@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理 - 游戏数据分析引擎</title>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #06b6d4 100%);
+            --bg-dark: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.8);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-blue: #06b6d4;
+            --accent-purple: #8b5cf6;
+            --accent-green: #22c55e;
+            --accent-yellow: #f59e0b;
+            --accent-red: #ef4444;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            min-height: 100vh;
+            color: var(--text-primary);
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .header-left h1 {
+            font-size: 1.8rem;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        .header-left p { color: var(--text-secondary); font-size: 0.95rem; }
+        .back-btn, .add-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+        }
+        .back-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+        .back-btn:hover { background: rgba(255, 255, 255, 0.15); }
+        .add-btn {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            margin-left: 10px;
+        }
+        .add-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(99, 102, 241, 0.4); }
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+        .stat-label { color: var(--text-secondary); font-size: 0.9rem; margin-top: 4px; }
+        .search-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .search-input {
+            flex: 1;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+        .search-input:focus { outline: none; border-color: var(--accent-purple); }
+        .user-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-card);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .user-table th, .user-table td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .user-table th {
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .user-table tr:hover { background: rgba(255, 255, 255, 0.03); }
+        .user-table tr:last-child td { border-bottom: none; }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        .badge.admin { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple); }
+        .badge.user { background: rgba(6, 182, 212, 0.2); color: var(--accent-blue); }
+        .badge.free { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+        .badge.pro { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+        .badge.enterprise { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple); }
+        .badge.disabled { background: rgba(99, 102, 115, 0.2); color: var(--text-muted); }
+        .badge.enabled { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+        .action-btns { display: flex; gap: 8px; }
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .action-btn.edit {
+            background: rgba(6, 182, 212, 0.2);
+            color: var(--accent-blue);
+        }
+        .action-btn.edit:hover { background: rgba(6, 182, 212, 0.3); }
+        .action-btn.delete {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--accent-red);
+        }
+        .action-btn.delete:hover { background: rgba(239, 68, 68, 0.3); }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal-content {
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 30px;
+            width: 100%;
+            max-width: 480px;
+            border: 1px solid var(--border-color);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+        .modal-title { font-size: 1.3rem; font-weight: 600; }
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .form-group { margin-bottom: 20px; }
+        .form-label {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .form-input {
+            width: 100%;
+            padding: 12px 14px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+        .form-input:focus { outline: none; border-color: var(--accent-purple); }
+        .form-select {
+            width: 100%;
+            padding: 12px 14px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+        .form-select:focus { outline: none; border-color: var(--accent-purple); }
+        .form-check {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        .form-check input { width: 18px; height: 18px; }
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 25px;
+        }
+        .btn-primary {
+            flex: 1;
+            padding: 12px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary:hover { transform: translateY(-2px); }
+        .btn-secondary {
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-secondary:hover { background: rgba(255, 255, 255, 0.15); }
+        .error-message, .success-message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+        }
+        .error-message {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        .success-message {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--accent-green);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        .error-message.show, .success-message.show { display: block; }
+        .loading { text-align: center; padding: 50px; color: var(--text-muted); }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+        .empty-state .icon { font-size: 4rem; margin-bottom: 16px; }
+        .tab-nav { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn {
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+        .tab-btn:hover { background: rgba(255, 255, 255, 0.1); color: var(--text-primary); }
+        .tab-btn.active { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border-color: transparent; }
+        .form-range {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .form-range::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            cursor: pointer;
+        }
+        .provider-card {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+        }
+        .provider-card h4 { margin-bottom: 8px; font-size: 1rem; }
+        .provider-card p { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 8px; }
+        .provider-models { display: flex; flex-wrap: wrap; gap: 5px; }
+        .model-tag {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--accent-purple);
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.75rem;
+        }
+        .account-badge {
+            display: inline-flex;
+            align-items: center;
+            max-width: 240px;
+            padding: 6px 12px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            border-radius: 980px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        @media (max-width: 768px) {
+            .container { padding: 10px; }
+            header { flex-direction: column; gap: 15px; align-items: flex-start; }
+            .search-bar { flex-direction: column; }
+            .user-table { font-size: 0.85rem; }
+            .user-table th, .user-table td { padding: 10px 8px; }
+            .action-btns { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <h1>⚙️ 系统设置</h1>
+                <p>管理用户账户、权限和大模型配置</p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <span class="account-badge" data-account-badge style="color: #94a3b8; background: rgba(255,255,255,0.08);">…</span>
+                <button class="back-btn" onclick="window.location.href='/'">← 返回首页</button>
+                <button class="back-btn" style="background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: #ef4444;" onclick="logout()">🚪 退出登录</button>
+            </div>
+        </header>
+
+        <div class="tab-nav" style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button class="tab-btn active" id="tab-users" onclick="switchTab('users')">👥 用户管理</button>
+            <button class="tab-btn" id="tab-llm" onclick="switchTab('llm')">🤖 LLM配置</button>
+        </div>
+
+        <div id="users-section">
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-value" id="total-users">-</div>
+                <div class="stat-label">总用户数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="admin-users">-</div>
+                <div class="stat-label">管理员</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="active-users">-</div>
+                <div class="stat-label">活跃用户</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="pro-users">-</div>
+                <div class="stat-label">专业版用户</div>
+            </div>
+        </div>
+
+        <div class="search-bar">
+            <input type="text" class="search-input" id="search-input" placeholder="搜索用户名、邮箱..." onkeyup="filterUsers()">
+            <button class="add-btn" onclick="openAddModal()">➕ 添加用户</button>
+        </div>
+
+        <div id="loading" class="loading">加载中...</div>
+        <div id="user-container" style="display: none;">
+            <table class="user-table">
+                <thead>
+                    <tr>
+                        <th>用户名</th>
+                        <th>邮箱</th>
+                        <th>角色</th>
+                        <th>套餐</th>
+                        <th>状态</th>
+                        <th>游戏限制</th>
+                        <th>API配额</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="user-table-body"></tbody>
+            </table>
+        </div>
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <div class="icon">👤</div>
+            <div>暂无用户数据</div>
+        </div>
+        </div>
+
+        <div id="llm-section" style="display: none;">
+            <div class="section-card" style="background: var(--bg-card); border-radius: 12px; padding: 25px; border: 1px solid var(--border-color);">
+                <h3 style="color: var(--text-primary); margin-bottom: 20px;">🤖 大模型配置</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 25px;">选择AI分析使用的大语言模型提供商和参数配置</p>
+                
+                <div class="form-group">
+                    <label class="form-label">LLM提供商</label>
+                    <select class="form-select" id="llm-provider" onchange="updateModelOptions()">
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">模型选择</label>
+                    <select class="form-select" id="llm-model">
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">API密钥</label>
+                    <input type="password" class="form-input" id="llm-api-key" placeholder="输入API密钥（可选，用于云端模型）">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">自定义端点（可选）</label>
+                    <input type="text" class="form-input" id="llm-endpoint" placeholder="如Ollama本地地址 http://localhost:11434">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Temperature（创造性）：<span id="temp-value">0.7</span></label>
+                    <input type="range" class="form-range" id="llm-temperature" min="0" max="2" step="0.1" value="0.7" oninput="document.getElementById('temp-value').textContent = this.value">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">最大Token数</label>
+                    <input type="number" class="form-input" id="llm-max-tokens" value="2000" min="100" max="8000">
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button class="btn-primary" onclick="saveLLMConfig()">💾 保存配置</button>
+                    <button class="btn-secondary" onclick="testLLMConnection()">🔗 测试连接</button>
+                </div>
+                
+                <div id="llm-message" style="margin-top: 15px;"></div>
+            </div>
+            
+            <div class="section-card" style="background: var(--bg-card); border-radius: 12px; padding: 25px; border: 1px solid var(--border-color); margin-top: 20px;">
+                <h3 style="color: var(--text-primary); margin-bottom: 15px;">📋 可用模型列表</h3>
+                <div id="providers-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="add-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">➕ 添加新用户</div>
+                <button class="modal-close" onclick="closeAddModal()">×</button>
+            </div>
+            <div class="error-message" id="add-error"></div>
+            <div class="success-message" id="add-success"></div>
+            <form id="add-form">
+                <div class="form-group">
+                    <label class="form-label">用户名 *</label>
+                    <input type="text" class="form-input" id="add-username" required placeholder="输入用户名">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">邮箱 *</label>
+                    <input type="email" class="form-input" id="add-email" required placeholder="输入邮箱">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">密码 *</label>
+                    <input type="password" class="form-input" id="add-password" required placeholder="输入密码">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">姓名</label>
+                    <input type="text" class="form-input" id="add-fullname" placeholder="输入姓名">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">角色</label>
+                    <select class="form-select" id="add-role">
+                        <option value="user">普通用户</option>
+                        <option value="agent">人工坐席</option>
+                        <option value="admin">管理员</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">套餐</label>
+                    <select class="form-select" id="add-plan">
+                        <option value="free">免费版</option>
+                        <option value="pro">专业版</option>
+                        <option value="enterprise">企业版</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeAddModal()">取消</button>
+                    <button type="submit" class="btn-primary">创建用户</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="edit-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">✏️ 编辑用户</div>
+                <button class="modal-close" onclick="closeEditModal()">×</button>
+            </div>
+            <div class="error-message" id="edit-error"></div>
+            <div class="success-message" id="edit-success"></div>
+            <form id="edit-form">
+                <div class="form-group">
+                    <label class="form-label">用户名</label>
+                    <input type="text" class="form-input" id="edit-username" disabled>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">邮箱</label>
+                    <input type="email" class="form-input" id="edit-email" placeholder="输入邮箱">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">姓名</label>
+                    <input type="text" class="form-input" id="edit-fullname" placeholder="输入姓名">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">角色</label>
+                    <select class="form-select" id="edit-role">
+                        <option value="user">普通用户</option>
+                        <option value="agent">人工坐席</option>
+                        <option value="admin">管理员</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">套餐</label>
+                    <select class="form-select" id="edit-plan">
+                        <option value="free">免费版</option>
+                        <option value="pro">专业版</option>
+                        <option value="enterprise">企业版</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">游戏限制</label>
+                    <input type="number" class="form-input" id="edit-games-limit" placeholder="-1表示无限">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">API配额</label>
+                    <input type="number" class="form-input" id="edit-api-quota" placeholder="-1表示无限">
+                </div>
+                <div class="form-group">
+                    <div class="form-check">
+                        <input type="checkbox" id="edit-disabled">
+                        <label for="edit-disabled">禁用账户</label>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeEditModal()">取消</button>
+                    <button type="submit" class="btn-primary">保存更改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/auth-token.js"></script>
+    <script src="/static/js/account-display.js" defer></script>
+    <script>
+        let users = [];
+        let editingUser = null;
+        let llmProviders = [];
+        let llmHasApiKey = false;
+
+        function getToken() {
+            return typeof getAuthToken === 'function' ? getAuthToken() : localStorage.getItem('access_token');
+        }
+        function checkAuth() {
+            const token = getToken();
+            if (!token) { window.location.href = '/login'; return false; }
+            return true;
+        }
+
+        async function logout() {
+            if (confirm('确定要退出登录吗？')) {
+                if (typeof clearAuthToken === 'function') clearAuthToken();
+                else localStorage.removeItem('access_token');
+                window.location.href = '/login';
+            }
+        }
+
+        function switchTab(tab) {
+            document.getElementById('tab-users').classList.remove('active');
+            document.getElementById('tab-llm').classList.remove('active');
+            document.getElementById('users-section').style.display = 'none';
+            document.getElementById('llm-section').style.display = 'none';
+            
+            if (tab === 'users') {
+                document.getElementById('tab-users').classList.add('active');
+                document.getElementById('users-section').style.display = 'block';
+            } else {
+                document.getElementById('tab-llm').classList.add('active');
+                document.getElementById('llm-section').style.display = 'block';
+                loadLLMConfig();
+            }
+        }
+
+        async function loadLLMProviders() {
+            const token = getToken();
+            if (!token) return false;
+            try {
+                const response = await fetch(`/api/llm/providers?token=${encodeURIComponent(token)}`);
+                const result = await response.json();
+                if (response.status === 401) {
+                    window.location.href = '/login?redirect=' + encodeURIComponent('/admin');
+                    return false;
+                }
+                if (result.success) {
+                    llmProviders = result.providers || [];
+                    renderProvidersList();
+                    return true;
+                }
+                const msgEl = document.getElementById('llm-message');
+                if (msgEl) {
+                    msgEl.innerHTML = `<div style="color: var(--accent-red); padding: 10px; background: rgba(239, 68, 68, 0.15); border-radius: 8px;">加载 LLM 提供商失败: ${result.detail || result.message || response.status}</div>`;
+                }
+            } catch (error) {
+                console.error('Failed to load LLM providers:', error);
+                const msgEl = document.getElementById('llm-message');
+                if (msgEl) {
+                    msgEl.innerHTML = `<div style="color: var(--accent-red); padding: 10px; background: rgba(239, 68, 68, 0.15); border-radius: 8px;">加载 LLM 提供商失败: ${error.message}</div>`;
+                }
+            }
+            return false;
+        }
+
+        function renderProvidersList() {
+            const container = document.getElementById('providers-list');
+            if (!container || !llmProviders.length) return;
+            container.innerHTML = llmProviders.map(p => `
+                <div class="provider-card">
+                    <h4 style="color: ${p.color}">${p.name}</h4>
+                    <p>默认模型: ${p.default_model}</p>
+                    <div class="provider-models">
+                        ${p.models.map(m => `<span class="model-tag">${m}</span>`).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function loadLLMConfig() {
+            const token = getToken();
+            try {
+                const response = await fetch(`/api/llm/config?token=${token}`);
+                const result = await response.json();
+                if (result.success) {
+                    const config = result.config;
+                    llmHasApiKey = !!config.has_api_key;
+                    document.getElementById('llm-api-key').value = config.api_key || '';
+                    document.getElementById('llm-api-key').placeholder = llmHasApiKey
+                        ? '已保存密钥（留空不修改；输入新密钥可覆盖）'
+                        : '输入API密钥（可选，用于云端模型）';
+                    document.getElementById('llm-endpoint').value = config.endpoint || (
+                        config.provider === 'ollama' ? 'http://localhost:11434' : ''
+                    );
+                    document.getElementById('llm-temperature').value = config.temperature;
+                    document.getElementById('temp-value').textContent = config.temperature;
+                    document.getElementById('llm-max-tokens').value = config.max_tokens;
+                    const savedModel = config.model;
+                    
+                    const providersOk = await loadLLMProviders();
+                    
+                    const providerSelect = document.getElementById('llm-provider');
+                    if (providersOk && llmProviders.length) {
+                        providerSelect.innerHTML = llmProviders.map(p => 
+                            `<option value="${p.id}" ${p.id === config.provider ? 'selected' : ''}>${p.name}</option>`
+                        ).join('');
+                    } else if (config.provider) {
+                        providerSelect.innerHTML = `<option value="${config.provider}" selected>${config.provider}</option>`;
+                    }
+                    
+                    updateModelOptions(savedModel);
+                }
+            } catch (error) {
+                console.error('Failed to load LLM config:', error);
+            }
+        }
+
+        function updateModelOptions(savedModel) {
+            const providerId = document.getElementById('llm-provider').value;
+            const provider = llmProviders.find(p => p.id === providerId);
+            const modelSelect = document.getElementById('llm-model');
+            
+            if (provider) {
+                modelSelect.innerHTML = provider.models.map(m => 
+                    `<option value="${m}">${m}</option>`
+                ).join('');
+            }
+            if (savedModel) {
+                if (![...modelSelect.options].some(o => o.value === savedModel)) {
+                    const opt = document.createElement('option');
+                    opt.value = savedModel;
+                    opt.textContent = savedModel + ' (已保存)';
+                    modelSelect.appendChild(opt);
+                }
+                modelSelect.value = savedModel;
+            }
+        }
+
+        async function saveLLMConfig() {
+            const token = getToken();
+            const apiKey = document.getElementById('llm-api-key').value.trim();
+            const config = {
+                provider: document.getElementById('llm-provider').value,
+                model: document.getElementById('llm-model').value,
+                endpoint: document.getElementById('llm-endpoint').value.trim(),
+                temperature: parseFloat(document.getElementById('llm-temperature').value),
+                max_tokens: parseInt(document.getElementById('llm-max-tokens').value)
+            };
+            if (apiKey && !apiKey.includes('...')) {
+                config.api_key = apiKey;
+            }
+            if (config.provider === 'ollama' && !config.endpoint) {
+                config.endpoint = 'http://localhost:11434';
+            }
+            
+            try {
+                const response = await fetch(`/api/llm/config?token=${token}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const result = await response.json();
+                
+                const msgEl = document.getElementById('llm-message');
+                if (result.success) {
+                    msgEl.innerHTML = `<div style="color: var(--accent-green); padding: 10px; background: rgba(34, 197, 94, 0.15); border-radius: 8px;">${result.message}</div>`;
+                } else {
+                    msgEl.innerHTML = `<div style="color: var(--accent-red); padding: 10px; background: rgba(239, 68, 68, 0.15); border-radius: 8px;">${result.detail || '保存失败'}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('llm-message').innerHTML = `<div style="color: var(--accent-red); padding: 10px; background: rgba(239, 68, 68, 0.15); border-radius: 8px;">保存失败: ${error.message}</div>`;
+            }
+        }
+
+        async function testLLMConnection() {
+            const token = getToken();
+            const apiKey = document.getElementById('llm-api-key').value.trim();
+            const testConfig = {
+                provider: document.getElementById('llm-provider').value,
+                model: document.getElementById('llm-model').value,
+                endpoint: document.getElementById('llm-endpoint').value.trim()
+            };
+            if (apiKey && !apiKey.includes('...')) {
+                testConfig.api_key = apiKey;
+            }
+            if (testConfig.provider === 'ollama' && !testConfig.endpoint) {
+                testConfig.endpoint = 'http://localhost:11434';
+            }
+            
+            const msgEl = document.getElementById('llm-message');
+            msgEl.innerHTML = `<div style="color: var(--accent-blue); padding: 10px; background: rgba(6, 182, 212, 0.15); border-radius: 8px;">正在测试连接...</div>`;
+            
+            try {
+                const response = await fetch(`/api/llm/test?token=${token}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testConfig)
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    msgEl.innerHTML = `<div style="color: var(--accent-green); padding: 10px; background: rgba(34, 197, 94, 0.15); border-radius: 8px;">✅ ${result.message}<br>响应: ${result.response}</div>`;
+                } else {
+                    msgEl.innerHTML = `<div style="color: var(--accent-red); padding: 10px; background: rgba(239, 68, 68, 0.15); border-radius: 8px;">❌ ${result.message}</div>`;
+                }
+            } catch (error) {
+                msgEl.innerHTML = `<div style="color: var(--accent-red); padding: 10px; background: rgba(239, 68, 68, 0.15); border-radius: 8px;">❌ 测试失败: ${error.message}</div>`;
+            }
+        }
+
+        async function loadUsers() {
+            if (!checkAuth()) return;
+            
+            const token = getToken();
+            try {
+                const response = await fetch(`/api/users?token=${token}`);
+                if (response.status === 401) {
+                    if (typeof clearAuthToken === 'function') clearAuthToken();
+                else localStorage.removeItem('access_token');
+                    window.location.href = '/login';
+                    return;
+                }
+                const result = await response.json();
+                if (result.success) {
+                    users = result.users;
+                    renderUsers(users);
+                    updateStats();
+                }
+            } catch (error) {
+                document.getElementById('loading').textContent = '加载失败: ' + error.message;
+            }
+        }
+
+        function updateStats() {
+            const total = users.length;
+            const admins = users.filter(u => u.role === 'admin').length;
+            const active = users.filter(u => !u.disabled).length;
+            const pro = users.filter(u => u.plan === 'pro' || u.plan === 'enterprise').length;
+            
+            document.getElementById('total-users').textContent = total;
+            document.getElementById('admin-users').textContent = admins;
+            document.getElementById('active-users').textContent = active;
+            document.getElementById('pro-users').textContent = pro;
+        }
+
+        function renderUsers(userList) {
+            document.getElementById('loading').style.display = 'none';
+            
+            if (!userList || userList.length === 0) {
+                document.getElementById('user-container').style.display = 'none';
+                document.getElementById('empty-state').style.display = 'block';
+                return;
+            }
+            
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('user-container').style.display = 'block';
+            
+            const tbody = document.getElementById('user-table-body');
+            tbody.innerHTML = userList.map(user => {
+                const plan = user.plan_id || user.plan || 'free';
+                const isActive = user.is_active !== undefined ? user.is_active : (user.disabled === undefined ? true : !user.disabled);
+                const disabled = !isActive;
+                
+                return `
+                    <tr>
+                        <td><strong>${user.username}</strong></td>
+                        <td>${user.email || '-'}</td>
+                        <td><span class="badge ${user.role}">${user.role === 'admin' ? '管理员' : user.role === 'agent' ? '人工坐席' : '普通用户'}</span></td>
+                        <td><span class="badge ${plan}">${getPlanName(plan)}</span></td>
+                        <td><span class="badge ${disabled ? 'disabled' : 'enabled'}">${disabled ? '禁用' : '启用'}</span></td>
+                        <td>${user.games_limit === -1 || user.games_limit === undefined ? '无限' : user.games_limit}</td>
+                        <td>${user.api_quota === -1 || user.api_quota === undefined ? '无限' : user.api_quota.toLocaleString()}</td>
+                        <td>
+                            <div class="action-btns">
+                                <button class="action-btn edit" onclick="openEditModal('${user.username}')">编辑</button>
+                                <button class="action-btn delete" onclick="confirmDelete('${user.username}')">删除</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function getPlanName(plan) {
+            const names = { free: '免费版', pro: '专业版', enterprise: '企业版' };
+            return names[plan] || plan;
+        }
+
+        function filterUsers() {
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            const filtered = users.filter(user => 
+                user.username.toLowerCase().includes(searchTerm) ||
+                user.email.toLowerCase().includes(searchTerm) ||
+                user.full_name.toLowerCase().includes(searchTerm)
+            );
+            renderUsers(filtered);
+        }
+
+        function openAddModal() {
+            document.getElementById('add-error').classList.remove('show');
+            document.getElementById('add-success').classList.remove('show');
+            document.getElementById('add-form').reset();
+            document.getElementById('add-modal').classList.add('show');
+        }
+
+        function closeAddModal() {
+            document.getElementById('add-modal').classList.remove('show');
+        }
+
+        async function handleAddUser(event) {
+            event.preventDefault();
+            const token = getToken();
+            
+            const userData = {
+                username: document.getElementById('add-username').value,
+                email: document.getElementById('add-email').value,
+                password: document.getElementById('add-password').value,
+                full_name: document.getElementById('add-fullname').value,
+                role: document.getElementById('add-role').value,
+                plan: document.getElementById('add-plan').value
+            };
+
+            try {
+                const response = await fetch(`/api/users?token=${token}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('add-success').textContent = result.message;
+                    document.getElementById('add-success').classList.add('show');
+                    document.getElementById('add-error').classList.remove('show');
+                    setTimeout(() => {
+                        closeAddModal();
+                        loadUsers();
+                    }, 1500);
+                } else {
+                    document.getElementById('add-error').textContent = result.detail || '创建失败';
+                    document.getElementById('add-error').classList.add('show');
+                }
+            } catch (error) {
+                document.getElementById('add-error').textContent = '创建失败: ' + error.message;
+                document.getElementById('add-error').classList.add('show');
+            }
+        }
+
+        async function openEditModal(username) {
+            editingUser = username;
+            const user = users.find(u => u.username === username);
+            if (!user) return;
+
+            document.getElementById('edit-error').classList.remove('show');
+            document.getElementById('edit-success').classList.remove('show');
+            document.getElementById('edit-username').value = user.username;
+            document.getElementById('edit-email').value = user.email;
+            document.getElementById('edit-fullname').value = user.full_name;
+            document.getElementById('edit-role').value = user.role;
+            document.getElementById('edit-plan').value = user.plan;
+            document.getElementById('edit-games-limit').value = user.games_limit;
+            document.getElementById('edit-api-quota').value = user.api_quota;
+            document.getElementById('edit-disabled').checked = user.disabled;
+            
+            document.getElementById('edit-modal').classList.add('show');
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.remove('show');
+            editingUser = null;
+        }
+
+        async function handleEditUser(event) {
+            event.preventDefault();
+            if (!editingUser) return;
+            
+            const token = getToken();
+            const userData = {};
+            
+            const email = document.getElementById('edit-email').value;
+            if (email) userData.email = email;
+            
+            const fullName = document.getElementById('edit-fullname').value;
+            if (fullName) userData.full_name = fullName;
+            
+            userData.role = document.getElementById('edit-role').value;
+            userData.plan = document.getElementById('edit-plan').value;
+            userData.games_limit = parseInt(document.getElementById('edit-games-limit').value);
+            userData.api_quota = parseInt(document.getElementById('edit-api-quota').value);
+            userData.disabled = document.getElementById('edit-disabled').checked;
+
+            try {
+                const response = await fetch(`/api/users/${editingUser}?token=${token}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('edit-success').textContent = result.message;
+                    document.getElementById('edit-success').classList.add('show');
+                    document.getElementById('edit-error').classList.remove('show');
+                    setTimeout(() => {
+                        closeEditModal();
+                        loadUsers();
+                    }, 1500);
+                } else {
+                    document.getElementById('edit-error').textContent = result.detail || '更新失败';
+                    document.getElementById('edit-error').classList.add('show');
+                }
+            } catch (error) {
+                document.getElementById('edit-error').textContent = '更新失败: ' + error.message;
+                document.getElementById('edit-error').classList.add('show');
+            }
+        }
+
+        async function confirmDelete(username) {
+            if (!confirm(`确定要删除用户 "${username}" 吗？此操作无法撤销。`)) return;
+            
+            const token = getToken();
+            try {
+                const response = await fetch(`/api/users/${username}?token=${token}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                if (result.success) {
+                    loadUsers();
+                } else {
+                    alert(result.detail || '删除失败');
+                }
+            } catch (error) {
+                alert('删除失败: ' + error.message);
+            }
+        }
+
+        document.getElementById('add-form').addEventListener('submit', handleAddUser);
+        document.getElementById('edit-form').addEventListener('submit', handleEditUser);
+        
+        document.getElementById('add-modal').addEventListener('click', e => {
+            if (e.target === document.getElementById('add-modal')) closeAddModal();
+        });
+        document.getElementById('edit-modal').addEventListener('click', e => {
+            if (e.target === document.getElementById('edit-modal')) closeEditModal();
+        });
+
+        document.addEventListener('DOMContentLoaded', loadUsers);
+    </script>
+</body>
+</html>

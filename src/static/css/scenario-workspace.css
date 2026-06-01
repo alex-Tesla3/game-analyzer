@@ -1,0 +1,190 @@
+/* Scenario workspace tabs + AI report panels (dark theme pages) */
+
+.scene-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.scene-tab {
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: #1a2332;
+    color: #e7ecf3;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+.scene-tab.active {
+    border-color: #06b6d4;
+    background: rgba(6, 182, 212, 0.12);
+    color: #67e8f9;
+}
+
+.scene-panel {
+    display: none;
+}
+
+.scene-panel.active {
+    display: block;
+}
+
+.sr-panel {
+    background: #1a2332;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 20px;
+    margin-top: 16px;
+}
+
+.sr-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.sr-btn {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: #243044;
+    color: #e7ecf3;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.sr-btn.primary {
+    background: linear-gradient(135deg, #8b5cf6, #06b6d4);
+    border: none;
+}
+
+.sr-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.sr-status {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.sr-result-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.sr-badge {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.sr-badge.llm {
+    background: rgba(139, 92, 246, 0.2);
+    color: #c4b5fd;
+}
+
+.sr-badge.rule {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+}
+
+.sr-badge.warn {
+    background: rgba(234, 179, 8, 0.15);
+    color: #fde047;
+}
+
+.sr-time {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.sr-result h3 {
+    font-size: 1rem;
+    margin: 0 0 8px;
+}
+
+.sr-exec {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: #cbd5e1;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.sr-section {
+    margin-bottom: 14px;
+}
+
+.sr-section h4 {
+    font-size: 0.85rem;
+    color: #06b6d4;
+    margin: 0 0 6px;
+}
+
+.sr-section p {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    line-height: 1.55;
+    margin: 0;
+}
+
+.sr-empty {
+    color: #64748b;
+    text-align: center;
+    padding: 24px;
+}
+
+.bd-inline-grid {
+    display: grid;
+    gap: 16px;
+}
+
+.bd-inline-card {
+    background: #1a2332;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.bd-inline-card h4 {
+    margin: 0 0 10px;
+    font-size: 0.95rem;
+}
+
+.bd-field {
+    margin-bottom: 10px;
+    font-size: 0.8rem;
+}
+
+.bd-field label {
+    display: block;
+    color: #06b6d4;
+    margin-bottom: 4px;
+    font-size: 0.75rem;
+}
+
+.bd-field p {
+    color: #94a3b8;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.sr-dim-scores { margin: 16px 0; overflow-x: auto; }
+.sr-dim-scores h4 { font-size: 0.9rem; margin-bottom: 8px; color: #94a3b8; }
+.sr-score-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.sr-score-table th, .sr-score-table td {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 8px 10px;
+    text-align: center;
+}
+.sr-score-table th:first-child, .sr-score-table td:first-child { text-align: left; }

@@ -1,0 +1,16 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "uvicorn src.web_app:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+
+[env]
+APP_ENV = "production"
+APP_VERSION = "1.0.0"
+ALLOW_DEMO_ACCOUNTS = "true"
+PAYMENT_TEST_MODE = "true"
+PORT = "8000"

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>竞品分析 · 一站式工作台</title>
+    <link rel="stylesheet" href="/static/css/analysis-guide.css">
+    <link rel="stylesheet" href="/static/css/scenario-workspace.css">
+    <script src="/static/js/device-id.js"></script>
+    <script src="/static/js/auth-token.js"></script>
+    <script src="/static/js/data-provenance.js"></script>
+    <script src="/static/js/analysis-guide.js"></script>
+    <script src="/static/js/scenario-report.js"></script>
+    <script src="/static/js/chart.js"></script>
+    <style>
+        :root {
+            --bg: #0f1419; --panel: #1a2332; --text: #e7ecf3; --muted: #94a3b8;
+            --accent: #06b6d4; --border: rgba(255,255,255,0.08);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--border); background: rgba(26,35,50,0.95); position: sticky; top: 0; z-index: 10; }
+        .topbar h1 { font-size: 1.2rem; }
+        .topbar p { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+        .btn { border: 1px solid var(--border); background: var(--panel); color: var(--text); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 0.875rem; text-decoration: none; }
+        .btn-primary { background: linear-gradient(135deg, var(--accent), #0891b2); border: none; }
+        .layout { max-width: 1400px; margin: 0 auto; padding: 20px 24px 48px; }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 16px; }
+        .toolbar label { font-size: 0.75rem; color: var(--muted); display: block; margin-bottom: 4px; }
+        select { min-width: 200px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+        .compare-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+        .genre { font-size: 0.75rem; color: var(--accent); margin-bottom: 10px; }
+        .kpi-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+        .kpi { background: rgba(255,255,255,0.04); padding: 6px 10px; border-radius: 8px; font-size: 0.8rem; }
+        .themes { margin-top: 10px; font-size: 0.8rem; color: var(--muted); }
+        .review-snippet { font-size: 0.78rem; color: var(--muted); margin-top: 8px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        th, td { border: 1px solid var(--border); padding: 10px; text-align: left; vertical-align: top; }
+        th { background: rgba(255,255,255,0.04); }
+        .empty { color: var(--muted); text-align: center; padding: 40px; }
+        .score-input { width: 48px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: #243044; color: var(--text); text-align: center; }
+        .score-custom { outline: 1px solid var(--accent); }
+        .score-summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+        .score-summary-row:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div>
+            <h1>⚔️ 竞品分析 · 一站式工作台</h1>
+            <p>对比 · 玩法拆解 · 复盘归档 · AI 总结 — 本页完成全部操作</p>
+        </div>
+        <a class="btn" href="/dashboard">← 看板</a>
+        <a class="btn" id="link-back-guide" href="/guide" style="display:none;margin-left:8px;">← 分析向导</a>
+    </header>
+    <main class="layout">
+        <div id="module-guide-root"></div>
+        <div id="provenance-banner"></div>
+
+        <div class="toolbar">
+            <div>
+                <label>品类筛选</label>
+                <select id="genre-filter" onchange="onGenreChange()"><option value="all">全部品类</option></select>
+            </div>
+            <div>
+                <label>对比游戏（多选）</label>
+                <select id="game-picker" multiple size="5" style="min-width:280px;"></select>
+            </div>
+            <button class="btn btn-primary" onclick="refreshAll()">刷新数据</button>
+        </div>
+
+        <div class="scene-tabs">
+            <button type="button" class="scene-tab active" data-panel="compare" onclick="switchScene('compare', this)">📊 横向对比</button>
+            <button type="button" class="scene-tab" data-panel="breakdown" onclick="switchScene('breakdown', this)">🧩 玩法拆解</button>
+            <button type="button" class="scene-tab" data-panel="review" onclick="switchScene('review', this)">📅 复盘归档</button>
+            <button type="button" class="scene-tab" data-panel="ai" onclick="switchScene('ai', this)">🤖 AI 总结</button>
+        </div>
+
+        <div id="panel-compare" class="scene-panel active">
+            <div id="compare-grid" class="compare-grid"><p class="empty">选择游戏后点击「刷新数据」</p></div>
+            <h2 style="font-size:1rem;margin:16px 0 12px;">玩法功能矩阵</h2>
+            <div id="matrix-wrap" class="card"></div>
+            <h2 style="font-size:1rem;margin:24px 0 12px;">维度打分（1–5）</h2>
+            <p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px;">可编辑六维评分；未保存时显示 MVP 数据建议分（虚线框）。保存后用于优劣排序与雷达图。</p>
+            <div id="score-summary" class="card" style="margin-bottom:12px;"></div>
+            <div class="card" style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;">
+                <div id="score-table-wrap" style="flex:1;min-width:300px;overflow:auto;"></div>
+                <div style="width:340px;max-width:100%;"><canvas id="score-radar" height="300"></canvas></div>
+            </div>
+            <button type="button" class="btn btn-primary" style="margin-top:12px;" onclick="saveAllScores()">💾 保存全部评分</button>
+        </div>
+
+        <div id="panel-breakdown" class="scene-panel">
+            <p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px;">查看已选游戏的七维玩法拆解。编辑请在本页下方跳转资料库对应条目（或资料库场景内完成）。</p>
+            <div id="breakdown-inline" class="bd-inline-grid"></div>
+        </div>
+
+        <div id="panel-review" class="scene-panel">
+            <div class="card" style="margin-bottom:16px;">
+                <h2 style="font-size:1rem;margin-bottom:12px;">复盘时间轴</h2>
+                <div class="toolbar" style="margin-bottom:0;">
+                    <div><label>快照 A</label><select id="snap-a"></select></div>
+                    <div><label>快照 B</label><select id="snap-b"></select></div>
+                    <button class="btn" onclick="compareSnapshots()">对比变化</button>
+                </div>
+                <div id="timeline-result" style="margin-top:12px;font-size:0.85rem;"></div>
+            </div>
+            <div class="card">
+                <h2 style="font-size:1rem;margin-bottom:12px;">分析案例归档</h2>
+                <div id="archives-list"></div>
+            </div>
+        </div>
+
+        <div id="panel-ai" class="scene-panel">
+            <div class="sr-panel">
+                <p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px;">基于当前选中游戏的对比数据生成总结报告。已配置 LLM 时使用 AI；否则使用规则引擎。</p>
+                <div class="sr-toolbar" id="ai-toolbar"></div>
+                <div id="compare-actions-bar" style="display:none;margin:12px 0;gap:8px;flex-wrap:wrap;"></div>
+                <div id="ai-report-output" data-markdown=""></div>
+            </div>
+        </div>
+    </main>
+    <script>
+        let lastCompareData = null;
+        let lastReport = null;
+        let scoreRadarChart = null;
+        let scoreDimensions = [];
+
+        function token() { return getAuthToken(); }
+        function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+        function selectedIds() {
+            return Array.from(document.getElementById('game-picker').selectedOptions).map(o => o.value);
+        }
+
+        function switchScene(name, btn) {
+            document.querySelectorAll('.scene-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.scene-panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('panel-' + name).classList.add('active');
+        }
+
+        async function refreshAll() {
+            const ids = selectedIds();
+            if (!ids.length) { alert('请至少选择一款游戏'); return; }
+            await runCompare(ids);
+            await loadBreakdownInline(ids);
+        }
+
+        async function runCompare(ids) {
+            ids = ids || selectedIds();
+            const res = await fetch('/api/games/compare?token=' + encodeURIComponent(token()) + '&ids=' + encodeURIComponent(ids.join(',')));
+            const data = await res.json();
+            lastCompareData = data;
+            if (!data.items?.length) {
+                document.getElementById('compare-grid').innerHTML = '<p class="empty">无对比数据，请先在资料库同步 Steam MVP</p>';
+                return;
+            }
+            document.getElementById('compare-grid').innerHTML = data.items.map(item => {
+                const kpis = Object.entries(item.kpis || {}).slice(0, 5).map(([k,v]) =>
+                    '<span class="kpi">' + esc(k) + ': ' + esc(String(v)) + '</span>').join('');
+                const themes = (item.themes || []).map(t => t.theme + '(' + t.count + ')').join('、') || '—';
+                return '<article class="card"><h3>' + esc(item.name) + '</h3><div class="genre">' + esc(item.genre) +
+                    '</div><div class="kpi-row">' + kpis + '</div><div class="themes">差评主题：' + esc(themes) + '</div>' +
+                    (item.recommendation ? '<div class="themes">建议：' + esc(item.recommendation) + '</div>' : '') + '</article>';
+            }).join('');
+            renderMatrix(data.feature_matrix);
+            renderDimensionScores(data.dimension_scores, data.score_summary);
+        }
+
+        function renderDimensionScores(batch, summary) {
+            scoreDimensions = batch?.dimensions || [];
+            const rows = batch?.rows || [];
+            const sumEl = document.getElementById('score-summary');
+            const tableEl = document.getElementById('score-table-wrap');
+            if (!rows.length) {
+                sumEl.innerHTML = '';
+                tableEl.innerHTML = '<p class="empty">请先刷新对比数据</p>';
+                return;
+            }
+            const ranked = summary || batch?.summary || [];
+            sumEl.innerHTML = '<strong style="font-size:0.9rem;">综合均分排序</strong>' +
+                ranked.map((r, i) =>
+                    '<div class="score-summary-row"><span>' + (i + 1) + '. ' + esc(r.name) +
+                    (rows.find(x => x.game_id === r.game_id)?.is_custom ? ' ✎' : '') +
+                    '</span><span>均分 ' + (r.average || '—') + '</span></div>').join('');
+
+            const head = '<th>游戏</th>' + scoreDimensions.map(d => '<th>' + esc(d.title) + '</th>').join('');
+            const body = rows.map(row => {
+                const cells = scoreDimensions.map(d => {
+                    const val = (row.scores || {})[d.key] ?? '';
+                    const cls = row.is_custom ? 'score-input score-custom' : 'score-input';
+                    return '<td><input type="number" min="1" max="5" class="' + cls +
+                        '" data-game="' + esc(row.game_id) + '" data-dim="' + esc(d.key) +
+                        '" value="' + esc(String(val)) + '"></td>';
+                }).join('');
+                return '<tr><th>' + esc(row.name) + '</th>' + cells + '</tr>';
+            }).join('');
+            tableEl.innerHTML = '<table><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>';
+            renderScoreRadar(rows);
+        }
+
+        function collectScoresFromTable() {
+            const byGame = {};
+            document.querySelectorAll('#score-table-wrap input[data-game]').forEach(inp => {
+                const gid = inp.dataset.game;
+                const dim = inp.dataset.dim;
+                if (!byGame[gid]) byGame[gid] = {};
+                const v = parseInt(inp.value, 10);
+                if (v >= 1 && v <= 5) byGame[gid][dim] = v;
+            });
+            return byGame;
+        }
+
+        function renderScoreRadar(rows) {
+            const canvas = document.getElementById('score-radar');
+            if (!canvas || typeof Chart === 'undefined' || !scoreDimensions.length) return;
+            const labels = scoreDimensions.map(d => d.title);
+            const colors = ['#06b6d4', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444'];
+            const datasets = rows.slice(0, 5).map((row, idx) => ({
+                label: row.name,
+                data: scoreDimensions.map(d => (row.scores || {})[d.key] || 0),
+                borderColor: colors[idx % colors.length],
+                backgroundColor: colors[idx % colors.length] + '33',
+                pointBackgroundColor: colors[idx % colors.length],
+            }));
+            if (scoreRadarChart) scoreRadarChart.destroy();
+            scoreRadarChart = new Chart(canvas, {
+                type: 'radar',
+                data: { labels, datasets },
+                options: {
+                    scales: { r: { min: 0, max: 5, ticks: { stepSize: 1 } } },
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                },
+            });
+        }
+
+        async function saveAllScores() {
+            const byGame = collectScoresFromTable();
+            const ids = Object.keys(byGame);
+            if (!ids.length) { alert('无评分可保存'); return; }
+            for (const gid of ids) {
+                await fetch('/api/games/compare/scores?token=' + encodeURIComponent(token()), {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ game_id: gid, scores: byGame[gid] }),
+                });
+            }
+            alert('评分已保存');
+            await runCompare(selectedIds());
+        }
+
+        function renderMatrix(matrix) {
+            const wrap = document.getElementById('matrix-wrap');
+            if (!matrix?.rows?.length) { wrap.innerHTML = '<p class="empty">暂无拆解数据</p>'; return; }
+            const heads = matrix.sections.map(s => '<th>' + esc(s.title) + '</th>').join('');
+            const rows = matrix.rows.map(row => {
+                const cells = matrix.sections.map(s => '<td>' + esc((row.cells || {})[s.key] || '—') + '</td>').join('');
+                return '<tr><th>' + esc(row.name) + '</th>' + cells + '</tr>';
+            }).join('');
+            wrap.innerHTML = '<table><thead><tr><th>游戏</th>' + heads + '</tr></thead><tbody>' + rows + '</tbody></table>';
+        }
+
+        async function loadBreakdownInline(ids) {
+            ids = ids || selectedIds();
+            const res = await fetch('/api/scenarios/breakdowns?token=' + encodeURIComponent(token()) + '&ids=' + encodeURIComponent(ids.join(',')));
+            const data = await res.json();
+            const el = document.getElementById('breakdown-inline');
+            if (!data.items?.length) {
+                el.innerHTML = '<p class="empty">暂无玩法拆解，请至资料库同步 MVP 或 AI 生成</p>';
+                return;
+            }
+            el.innerHTML = data.items.map(item => {
+                const fields = (item.sections || []).map(s => {
+                    const val = (item.breakdown || {})[s.key] || '';
+                    return '<div class="bd-field"><label>' + esc(s.title) + '</label><p>' +
+                        (val ? esc(val) : '<em style="color:#64748b">未填写</em>') + '</p></div>';
+                }).join('');
+                return '<div class="bd-inline-card"><h4>' + esc(item.name) + ' · ' + esc(item.genre || '') +
+                    '</h4>' + fields +
+                    '<a class="btn" style="display:inline-block;margin-top:8px;" href="/games/library?game_id=' +
+                    encodeURIComponent(item.game_id) + '">在资料库编辑</a></div>';
+            }).join('');
+        }
+
+        async function loadSnapshots() {
+            const res = await fetch('/api/mvp/snapshots?token=' + encodeURIComponent(token()));
+            const data = await res.json();
+            const snaps = data.snapshots || [];
+            const opts = snaps.length ? snaps.map(s => '<option value="' + esc(s.id) + '">' + esc(s.captured_at || s.id) + '</option>').join('')
+                : '<option value="">暂无快照</option>';
+            document.getElementById('snap-a').innerHTML = opts;
+            document.getElementById('snap-b').innerHTML = opts;
+        }
+
+        async function compareSnapshots() {
+            const a = document.getElementById('snap-a').value;
+            const b = document.getElementById('snap-b').value;
+            if (!a || !b) return;
+            const res = await fetch('/api/mvp/snapshots/compare?token=' + encodeURIComponent(token()) + '&a=' + encodeURIComponent(a) + '&b=' + encodeURIComponent(b));
+            const data = await res.json();
+            const el = document.getElementById('timeline-result');
+            if (!data.deltas?.length) { el.innerHTML = '<p class="empty">无重叠产品或快照不足</p>'; return; }
+            el.innerHTML = '<ul>' + data.deltas.map(d =>
+                '<li><strong>' + esc(d.product_name) + '</strong>：' + d.positive_rate_before + '% → ' +
+                d.positive_rate_after + '%（' + (d.delta >= 0 ? '+' : '') + d.delta + '）</li>').join('') + '</ul>';
+        }
+
+        async function loadArchives() {
+            const res = await fetch('/api/games/archives?token=' + encodeURIComponent(token()));
+            const data = await res.json();
+            const list = data.archives || [];
+            document.getElementById('archives-list').innerHTML = list.length ? list.map(a =>
+                '<div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:0.85rem;"><strong>' +
+                esc(a.title) + '</strong><br><span style="color:var(--muted)">' + esc(a.report_type) + ' · ' +
+                esc(a.created_at || '') + '</span></div>').join('') : '<p class="empty">暂无归档</p>';
+        }
+
+        async function generateAiReport() {
+            const ids = selectedIds();
+            if (!ids.length) { alert('请先选择游戏'); return; }
+            const status = document.getElementById('ai-status');
+            status.textContent = '生成中…';
+            const data = await ScenarioReport.generate('competitor', { ids }, token());
+            lastReport = data;
+            ScenarioReport.renderResult(document.getElementById('ai-report-output'), data);
+            status.textContent = ScenarioReport.formatStatus(data);
+            renderCompareActionBar(data);
+        }
+
+        function renderCompareActionBar(data) {
+            const bar = document.getElementById('compare-actions-bar');
+            const items = data?.action_items || [];
+            if (!bar || !items.length) {
+                if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
+                return;
+            }
+            bar.style.display = 'flex';
+            bar.innerHTML =
+                '<button type="button" class="btn" id="cmp-export-csv">⬇️ CSV</button>' +
+                '<button type="button" class="btn" id="cmp-export-feishu">📋 飞书</button>' +
+                '<button type="button" class="btn" id="cmp-export-jira">📋 Jira</button>' +
+                '<a class="btn" href="/work#actions">📋 落地指导</a>';
+            document.getElementById('cmp-export-csv').onclick = () => ScenarioReport.exportActions(items, token(), 'csv');
+            document.getElementById('cmp-export-feishu').onclick = async () => {
+                const r = await ScenarioReport.exportActions(items, token(), 'feishu');
+                document.getElementById('ai-status').textContent = r === 'clipboard' ? '飞书 Markdown 已复制' : '飞书 Markdown 已下载';
+            };
+            document.getElementById('cmp-export-jira').onclick = () => ScenarioReport.exportActions(items, token(), 'jira');
+        }
+
+        async function archiveReport() {
+            if (!lastReport?.success) { alert('请先生成报告'); return; }
+            const res = await ScenarioReport.archiveReport(lastReport, token());
+            if (res.success) {
+                alert('已归档');
+                loadArchives();
+            }
+        }
+
+        async function loadGames() {
+            const res = await fetch('/api/games/library?token=' + encodeURIComponent(token()));
+            const data = await res.json();
+            const games = data.games || [];
+            const genres = [...new Set(games.map(g => g.genre).filter(Boolean))].sort();
+            document.getElementById('genre-filter').innerHTML = '<option value="all">全部品类</option>' +
+                genres.map(g => '<option value="' + esc(g) + '">' + esc(g) + '</option>').join('');
+            renderPicker(games, getUrlIds());
+            if (games.length) await refreshAll();
+        }
+
+        function getUrlIds() {
+            const raw = new URLSearchParams(location.search).get('ids');
+            if (!raw) return null;
+            return raw.split(',').map(s => s.trim()).filter(Boolean);
+        }
+
+        function renderPicker(games, preferredIds) {
+            const genre = document.getElementById('genre-filter').value;
+            const filtered = genre === 'all' ? games : games.filter(g => g.genre === genre);
+            const idSet = preferredIds && preferredIds.length ? new Set(preferredIds) : null;
+            document.getElementById('game-picker').innerHTML = filtered.map((g, i) => {
+                const selected = idSet ? idSet.has(g.game_id) : (i < Math.min(3, filtered.length));
+                return '<option value="' + esc(g.game_id) + '"' + (selected ? ' selected' : '') + '>' +
+                    esc(g.name) + '</option>';
+            }).join('');
+        }
+
+        function onGenreChange() {
+            fetch('/api/games/library?token=' + encodeURIComponent(token())).then(r => r.json()).then(d => {
+                renderPicker(d.games || [], getUrlIds());
+            });
+        }
+
+        async function init() {
+            if (!token()) { location.href = '/login'; return; }
+            if (new URLSearchParams(location.search).get('from') === 'guide') {
+                const back = document.getElementById('link-back-guide');
+                if (back) {
+                    back.style.display = 'inline-block';
+                    try {
+                        const pack = JSON.parse(sessionStorage.getItem('ga_wizard_last_result') || 'null');
+                        if (pack?.app_ids) back.href = '/guide?app_ids=' + encodeURIComponent(pack.app_ids);
+                    } catch (e) {}
+                }
+            }
+            AnalysisGuide?.renderModuleGuide('module-guide-root', 'competitor');
+            DataProvenance.renderBanner('provenance-banner', await DataProvenance.fetchProvenance(token()));
+            ScenarioReport.mountToolbar({
+                toolbarId: 'ai-toolbar',
+                generateBtnId: 'btn-gen-ai',
+                copyBtnId: 'btn-copy-ai',
+                archiveBtnId: 'btn-archive-ai',
+                statusId: 'ai-status',
+            });
+            document.getElementById('btn-gen-ai').onclick = generateAiReport;
+            document.getElementById('btn-copy-ai').onclick = () => {
+                ScenarioReport.copyMarkdown(document.getElementById('ai-report-output'));
+                document.getElementById('ai-status').textContent = '已复制';
+            };
+            document.getElementById('btn-archive-ai').onclick = archiveReport;
+            await loadGames();
+            await loadSnapshots();
+            await loadArchives();
+        }
+        init();
+    </script>
+</body>
+</html>

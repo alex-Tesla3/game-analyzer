@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>复盘与归档</title>
+    <link rel="stylesheet" href="/static/css/analysis-guide.css">
+    <link rel="stylesheet" href="/static/css/scenario-workspace.css">
+    <script src="/static/js/auth-token.js"></script>
+    <script src="/static/js/data-provenance.js"></script>
+    <script src="/static/js/analysis-guide.js"></script>
+    <script src="/static/js/scenario-report.js"></script>
+    <script src="/static/js/markdown-preview.js"></script>
+    <style>
+        :root {
+            --bg: #0f1419; --panel: #1a2332; --text: #e7ecf3; --muted: #94a3b8;
+            --accent: #8b5cf6; --accent2: #06b6d4; --border: rgba(255,255,255,0.08);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .topbar {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 24px; border-bottom: 1px solid var(--border);
+            background: rgba(26,35,50,0.95); position: sticky; top: 0; z-index: 10;
+        }
+        .topbar h1 { font-size: 1.2rem; }
+        .topbar p { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+        .nav-links { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn {
+            border: 1px solid var(--border); background: var(--panel); color: var(--text);
+            padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 0.875rem; text-decoration: none;
+        }
+        .btn-primary { background: linear-gradient(135deg, var(--accent), #7c3aed); border: none; }
+        .layout { max-width: 960px; margin: 0 auto; padding: 24px; }
+        .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+        .tab {
+            padding: 10px 18px; border-radius: 10px; border: 1px solid var(--border);
+            background: var(--panel); cursor: pointer; font-size: 0.9rem;
+        }
+        .tab.active { border-color: var(--accent); background: rgba(139,92,246,0.15); color: #c4b5fd; }
+        .panel { display: none; background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
+        .panel.active { display: block; }
+        .panel h2 { font-size: 1.05rem; margin-bottom: 8px; }
+        .hint { color: var(--muted); font-size: 0.85rem; margin-bottom: 16px; line-height: 1.5; }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 16px; }
+        label { font-size: 0.75rem; color: var(--muted); display: block; margin-bottom: 4px; }
+        select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: #243044; color: var(--text); min-width: 180px; }
+        .archive-item { padding: 14px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+        .archive-item:hover { background: rgba(255,255,255,0.02); }
+        .archive-item.active { background: rgba(139,92,246,0.12); border-radius: 8px; padding-left: 8px; padding-right: 8px; }
+        .archive-editor { margin-top: 20px; display: none; }
+        .archive-editor.open { display: block; }
+        .archive-editor textarea { width: 100%; min-height: 280px; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: #243044; color: var(--text); font-family: ui-monospace, monospace; font-size: 0.85rem; line-height: 1.5; }
+        .filter-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; align-items: flex-end; }
+        .filter-bar input, .filter-bar select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: #243044; color: var(--text); }
+        .archive-title { font-weight: 600; margin-bottom: 4px; }
+        .archive-meta { font-size: 0.8rem; color: var(--muted); }
+        .delta-list { list-style: none; }
+        .delta-list li { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        .delta-up { color: #22c55e; }
+        .delta-down { color: #ef4444; }
+        .empty { text-align: center; color: var(--muted); padding: 32px; }
+        .error-box { background: rgba(239,68,68,0.1); border: 1px solid #ef4444; color: #fca5a5; padding: 12px; border-radius: 8px; margin-bottom: 16px; display: none; }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div>
+            <h1>📅 复盘与归档</h1>
+            <p>MVP 口碑快照对比 · 分析报告案例库</p>
+        </div>
+        <div class="nav-links">
+            <a class="btn" href="/guide">分析向导</a>
+            <a class="btn" href="/work">落地指导</a>
+            <a class="btn" href="/team">团队</a>
+            <a class="btn" href="/dashboard">看板</a>
+            <a class="btn" href="/games/compare">竞品工作台</a>
+            <a class="btn" href="/#analysis-guide">分析指引</a>
+        </div>
+    </header>
+
+    <main class="layout">
+        <div id="provenance-banner" style="display:none;margin-bottom:16px;"></div>
+        <div id="module-guide-root"></div>
+        <div id="auth-error" class="error-box"></div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="timeline" onclick="switchTab('timeline', this)">复盘时间轴</button>
+            <button class="tab" data-tab="ai-report" onclick="switchTab('ai-report', this)">🤖 AI 复盘报告</button>
+            <button class="tab" data-tab="archives" onclick="switchTab('archives', this)">分析案例归档</button>
+        </div>
+
+        <section id="panel-timeline" class="panel active">
+            <h2>复盘时间轴（MVP 快照）</h2>
+            <p class="hint">
+                每次运行 MVP Steam 抓取后会自动保存一条快照。选择两个时间点，对比各产品<strong>样本好评率</strong>变化。
+                若列表为空，请先在「真实竞品」页或命令行运行 <code>python run_mvp.py</code>。
+            </p>
+            <div class="toolbar">
+                <div>
+                    <label>快照 A（较早）</label>
+                    <select id="snap-a"></select>
+                </div>
+                <div>
+                    <label>快照 B（较晚）</label>
+                    <select id="snap-b"></select>
+                </div>
+                <button class="btn btn-primary" onclick="compareSnapshots()">对比变化</button>
+            </div>
+            <div id="timeline-result"></div>
+        </section>
+
+        <section id="panel-ai-report" class="panel">
+            <h2>AI 复盘总结报告</h2>
+            <p class="hint">
+                在本页完成数据复盘：可基于<strong>快照对比</strong>或<strong>当前周期数据</strong>生成 AI/规则总结，并直接归档，无需跳转看板。
+            </p>
+            <div class="toolbar">
+                <div>
+                    <label>复盘模式</label>
+                    <select id="review-mode" onchange="toggleReviewMode()">
+                        <option value="snapshot">快照 A/B 对比</option>
+                        <option value="period">当前周期概况</option>
+                    </select>
+                </div>
+                <div id="review-snap-fields">
+                    <label>快照 A（较早）</label>
+                    <select id="review-snap-a"></select>
+                </div>
+                <div id="review-snap-b-wrap">
+                    <label>快照 B（较晚）</label>
+                    <select id="review-snap-b"></select>
+                </div>
+            </div>
+            <div class="sr-panel" style="padding:0;border:none;background:transparent;">
+                <div class="sr-toolbar" id="review-ai-toolbar"></div>
+                <div id="review-ai-output" data-markdown=""></div>
+            </div>
+        </section>
+
+        <section id="panel-archives" class="panel">
+            <h2>分析案例归档</h2>
+            <p class="hint">支持分类筛选、在线编辑 Markdown 正文、标签管理。生成 AI 报告或看板周期报告后可归档到此。</p>
+            <div class="filter-bar">
+                <div><label>分类</label><select id="archive-category" onchange="loadArchives()"><option value="">全部分类</option></select></div>
+                <div><label>搜索</label><input id="archive-search" type="search" placeholder="标题或正文…" onkeydown="if(event.key==='Enter')loadArchives()"></div>
+                <button class="btn" onclick="loadArchives()">筛选</button>
+            </div>
+            <div id="archives-list"></div>
+            <div id="archive-editor" class="archive-editor card" style="padding:20px;margin-top:16px;">
+                <h3 id="editor-title" style="margin-bottom:12px;">编辑归档</h3>
+                <div class="toolbar" style="margin-bottom:12px;">
+                    <div style="flex:1;"><label>标题</label><input id="edit-archive-title" type="text" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:#243044;color:var(--text);"></div>
+                    <div><label>分类</label><select id="edit-archive-category" style="min-width:140px;padding:8px;border-radius:8px;border:1px solid var(--border);background:#243044;color:var(--text);"></select></div>
+                </div>
+                <div style="margin-bottom:12px;"><label>标签（逗号分隔）</label>
+                    <input id="edit-archive-tags" type="text" placeholder="Steam, RPG, Q1复盘" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:#243044;color:var(--text);"></div>
+                <label>报告正文（Markdown）</label>
+                <textarea id="edit-archive-body" placeholder="在此编辑分析报告…"></textarea>
+                <div style="margin-top:8px;display:flex;gap:8px;">
+                    <button type="button" class="btn" onclick="toggleArchivePreview(true)">👁 预览</button>
+                    <button type="button" class="btn" onclick="toggleArchivePreview(false)">✏️ 编辑</button>
+                </div>
+                <div id="edit-archive-preview" class="preview-pane" style="display:none;"></div>
+                <div id="archive-actions-panel" style="display:none;margin-top:16px;"></div>
+                <div id="archive-version-panel" style="display:none;margin-top:16px;padding:14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid var(--border);"></div>
+                <div id="archive-retest-result" class="hint" style="display:none;margin-top:8px;"></div>
+                <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                    <button class="btn btn-primary" onclick="saveArchiveEdit()">💾 保存</button>
+                    <button class="btn" onclick="shareArchive()">🔗 生成分享链接</button>
+                    <button class="btn" onclick="closeArchiveEditor()">关闭</button>
+                    <span id="archive-share-url" class="hint" style="word-break:break-all;"></span>
+                    <span id="edit-status" style="font-size:0.8rem;color:var(--muted);align-self:center;"></span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let reviewLastReport = null;
+        let cachedSnapshots = [];
+        let currentArchiveId = null;
+        let archiveCategories = [];
+
+        function esc(s) {
+            const d = document.createElement('div');
+            d.textContent = s || '';
+            return d.innerHTML;
+        }
+
+        function toggleReviewMode() {
+            const mode = document.getElementById('review-mode').value;
+            const show = mode === 'snapshot';
+            document.getElementById('review-snap-fields').style.display = show ? '' : 'none';
+            document.getElementById('review-snap-b-wrap').style.display = show ? '' : 'none';
+        }
+
+        function wireReviewAiToolbar() {
+            ScenarioReport.mountToolbar({
+                toolbarId: 'review-ai-toolbar',
+                generateBtnId: 'rev-btn-gen',
+                copyBtnId: 'rev-btn-copy',
+                archiveBtnId: 'rev-btn-archive',
+                statusId: 'rev-ai-status',
+                generateLabel: '🤖 生成复盘总结报告',
+            });
+            document.getElementById('rev-btn-gen').onclick = generateReviewReport;
+            document.getElementById('rev-btn-copy').onclick = () => {
+                ScenarioReport.copyMarkdown(document.getElementById('review-ai-output'));
+            };
+            document.getElementById('rev-btn-archive').onclick = async () => {
+                if (!reviewLastReport?.success) { alert('请先生成报告'); return; }
+                const res = await ScenarioReport.archiveReport(reviewLastReport, requireAuth());
+                if (res?.success) {
+                    alert('已归档');
+                    await loadArchives();
+                }
+            };
+        }
+
+        async function generateReviewReport() {
+            const token = requireAuth();
+            if (!token) return;
+            const status = document.getElementById('rev-ai-status');
+            status.textContent = '生成中…';
+            const mode = document.getElementById('review-mode').value;
+            const body = {};
+            if (mode === 'snapshot') {
+                body.snapshot_a = document.getElementById('review-snap-a').value;
+                body.snapshot_b = document.getElementById('review-snap-b').value;
+                if (!body.snapshot_a || !body.snapshot_b) {
+                    alert('请选择两个快照');
+                    status.textContent = '';
+                    return;
+                }
+            }
+            const data = await ScenarioReport.generate('review', body, token);
+            reviewLastReport = data;
+            ScenarioReport.renderResult(document.getElementById('review-ai-output'), data);
+            status.textContent = ScenarioReport.formatStatus(data);
+        }
+
+        function fillSnapshotSelects(snaps) {
+            const opts = snaps.length
+                ? snaps.map(s => '<option value="' + esc(s.id) + '">' + esc(s.captured_at || s.id) + '</option>').join('')
+                : '<option value="">暂无快照</option>';
+            ['snap-a', 'snap-b', 'review-snap-a', 'review-snap-b'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = opts;
+            });
+            if (snaps.length >= 2) {
+                ['snap-b', 'review-snap-b'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.selectedIndex = 0;
+                });
+                ['snap-a', 'review-snap-a'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.selectedIndex = 1;
+                });
+            }
+        }
+
+        function switchTab(name, btn) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('panel-' + name).classList.add('active');
+            if (location.hash !== '#' + name) {
+                history.replaceState(null, '', '#/' + name);
+            }
+        }
+
+        function requireAuth() {
+            const token = getAuthToken();
+            if (!token) {
+                const box = document.getElementById('auth-error');
+                box.style.display = 'block';
+                box.innerHTML = '未登录或会话已过期，<a href="/login" style="color:#c4b5fd;">请先登录</a> 后查看复盘与归档。';
+                return null;
+            }
+            return token;
+        }
+
+        async function loadSnapshots() {
+            const token = requireAuth();
+            if (!token) return;
+            const res = await fetch('/api/mvp/snapshots?token=' + encodeURIComponent(token));
+            if (res.status === 401) {
+                location.href = '/login';
+                return;
+            }
+            const data = await res.json();
+            cachedSnapshots = data.snapshots || [];
+            fillSnapshotSelects(cachedSnapshots);
+            if (!cachedSnapshots.length) {
+                document.getElementById('timeline-result').innerHTML =
+                    '<p class="empty">暂无 MVP 快照。请运行 MVP 抓取后刷新本页。</p>';
+            }
+        }
+
+        async function compareSnapshots() {
+            const token = requireAuth();
+            if (!token) return;
+            const a = document.getElementById('snap-a').value;
+            const b = document.getElementById('snap-b').value;
+            if (!a || !b) {
+                alert('请选择两个快照');
+                return;
+            }
+            const res = await fetch(
+                '/api/mvp/snapshots/compare?token=' + encodeURIComponent(token) +
+                '&a=' + encodeURIComponent(a) + '&b=' + encodeURIComponent(b)
+            );
+            const data = await res.json();
+            const el = document.getElementById('timeline-result');
+            if (!data.success || !data.deltas || !data.deltas.length) {
+                el.innerHTML = '<p class="empty">' + esc(data.message || '无重叠产品或需至少两条快照') + '</p>';
+                return;
+            }
+            el.innerHTML = '<ul class="delta-list">' + data.deltas.map(d => {
+                const cls = d.delta >= 0 ? 'delta-up' : 'delta-down';
+                const sign = d.delta >= 0 ? '+' : '';
+                return '<li><strong>' + esc(d.product_name) + '</strong>：' +
+                    d.positive_rate_before + '% → ' + d.positive_rate_after + '% ' +
+                    '<span class="' + cls + '">(' + sign + d.delta + '%)</span></li>';
+            }).join('') + '</ul>';
+        }
+
+        async function loadArchives() {
+            const token = requireAuth();
+            if (!token) return;
+            const cat = document.getElementById('archive-category').value;
+            const search = document.getElementById('archive-search').value.trim();
+            let url = '/api/games/archives?token=' + encodeURIComponent(token);
+            if (cat) url += '&category=' + encodeURIComponent(cat);
+            if (search) url += '&search=' + encodeURIComponent(search);
+            const res = await fetch(url);
+            if (res.status === 401) { location.href = '/login'; return; }
+            const data = await res.json();
+            archiveCategories = data.categories || [];
+            const catSel = document.getElementById('archive-category');
+            if (catSel.options.length <= 1) {
+                archiveCategories.forEach(c => {
+                    const o = document.createElement('option');
+                    o.value = c; o.textContent = c;
+                    catSel.appendChild(o);
+                });
+            }
+            const editCat = document.getElementById('edit-archive-category');
+            editCat.innerHTML = archiveCategories.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('');
+            const list = data.archives || [];
+            const el = document.getElementById('archives-list');
+            if (!list.length) {
+                el.innerHTML = '<p class="empty">暂无归档。请生成 AI 报告并点击「归档」。</p>';
+                return;
+            }
+            el.innerHTML = list.map(a => {
+                const tags = (a.tags || []).join(' · ');
+                const active = a.archive_id === currentArchiveId ? ' active' : '';
+                return '<div class="archive-item' + active + '" onclick="openArchiveEditor(\'' + esc(a.archive_id) + '\')">' +
+                    '<div class="archive-title">' + esc(a.title) + '</div>' +
+                    '<div class="archive-meta">' + esc(a.category || a.report_type) + ' · ' + esc(a.updated_at || a.created_at || '') +
+                    (tags ? ' · ' + esc(tags) : '') + '</div></div>';
+            }).join('');
+        }
+
+        async function openArchiveEditor(archiveId) {
+            const token = requireAuth();
+            if (!token) return;
+            currentArchiveId = archiveId;
+            const res = await fetch('/api/games/archives/' + encodeURIComponent(archiveId) + '?token=' + encodeURIComponent(token));
+            const data = await res.json();
+            if (!data.success || !data.archive) return;
+            const a = data.archive;
+            document.getElementById('archive-editor').classList.add('open');
+            document.getElementById('editor-title').textContent = '编辑 · ' + (a.title || '');
+            document.getElementById('edit-archive-title').value = a.title || '';
+            document.getElementById('edit-archive-category').value = a.category || '其他';
+            document.getElementById('edit-archive-tags').value = (a.tags || []).join(', ');
+            document.getElementById('edit-archive-body').value = a.body_markdown || a.html_excerpt || '';
+            document.getElementById('edit-status').textContent = '';
+            renderArchiveActions(a);
+            loadArchiveVersionContext(archiveId);
+            toggleArchivePreview(false);
+            loadArchives();
+        }
+
+        async function loadArchiveVersionContext(archiveId) {
+            const panel = document.getElementById('archive-version-panel');
+            const token = requireAuth();
+            if (!token || !archiveId) { panel.style.display = 'none'; return; }
+            const res = await fetch('/api/games/archives/' + encodeURIComponent(archiveId) + '/versions?token=' + encodeURIComponent(token));
+            const data = await res.json();
+            if (!data.success || !data.games?.length) {
+                panel.style.display = 'none';
+                return;
+            }
+            panel.style.display = 'block';
+            let html = '<h4 style="margin-bottom:8px;">📦 版本 / 补丁上下文</h4>' +
+                '<p class="hint" style="margin-bottom:10px;">' + esc(data.summary || '') + '</p>';
+            if (data.correlations && data.correlations.length) {
+                html += '<div style="margin-bottom:12px;padding:10px;border-radius:8px;background:rgba(139,92,246,0.12);font-size:0.85rem;">' +
+                    '<strong>版本 ↔ 口碑关联提示</strong><ul style="margin:8px 0 0 16px;">' +
+                    data.correlations.map(c => '<li>' + esc(c) + '</li>').join('') + '</ul></div>';
+            }
+            data.games.forEach(g => {
+                const rows = g.since_baseline || [];
+                html += '<div style="margin-bottom:12px;"><strong>' + esc(g.name) + '</strong>';
+                if (!rows.length) {
+                    html += '<div class="hint">归档以来无版本记录</div>';
+                } else {
+                    html += '<ul class="delta-list">' + rows.map(v =>
+                        '<li><span style="color:#c4b5fd;">' + esc(v.version_label) + '</span> · ' +
+                        esc(v.released_at || '') + '<br><span style="color:var(--muted);">' +
+                        esc(v.change_summary || '') + '</span></li>'
+                    ).join('') + '</ul>';
+                }
+                html += '</div>';
+            });
+            html += '<a class="btn" href="/games/library" style="margin-top:8px;">在资料库管理版本 →</a>';
+            panel.innerHTML = html;
+        }
+
+        function enrichActionItems(items) {
+            const now = new Date();
+            return (items || []).map(a => {
+                const row = Object.assign({}, a);
+                if (!row.due_at && row.timeframe) {
+                    const d = new Date();
+                    if (String(row.timeframe).includes('本周')) d.setDate(d.getDate() + 7);
+                    else if (String(row.timeframe).includes('2 周') || String(row.timeframe).includes('两周')) d.setDate(d.getDate() + 14);
+                    else return row;
+                    row.due_at = d.toISOString().slice(0, 19);
+                }
+                if (row.due_at && !['verified', 'done'].includes(row.status)) {
+                    row.overdue = new Date(String(row.due_at).slice(0, 19)) < now;
+                }
+                return row;
+            });
+        }
+
+        function renderArchiveActions(archive) {
+            const panel = document.getElementById('archive-actions-panel');
+            const snap = archive.snapshot_json || {};
+            const items = enrichActionItems(snap.action_items || []);
+            if (!items.length) {
+                panel.style.display = 'none';
+                panel.innerHTML = '';
+                return;
+            }
+            panel.style.display = 'block';
+            panel.innerHTML =
+                '<h4 style="margin-bottom:8px;">📋 行动清单与验证</h4>' +
+                ScenarioReport.renderActionItems(items, { interactive: true, archiveId: archive.archive_id }) +
+                '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">' +
+                '<button type="button" class="btn btn-primary" onclick="retestArchive()">🔄 复测验证</button>' +
+                '<button type="button" class="btn" onclick="exportArchiveActions(\'csv\')">⬇️ CSV</button>' +
+                '<button type="button" class="btn" onclick="exportArchiveActions(\'feishu\')">📋 飞书</button>' +
+                '<button type="button" class="btn" onclick="exportArchiveActions(\'jira\')">📋 Jira</button>' +
+                '</div>';
+            ScenarioReport.bindActionStatusSelects(panel, requireAuth());
+            const deltas = snap.last_retest_deltas || snap.deltas;
+            const box = document.getElementById('archive-retest-result');
+            if (deltas && deltas.length) {
+                box.style.display = 'block';
+                box.innerHTML = '最近复测：' + deltas.map(d =>
+                    esc(d.product_name) + ' ' + d.positive_rate_before + '%→' + d.positive_rate_after + '%'
+                ).join(' · ');
+            } else {
+                box.style.display = 'none';
+            }
+        }
+
+        async function retestArchive() {
+            if (!currentArchiveId) return;
+            const token = requireAuth();
+            const box = document.getElementById('archive-retest-result');
+            box.style.display = 'block';
+            box.textContent = '复测中…';
+            const res = await fetch('/api/games/archives/' + encodeURIComponent(currentArchiveId) + '/retest?token=' + encodeURIComponent(token), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+            const data = await res.json();
+            if (!data.success) {
+                box.innerHTML = '<span style="color:#f87171;">' + esc(data.message || '复测失败') + '</span>';
+                return;
+            }
+            box.innerHTML = '✅ 复测完成' + (data.archive_id ? '，新归档 #' + esc(data.archive_id.slice(0, 8)) : '');
+            if (data.action_items) {
+                renderArchiveActions({ archive_id: currentArchiveId, snapshot_json: { action_items: data.action_items, last_retest_deltas: data.deltas } });
+            }
+            loadArchiveVersionContext(currentArchiveId);
+        }
+
+        function exportArchiveActions(fmt) {
+            if (!currentArchiveId) return;
+            const token = requireAuth();
+            window.open('/api/games/archives/' + encodeURIComponent(currentArchiveId) + '/actions/export?format=' + fmt + '&token=' + encodeURIComponent(token));
+        }
+
+        async function shareArchive() {
+            if (!currentArchiveId) return;
+            const token = requireAuth();
+            if (!token) return;
+            const box = document.getElementById('archive-share-url');
+            box.textContent = '生成分享链接中…';
+            try {
+                const res = await fetch('/api/games/archives/' + encodeURIComponent(currentArchiveId) + '/share?token=' + encodeURIComponent(token), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ expires_hours: 168 }),
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    box.innerHTML = '<span style="color:#f87171;">分享失败：' + esc(data.message || data.detail || '') + '</span>';
+                    return;
+                }
+                const url = data.share_url || ('/shared/' + data.share_token);
+                const full = (location.origin || '') + url;
+                box.innerHTML = '✅ 分享链接（7 天有效）：<a href="' + esc(url) + '" target="_blank" rel="noopener" style="color:#c4b5fd;">' + esc(full) + '</a>';
+                box.dataset.shareUrl = full;
+                if (!document.getElementById('btn-copy-archive-share')) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'btn';
+                    btn.id = 'btn-copy-archive-share';
+                    btn.style.cssText = 'padding:4px 8px;font-size:0.75rem;margin-left:6px;';
+                    btn.textContent = '复制';
+                    btn.onclick = () => navigator.clipboard.writeText(box.dataset.shareUrl || full);
+                    box.appendChild(btn);
+                }
+            } catch (e) {
+                box.textContent = '网络错误';
+            }
+        }
+
+        function toggleArchivePreview(showPreview) {
+            const ta = document.getElementById('edit-archive-body');
+            const prev = document.getElementById('edit-archive-preview');
+            if (!ta || !prev) return;
+            if (showPreview && window.MarkdownPreview) {
+                prev.innerHTML = MarkdownPreview.render(ta.value);
+                prev.style.display = 'block';
+                ta.style.display = 'none';
+            } else {
+                prev.style.display = 'none';
+                ta.style.display = 'block';
+            }
+        }
+
+        function closeArchiveEditor() {
+            currentArchiveId = null;
+            document.getElementById('archive-editor').classList.remove('open');
+            loadArchives();
+        }
+
+        async function saveArchiveEdit() {
+            const token = requireAuth();
+            if (!token || !currentArchiveId) return;
+            const tags = document.getElementById('edit-archive-tags').value.split(/[,，]/).map(t => t.trim()).filter(Boolean);
+            const body = {
+                title: document.getElementById('edit-archive-title').value.trim(),
+                category: document.getElementById('edit-archive-category').value,
+                tags,
+                body_markdown: document.getElementById('edit-archive-body').value,
+            };
+            const res = await fetch('/api/games/archives/' + encodeURIComponent(currentArchiveId) + '?token=' + encodeURIComponent(token), {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+            });
+            const data = await res.json();
+            document.getElementById('edit-status').textContent = data.success ? '已保存 ' + new Date().toLocaleTimeString() : '保存失败';
+            if (data.success) loadArchives();
+        }
+
+        function initFromHash() {
+            const hash = (location.hash || '').replace('#/', '').replace('#', '');
+            const map = { archives: 'archives', 'ai-report': 'ai-report', timeline: 'timeline' };
+            if (map[hash]) {
+                const btn = document.querySelector('.tab[data-tab="' + map[hash] + '"]');
+                if (btn) switchTab(map[hash], btn);
+            }
+        }
+
+        async function init() {
+            wireReviewAiToolbar();
+            toggleReviewMode();
+            initFromHash();
+            const token = requireAuth();
+            if (token) {
+                DataProvenance.fetchProvenance(token).then(p => DataProvenance.renderBanner('provenance-banner', p));
+            }
+            if (window.AnalysisGuide) {
+                AnalysisGuide.renderModuleGuide('module-guide-root', 'review');
+            }
+            await loadSnapshots();
+            await loadArchives();
+        }
+        init();
+    </script>
+</body>
+</html>
