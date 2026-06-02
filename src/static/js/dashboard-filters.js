@@ -132,12 +132,20 @@
         });
     }
 
+    const DEMO_DEFAULT_PRODUCT_IDS = ["730", "570"];
+
+    function defaultProductIdsForList(list) {
+        const demo = DEMO_DEFAULT_PRODUCT_IDS.filter((id) => list.some((p) => p.id === id));
+        if (demo.length) return demo;
+        return list.slice(0, 2).map((p) => p.id);
+    }
+
     function fillProductSelect(selectEl, products, options) {
         options = options || {};
         if (!selectEl || !Array.isArray(products) || !products.length) return;
         const selectedIds =
             options.selectedIds instanceof Set ? options.selectedIds : new Set(options.selectedIds || []);
-        const defaultCount = options.defaultCount ?? 3;
+        const defaultCount = options.defaultCount ?? 2;
         selectEl.innerHTML = "";
         products.forEach((item, index) => {
             global.productNamesMap[item.id] = item.name || item.id;
@@ -177,9 +185,9 @@
                 : new Set(
                       global.selectedProducts.length
                           ? global.selectedProducts
-                          : list.slice(0, 3).map((p) => p.id)
+                          : defaultProductIdsForList(list)
                   ),
-            defaultCount: selectAllInGenre ? list.length : 3,
+            defaultCount: selectAllInGenre ? list.length : 2,
         });
         global.selectedProducts = Array.from(productSelect.selectedOptions).map((o) => o.value);
         if (typeof global.syncReportProductOptions === "function") {

@@ -1,6 +1,12 @@
 """Tests for dataset usability and catalog derivation."""
 
-from src.data_catalog import derive_data_catalog, enrich_catalog_from_context, metrics_dataset_usable
+from src.data_catalog import (
+    derive_data_catalog,
+    enrich_catalog_from_context,
+    filter_meaningful_products,
+    is_meaningful_product,
+    metrics_dataset_usable,
+)
 
 
 def test_metrics_dataset_usable_rejects_test_cache():
@@ -34,6 +40,24 @@ def test_derive_data_catalog_falls_back_to_steam_name_table():
     metrics = [{"product": "730", "metric": "抓取评论数", "值": 1}]
     catalog = derive_data_catalog([], metrics)
     assert catalog["products"][0]["name"] == "Counter-Strike 2"
+
+
+def test_is_meaningful_product_rejects_noise():
+    assert not is_meaningful_product("ref_abc123", "Some Game")
+    assert not is_meaningful_product("999001", "999001")
+    assert not is_meaningful_product("12345", "Steam App 12345")
+    assert is_meaningful_product("730", "Counter-Strike 2")
+    assert is_meaningful_product("game_a", "游戏A - 战神传说")
+
+
+def test_filter_meaningful_products_prioritizes_showcase():
+    products = [
+        {"id": "999001", "name": "999001", "genre": "PC Game"},
+        {"id": "730", "name": "Counter-Strike 2", "genre": "FPS"},
+        {"id": "570", "name": "Dota 2", "genre": "MOBA"},
+    ]
+    filtered = filter_meaningful_products(products)
+    assert [p["id"] for p in filtered] == ["730", "570"]
 
 
 def test_enrich_catalog_adds_genre_presets():

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional
 
 from src.mvp_data import get_mvp_analysis, normalize_time_period, record_product
@@ -16,6 +17,66 @@ KNOWN_MOCK_METRICS = {
     "充值金额",
     "DAU/MAU",
 }
+
+_STEAM_APP_PLACEHOLDER = re.compile(r"^Steam App\s+\d+$", re.I)
+_REF_GAME_ID = re.compile(r"^ref_", re.I)
+_RANDOM_GAME_ID = re.compile(r"^game_[0-9a-f]{6,}$", re.I)
+_SHOWCASE_PRODUCT_ORDER = ("730", "570", "10")
+
+
+def is_meaningful_product(product_id: str, name: str) -> bool:
+    """Drop library noise (numeric IDs, ref_* seeds, placeholder Steam names)."""
+    pid = str(product_id or "").strip()
+    label = str(name or "").strip()
+    if not pid:
+        return False
+    if _REF_GAME_ID.match(pid):
+        return False
+    if lookup_steam_product_name(pid):
+        return True
+    if pid in KNOWN_MOCK_PRODUCTS:
+        return True
+    if _RANDOM_GAME_ID.match(pid) and (
+        not label or label == pid or _STEAM_APP_PLACEHOLDER.match(label)
+    ):
+        return False
+    if label == pid or (label.isdigit() and pid.isdigit()):
+        return False
+    if _STEAM_APP_PLACEHOLDER.match(label):
+        return False
+    if len(label) >= 2 and label != pid:
+        if any("\u4e00" <= c <= "\u9fff" for c in label):
+            return True
+        if any(c.isalpha() for c in label) and not label.replace(" ", "").isdigit():
+            return True
+    return False
+
+
+def filter_meaningful_products(products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    kept = [
+        p
+        for p in products
+        if is_meaningful_product(str(p.get("id", "")), str(p.get("name", "")))
+    ]
+
+    def rank_key(p: Dict[str, Any]) -> tuple:
+        pid = str(p.get("id", ""))
+        if pid in _SHOWCASE_PRODUCT_ORDER:
+            return (0, _SHOWCASE_PRODUCT_ORDER.index(pid), "")
+        if pid in KNOWN_MOCK_PRODUCTS:
+            return (2, 0, str(p.get("name", "")).lower())
+        return (1, 0, str(p.get("name", "")).lower())
+
+    kept.sort(key=rank_key)
+    return kept
+
+
+def _finalize_catalog_products(catalog: Dict[str, Any]) -> Dict[str, Any]:
+    products = filter_meaningful_products(catalog.get("products") or [])
+    genre_ids = sorted({p.get("genre") for p in products if p.get("genre")})
+    genres = [{"id": g, "name": g} for g in genre_ids]
+    return {**catalog, "products": products, "genres": genres or catalog.get("genres", [])}
+
 
 GENRE_PRESETS = [
     "MOBA",
@@ -105,7 +166,7 @@ def derive_data_catalog(
 
     genre_set = sorted({g for g in genres.values() if g})
 
-    return {
+    catalog = {
         "products": [
             {"id": pid, "name": names[pid], "genre": genres.get(pid, "PC Game")}
             for pid in sorted(names.keys())
@@ -113,6 +174,7 @@ def derive_data_catalog(
         "genres": [{"id": g, "name": g} for g in genre_set],
         "time_periods": [{"id": pid, "name": name} for pid, name in sorted(periods.items())],
     }
+    return _finalize_catalog_products(catalog)
 
 
 def _catalog_product_keys(game: Dict[str, Any]) -> List[str]:
@@ -184,6 +246,9 @@ def enrich_catalog_from_context(
         from src.services.game_intel import GameLibraryRepository
 
         for game in GameLibraryRepository.list_games(username=username, limit=200):
+            game_id = str(game.get("game_id") or "").strip()
+            if _REF_GAME_ID.match(game_id):
+                continue
             name = str(game.get("name") or "").strip()
             if not name:
                 continue
@@ -219,7 +284,7 @@ def enrich_catalog_from_context(
     for preset in GENRE_PRESETS:
         genre_names.add(preset)
 
-    return {
+    merged = {
         **catalog,
         "products": [
             products[pid]
@@ -227,3 +292,4 @@ def enrich_catalog_from_context(
         ],
         "genres": [{"id": g, "name": g} for g in sorted(g for g in genre_names if g)],
     }
+    return _finalize_catalog_products(merged)

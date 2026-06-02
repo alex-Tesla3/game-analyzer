@@ -1169,10 +1169,9 @@
         <div class="filter-bar">
             <div class="filter-group">
                 <label class="filter-label">产品选择</label>
-                <select id="product-select" class="filter-select" multiple size="6">
-                    <option value="game_a" selected>游戏A - 战神传说</option>
-                    <option value="game_b" selected>游戏B - 星际争霸</option>
-                    <option value="game_c" selected>游戏C - 魔法大陆</option>
+                <select id="product-select" class="filter-select" multiple size="4">
+                    <option value="730" selected>Counter-Strike 2</option>
+                    <option value="570" selected>Dota 2</option>
                 </select>
             </div>
             <div class="filter-group">
@@ -1270,21 +1269,9 @@
                         <span class="game-chip">加载中…</span>
                     </div>
                     <div class="alerts-list" id="business-alerts-list">
-                        <div class="alert-item red">
-                            <strong>⚠️ 游戏A - 战神传说：付费转化率下降</strong>
-                            <div style="margin-top:6px;font-size:0.875rem;color:#86868b;">付费限制过严导致用户流失，建议限时免费体验核心玩法</div>
-                        </div>
                         <div class="alert-item yellow">
-                            <strong>📊 游戏B - 星际争霸：ARPPU有提升空间</strong>
-                            <div style="margin-top:6px;font-size:0.875rem;color:#86868b;">付费深度不足，建议增加捆绑包和月卡选项</div>
-                        </div>
-                        <div class="alert-item green">
-                            <strong>🚀 游戏C - 魔法大陆：保持强劲增长</strong>
-                            <div style="margin-top:6px;font-size:0.875rem;color:#86868b;">各指标表现优秀，可考虑增加新内容和活动</div>
-                        </div>
-                        <div class="alert-item yellow">
-                            <strong>🎯 新品机会：开放世界玩法是趋势</strong>
-                            <div style="margin-top:6px;font-size:0.875rem;color:#86868b;">市场数据显示开放世界和多人联机需求强劲</div>
+                            <strong>📋 加载预警中…</strong>
+                            <div style="margin-top:6px;font-size:0.85rem;color:#94a3b8;">应用筛选后显示已选游戏的商机摘要</div>
                         </div>
                     </div>
                 </div>
@@ -4777,7 +4764,8 @@
             }
 
             let html = '';
-            productIds.forEach(productId => {
+            const alertIds = productIds.slice(0, 3);
+            alertIds.forEach(productId => {
                 const pMetrics = viewMetrics.filter(m => productRecordMatches(m, productId));
                 const alert = inferAlertForProduct(productId, pMetrics);
                 const icon = alert.type === 'red' ? '⚠️' : alert.type === 'yellow' ? '📊' : '🚀';
@@ -4794,14 +4782,14 @@
                     <strong>📋 暂无已选游戏</strong>
                     <div style="margin-top:6px;font-size:0.85rem;color:#94a3b8;">请在顶部「产品选择」中勾选要分析的游戏</div>
                 </div>`;
+            } else if (alertIds.length === 1) {
+                html += `
+                    <div class="alert-item yellow">
+                        <strong>🎯 趋势提示</strong>
+                        <div style="margin-top:6px;font-size:0.85rem;color:#94a3b8;">可再选 1–2 款对标游戏做并排对比</div>
+                    </div>
+                `;
             }
-
-            html += `
-                <div class="alert-item yellow">
-                    <strong>🎯 新品机会：开放世界玩法是趋势</strong>
-                    <div style="margin-top:6px;font-size:0.85rem;color:#94a3b8;">市场数据显示开放世界和多人联机需求强劲</div>
-                </div>
-            `;
 
             list.innerHTML = html;
         }

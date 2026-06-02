@@ -17,11 +17,11 @@ OUT = ROOT / "docs" / "screenshots"
 BASE = "http://127.0.0.1:8080"
 
 PAGES = [
-    ("01-dashboard.png", "/dashboard", True),
-    ("02-guide.png", "/guide", True),
-    ("03-compare.png", "/games/compare", True),
-    ("04-team.png", "/team", True),
-    ("05-showcase.png", "/showcase", False),
+    ("01-dashboard.png", "/dashboard", True, False),
+    ("02-guide.png", "/guide", True, True),
+    ("03-compare.png", "/games/compare", True, True),
+    ("04-team.png", "/team", True, True),
+    ("05-showcase.png", "/showcase", False, True),
 ]
 
 
@@ -40,15 +40,28 @@ def main() -> int:
         context = browser.new_context(viewport={"width": 1440, "height": 900}, locale="zh-CN")
         page = context.new_page()
         logged_in = False
-        for filename, path, needs_auth in PAGES:
+        for filename, path, needs_auth, full_page in PAGES:
             if needs_auth and not logged_in:
                 login(page)
                 logged_in = True
             url = f"{BASE}{path}"
             page.goto(url, wait_until="networkidle", timeout=60000)
             page.wait_for_timeout(2000)
+            if path == "/dashboard":
+                page.evaluate(
+                    """() => {
+                      const sel = document.getElementById('product-select');
+                      if (!sel) return;
+                      const keep = new Set(['730', '570']);
+                      Array.from(sel.options).forEach((o) => {
+                        o.selected = keep.has(o.value);
+                      });
+                      if (typeof applyFilters === 'function') applyFilters();
+                    }"""
+                )
+                page.wait_for_timeout(3500)
             dest = OUT / filename
-            page.screenshot(path=str(dest), full_page=True)
+            page.screenshot(path=str(dest), full_page=full_page)
             print(f"Saved {dest.relative_to(ROOT)}")
         browser.close()
     static_dir = ROOT / "src" / "static" / "img" / "showcase"
