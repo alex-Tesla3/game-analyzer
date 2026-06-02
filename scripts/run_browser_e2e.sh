@@ -23,4 +23,8 @@ if [[ -z "${PLAYWRIGHT_CHANNEL:-}" ]] && ! compgen -G "$HOME/Library/Caches/ms-p
 fi
 
 export PYTHONPATH="${ROOT}/src${PYTHONPATH:+:$PYTHONPATH}"
+export APP_ENV="${APP_ENV:-development}"
+export ALLOW_DEMO_ACCOUNTS="${ALLOW_DEMO_ACCOUNTS:-true}"
+export GA_E2E_DISABLE_RATE_LIMIT="${GA_E2E_DISABLE_RATE_LIMIT:-1}"
+export GA_E2E_DISABLE_LLM="${GA_E2E_DISABLE_LLM:-1}"
 python -m pytest tests/e2e -m browser -v "$@"

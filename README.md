@@ -1,5 +1,7 @@
 # Game Analyzer — 游戏数据分析 Web 应用
 
+[![CI](https://github.com/alex-Tesla3/game-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/alex-Tesla3/game-analyzer/actions/workflows/ci.yml)
+
 本地运行的游戏 BI 仪表盘，支持评论/指标分析、MVP Steam 数据、在线客服、LLM 分析等。
 
 ![数据看板](docs/screenshots/01-dashboard.png)

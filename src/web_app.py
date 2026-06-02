@@ -2,6 +2,8 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request, Query, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, Body, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -80,8 +82,6 @@ from src.services.report_helpers import (
     generate_report_summary,
 )
 
-app = FastAPI(title="游戏数据分析引擎", description="AI驱动的游戏商业智能分析平台")
-
 _alert_scheduler_stop: Optional[asyncio.Event] = None
 _alert_scheduler_task: Optional[asyncio.Task] = None
 
@@ -101,8 +101,8 @@ async def _alert_scheduler_loop(stop_event: asyncio.Event) -> None:
         print(f"Alert scheduler stopped: {exc}")
 
 
-@app.on_event("startup")
-async def _on_app_startup_async():
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
     global _alert_scheduler_stop, _alert_scheduler_task
     try:
         from src.database import ensure_support_agents
@@ -127,10 +127,8 @@ async def _on_app_startup_async():
     _alert_scheduler_task = asyncio.create_task(_alert_scheduler_loop(_alert_scheduler_stop))
     print("Alert scheduler background task started")
 
+    yield
 
-@app.on_event("shutdown")
-async def _on_app_shutdown_async():
-    global _alert_scheduler_stop, _alert_scheduler_task
     if _alert_scheduler_stop:
         _alert_scheduler_stop.set()
     if _alert_scheduler_task:
@@ -142,6 +140,11 @@ async def _on_app_shutdown_async():
     print("Alert scheduler background task stopped")
 
 
+app = FastAPI(
+    title="游戏数据分析引擎",
+    description="AI驱动的游戏商业智能分析平台",
+    lifespan=app_lifespan,
+)
 app.include_router(mvp_router)
 app.include_router(health_router)
 app.include_router(game_intel_router)

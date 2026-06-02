@@ -165,7 +165,7 @@ def init_default_users():
             api_quota=PLANS["enterprise"].api_quota,
             hashed_password=get_password_hash("admin123")
         )
-        USERS_DB["admin"] = admin_user.dict()
+        USERS_DB["admin"] = admin_user.model_dump()
 
     if not allow_demo:
         USERS_DB.pop("demo", None)
@@ -184,6 +184,6 @@ def init_default_users():
             api_quota=PLANS["pro"].api_quota,
             hashed_password=get_password_hash("demo123")
         )
-        USERS_DB["demo"] = demo_user.dict()
+        USERS_DB["demo"] = demo_user.model_dump()
 
 init_default_users()

@@ -1,5 +1,7 @@
 # Game Analyzer — Game BI & Competitor Intelligence Platform
 
+[![CI](https://github.com/alex-Tesla3/game-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/alex-Tesla3/game-analyzer/actions/workflows/ci.yml)
+
 Full-stack POC for game producers and live-ops teams: scrape public reviews (Steam / TapTap / Google Play), build BI dashboards, generate AI/rule reports, archive and share with teams.
 
 ![Dashboard](docs/screenshots/01-dashboard.png)

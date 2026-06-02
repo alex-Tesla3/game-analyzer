@@ -131,5 +131,5 @@ async def upgrade_plan(plan_id: str, token: Optional[str] = Query(None)):
     return {
         "success": True,
         "message": f"Successfully upgraded to {plan.name}",
-        "plan": plan.model_dump() if hasattr(plan, "model_dump") else plan.dict(),
+        "plan": plan.model_dump(),
     }

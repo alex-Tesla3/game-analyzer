@@ -103,9 +103,7 @@ async def get_options(token: Optional[str] = Query(None)):
         "data_sources": AVAILABLE_DATA_SOURCES,
         "data_source": provenance.get("source"),
         "data_trust": provenance.get("trust"),
-        "user_plan": PLANS[current_user.plan].model_dump()
-        if hasattr(PLANS[current_user.plan], "model_dump")
-        else PLANS[current_user.plan].dict(),
+        "user_plan": PLANS[current_user.plan].model_dump(),
     }
 
 class PlatformDataFetcher:
