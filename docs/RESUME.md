@@ -50,14 +50,15 @@
 
 重新录制：`./scripts/record_demo_video.sh`
 
-## 链接（填写后放简历）
+## 链接（简历可直接用）
 
 | 类型 | URL |
 |------|-----|
-| Live Demo | `https://<your-domain>/showcase` 或 Cloudflare 隧道 URL |
-| GitHub | `https://github.com/<you>/game-analyzer` |
-| 案例脚本 | 本地 `./scripts/seed_demo.sh` → `/dashboard` |
-| Demo 账号 | `demo` / `demo123`（需 `ALLOW_DEMO_ACCOUNTS=true`） |
+| **GitHub** | https://github.com/alex-Tesla3/game-analyzer |
+| **CI** | https://github.com/alex-Tesla3/game-analyzer/actions |
+| **简历终稿** | [docs/RESUME_PASTE.md](./RESUME_PASTE.md) |
+| Live Demo | 仓库 Homepage 或 Render 部署后的 `/showcase` |
+| Demo 账号 | `demo` / `demo123` |
 
 ## 发布前检查
 

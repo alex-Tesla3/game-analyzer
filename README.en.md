@@ -10,15 +10,15 @@ Full-stack POC for game producers and live-ops teams: scrape public reviews (Ste
 
 ## Live demo
 
-| Method | Command / URL |
+| Method | URL / Command |
 |--------|----------------|
+| **GitHub** | https://github.com/alex-Tesla3/game-analyzer |
 | Local | http://127.0.0.1:8080/showcase |
-| **GitHub Pages** | Enable in repo Settings → Pages → deploy from `/docs` or use tunnel below |
-| Share publicly | `./scripts/share_demo.sh` → `cat /tmp/game-analyzer-tunnel.url` |
-| Stable cloud | [docs/DEPLOY.md](docs/DEPLOY.md) (Railway recommended; Fly.io needs billing) |
+| Public tunnel | `./scripts/share_demo.sh` → `cat /tmp/game-analyzer-tunnel.url` |
+| Stable cloud | [Render](#render-free-tier) · [Railway](docs/DEPLOY.md) · [Fly.io](docs/DEPLOY.md) |
+| **Demo video** | [docs/demo/game-analyzer-demo.mp4](docs/demo/game-analyzer-demo.mp4) |
 
-Set `PUBLIC_DEMO_BASE_URL` when a stable URL is available — `/showcase` shows the public banner.
-| **Demo video** | `docs/demo/game-analyzer-demo.mp4` — `./scripts/record_demo_video.sh` |
+Set `PUBLIC_DEMO_BASE_URL` so `/showcase` shows the public demo banner.
 
 Demo login: `demo` / `demo123`
 

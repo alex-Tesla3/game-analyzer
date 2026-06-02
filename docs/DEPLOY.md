@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Docker (local smoke test)
-- For cloud: [Fly.io](https://fly.io) or [Railway](https://railway.app) account
+- For cloud: [Render](https://render.com) (free tier, **recommended**) · [Railway](https://railway.app) · [Fly.io](https://fly.io) (billing required)
 - `openssl rand -hex 32` for secrets
 
 ## 1. Local Docker (production-like)
@@ -19,7 +19,18 @@ curl http://localhost:8080/api/health
 
 Demo login works when `ALLOW_DEMO_ACCOUNTS=true` in `.env`.
 
-## 2. Fly.io（需绑定支付方式）
+## 2. Render（免费层，推荐简历 Demo）
+
+仓库已包含 `render.yaml` Blueprint：
+
+1. [Render Dashboard](https://dashboard.render.com/) → **New** → **Blueprint**
+2. 连接 GitHub `alex-Tesla3/game-analyzer`
+3. 等待部署 → 打开 `https://<service>.onrender.com/showcase`
+4. 在 Render 环境变量添加 `PUBLIC_DEMO_BASE_URL=https://<service>.onrender.com`（可选，用于 README/作品集横幅）
+
+Free tier 冷启动约 30–60s；Demo 账号 `demo` / `demo123` 已在 Blueprint 启用。
+
+## 3. Fly.io（需绑定支付方式）
 
 Fly 新账号创建应用前需添加信用卡（可使用免费额度，但仍需验证账单）：
 https://fly.io/dashboard/lee_w/billing
@@ -49,7 +60,7 @@ fly deploy
 fly open /showcase
 ```
 
-## 2b. 免信用卡 — 临时公网 Demo（推荐简历）
+## 4. 免信用卡 — Cloudflare 临时隧道
 
 本地运行 + Cloudflare Quick Tunnel，几分钟内获得可分享的 HTTPS 链接：
 
@@ -73,9 +84,9 @@ cat /tmp/game-analyzer-tunnel.url
 
 可选：在运行 uvicorn 的终端设置 `PUBLIC_DEMO_BASE_URL=https://xxxx.trycloudflare.com`，`/showcase` 页会显示公网 Demo 横幅。
 
-隧道关闭后链接失效；适合面试/简历短期展示。长期 Demo 请用 Fly.io / Railway（§2 / §3）。
+隧道关闭后链接失效；适合面试前短期展示。长期 Demo 请用 **Render（§2）** 或 Railway（§5）。
 
-## 3. Railway
+## 5. Railway
 
 ```bash
 cd game_analyzer
@@ -90,7 +101,7 @@ chmod +x scripts/deploy_railway.sh
 
 Config file: `railway.toml` (Dockerfile build).
 
-## 4. Post-deploy checklist
+## 6. Post-deploy checklist
 
 - [ ] `/api/health` returns `status: ok`
 - [ ] `/showcase` loads project overview
@@ -100,7 +111,7 @@ Config file: `railway.toml` (Dockerfile build).
 
 ## CI
 
-GitHub Actions workflow: `.github/workflows/game-analyzer-ci.yml` (unit tests + Playwright E2E on `game_analyzer/**` changes).
+GitHub Actions: `.github/workflows/ci.yml` (unit tests + Playwright E2E on every push to `main`).
 
 Local parity:
 

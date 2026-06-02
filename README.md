@@ -4,6 +4,13 @@
 
 本地运行的游戏 BI 仪表盘，支持评论/指标分析、MVP Steam 数据、在线客服、LLM 分析等。
 
+| | |
+|---|---|
+| **GitHub** | https://github.com/alex-Tesla3/game-analyzer |
+| **作品集** | 本地 `/showcase` · [在线 Demo](https://github.com/alex-Tesla3/game-analyzer#live-demo) |
+| **演示视频** | [game-analyzer-demo.mp4](docs/demo/game-analyzer-demo.mp4) |
+| **简历素材** | [docs/RESUME.md](docs/RESUME.md) |
+
 ![数据看板](docs/screenshots/01-dashboard.png)
 
 ## 快速启动
@@ -22,11 +29,20 @@ pip install -r requirements.txt
 
 **公网分享：** `./scripts/share_demo.sh` → `cat /tmp/game-analyzer-tunnel.url`（临时链接，需本机在线）
 
-**稳定 Demo：** Railway 见 [docs/DEPLOY.md](docs/DEPLOY.md) · 设置 `PUBLIC_DEMO_BASE_URL` 后 `/showcase` 显示公网横幅
+**稳定 Demo：** [Render 一键部署](#render-免费层推荐) · [Railway](docs/DEPLOY.md) · 设置 `PUBLIC_DEMO_BASE_URL` 后 `/showcase` 显示公网横幅
 
 **演示视频：** [docs/demo/game-analyzer-demo.mp4](docs/demo/game-analyzer-demo.mp4) · 重录 `./scripts/record_demo_video.sh`
 
-English README: [README.en.md](README.en.md) · 部署：[docs/DEPLOY.md](docs/DEPLOY.md) · **简历素材：[docs/RESUME.md](docs/RESUME.md)** · 发布 GitHub：[docs/GITHUB_PUBLISH.md](docs/GITHUB_PUBLISH.md)
+English README: [README.en.md](README.en.md) · 部署：[docs/DEPLOY.md](docs/DEPLOY.md) · **简历终稿：[docs/RESUME_PASTE.md](docs/RESUME_PASTE.md)** · 详细素材：[docs/RESUME.md](docs/RESUME.md)
+
+## Render 免费层（推荐稳定 Demo）
+
+1. 打开 [Render Dashboard](https://dashboard.render.com/) → **New** → **Blueprint**  
+2. 连接 GitHub 仓库 `alex-Tesla3/game-analyzer`（仓库根目录含 `render.yaml`）  
+3. 部署完成后访问 `https://<app-name>.onrender.com/showcase`  
+4. 设置环境变量 `PUBLIC_DEMO_BASE_URL=https://<app-name>.onrender.com` 并重启（作品集页显示公网横幅）
+
+Demo 账号：`demo` / `demo123`（`ALLOW_DEMO_ACCOUNTS=true` 已写在 Blueprint 中）
 
 ## 默认账号（仅开发）
 

@@ -12,5 +12,5 @@ COPY . .
 
 EXPOSE 8000
 
-# SQLite + in-memory caches: single worker avoids split-brain quota/alert state
-CMD ["uvicorn", "src.web_app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# Cloud hosts (Render/Railway) inject PORT; local default 8000
+CMD ["sh", "-c", "uvicorn src.web_app:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
