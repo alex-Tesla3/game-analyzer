@@ -13,8 +13,11 @@ Full-stack POC for game producers and live-ops teams: scrape public reviews (Ste
 | Method | Command / URL |
 |--------|----------------|
 | Local | http://127.0.0.1:8080/showcase |
+| **GitHub Pages** | Enable in repo Settings → Pages → deploy from `/docs` or use tunnel below |
 | Share publicly | `./scripts/share_demo.sh` → `cat /tmp/game-analyzer-tunnel.url` |
-| Stable cloud | [docs/DEPLOY.md](docs/DEPLOY.md) (Fly.io / Railway) |
+| Stable cloud | [docs/DEPLOY.md](docs/DEPLOY.md) (Railway recommended; Fly.io needs billing) |
+
+Set `PUBLIC_DEMO_BASE_URL` when a stable URL is available — `/showcase` shows the public banner.
 | **Demo video** | `docs/demo/game-analyzer-demo.mp4` — `./scripts/record_demo_video.sh` |
 
 Demo login: `demo` / `demo123`

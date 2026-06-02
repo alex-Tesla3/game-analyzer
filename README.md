@@ -22,6 +22,8 @@ pip install -r requirements.txt
 
 **公网分享：** `./scripts/share_demo.sh` → `cat /tmp/game-analyzer-tunnel.url`（临时链接，需本机在线）
 
+**稳定 Demo：** Railway 见 [docs/DEPLOY.md](docs/DEPLOY.md) · 设置 `PUBLIC_DEMO_BASE_URL` 后 `/showcase` 显示公网横幅
+
 **演示视频：** [docs/demo/game-analyzer-demo.mp4](docs/demo/game-analyzer-demo.mp4) · 重录 `./scripts/record_demo_video.sh`
 
 English README: [README.en.md](README.en.md) · 部署：[docs/DEPLOY.md](docs/DEPLOY.md) · **简历素材：[docs/RESUME.md](docs/RESUME.md)** · 发布 GitHub：[docs/GITHUB_PUBLISH.md](docs/GITHUB_PUBLISH.md)

@@ -3398,5 +3398,45 @@
       "user_id_blacklist": [],
       "custom_rules": []
     }
+  },
+  {
+    "experiment_id": "exp_086",
+    "name": "Test Experiment",
+    "description": "Test description",
+    "variants": [
+      {
+        "id": "control",
+        "name": "对照组",
+        "is_control": true
+      },
+      {
+        "id": "variant_a",
+        "name": "实验组A",
+        "is_control": false
+      }
+    ],
+    "traffic_allocation": 0.5,
+    "start_date": "2026-06-02",
+    "end_date": null,
+    "filters": {
+      "regions": [],
+      "servers": [],
+      "platforms": [],
+      "versions": [],
+      "channels": [],
+      "user_segments": [],
+      "level_range": [
+        0,
+        999
+      ],
+      "registration_date_range": [],
+      "device_types": []
+    },
+    "targeting": {
+      "enabled": false,
+      "user_id_whitelist": [],
+      "user_id_blacklist": [],
+      "custom_rules": []
+    }
   }
 ]

@@ -67,9 +67,21 @@ def test_assign_competitors_mvp_batch_elden_not_empty():
 
 
 def test_build_feature_matrix_seed_games():
-    games = GameLibraryRepository.list_games()
-    ids = [g["game_id"] for g in games[:2]]
-    matrix = build_feature_matrix(ids)
+    from src.services.game_intel import GameplayBreakdownRepository, _template_breakdown_for_genre
+
+    gid_a = GameLibraryRepository.create(
+        {"name": "Matrix Test A", "genre": "FPS", "platforms": ["PC"]}
+    )
+    gid_b = GameLibraryRepository.create(
+        {"name": "Matrix Test B", "genre": "MOBA", "platforms": ["PC"]}
+    )
+    GameplayBreakdownRepository.upsert(
+        gid_a, _template_breakdown_for_genre("FPS", "Matrix Test A")
+    )
+    GameplayBreakdownRepository.upsert(
+        gid_b, _template_breakdown_for_genre("MOBA", "Matrix Test B")
+    )
+    matrix = build_feature_matrix([gid_a, gid_b])
     assert matrix["success"] is True
     assert len(matrix["rows"]) == 2
     assert matrix["sections"]
