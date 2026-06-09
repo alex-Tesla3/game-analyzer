@@ -27,11 +27,11 @@ Default demo account (when enabled): `demo` / `demo123`
 ## Resume material
 
 Full STAR bullets (CN/EN): **[docs/RESUME.md](./RESUME.md)**  
-Publish standalone GitHub repo: **[docs/GITHUB_PUBLISH.md](./GITHUB_PUBLISH.md)**
+GitHub repo & sync guide: **[docs/GITHUB_PUBLISH.md](./GITHUB_PUBLISH.md)** · https://github.com/alex-Tesla3/game-analyzer
 
 ### STAR highlights
 
-1. **Unified data catalog** — merged CSV / MVP Steam / mock sources; fixed dashboard filter + server-side `/api/metrics` KPI pipeline (`data_catalog.py`, `dashboard-filters.js`).
+1. **Unified data catalog** — crawl → `data/mvp/` → dashboard auto-sync; merged CSV / MVP multi-platform (Steam / TapTap / Google Play); server-side `/api/metrics` KPI pipeline (`data_catalog.py`, `dashboard-filters.js`).
 2. **End-to-end analysis loop** — wizard → report → archive → team share → retest; reproducible CS2/Dota2 case via `./scripts/seed_demo.sh`.
 3. **Engineering** — 170+ pytest cases, Playwright E2E, GitHub Actions CI, Docker/Fly/tunnel deploy docs.
 
@@ -55,7 +55,8 @@ flowchart LR
   end
   subgraph external [External]
     Steam[Steam public API]
-    TapTap[TapTap]
+    TapTap[TapTap webapiv2]
+    GPlay[Google Play scraper]
     LLM[OpenAI / Ollama]
   end
   UI --> api
@@ -64,6 +65,7 @@ flowchart LR
   api --> Import
   wizard_router --> Steam
   wizard_router --> TapTap
+  wizard_router --> GPlay
   api --> LLM
 ```
 
@@ -79,9 +81,9 @@ flowchart LR
 
 ## Core capabilities
 
-1. **Multi-source data** — user CSV import, MVP Steam snapshots, mock fallback with provenance badges
-2. **BI dashboard** — dynamic product/genre filters, server-side metrics API, KPI cards
-3. **Analysis wizard** — Steam AppID / TapTap name → structured report + P0/P1 actions
+1. **Multi-source data** — user CSV import; live crawl from Steam / TapTap / Google Play → shared `data/mvp/`; empty-state guidance (no mock fallback)
+2. **BI dashboard** — reads same crawled dataset; product/source/period filters; server-side metrics API
+3. **Analysis wizard + MVP** — per-channel re-crawl → report → auto-sync dashboard; `/trust` documents data flow
 4. **Competitor workbench** — six-dimension scores, AI/rule summaries
 5. **Collaboration** — archive sharing, team libraries, retest comparison
 6. **Commercial POC** — pricing tiers, API usage metering, demo payment flow
@@ -95,7 +97,7 @@ See [CASE_STUDY_CS2_DOTA2.md](./CASE_STUDY_CS2_DOTA2.md) — Counter-Strike vs D
 - `dashboard-filters.js` — extracted filter catalog + metrics pipeline from 7k-line dashboard
 - `data_catalog.py` — merges metrics, game library, and MVP analysis for filter options
 - `metric_matches_period()` — shared period alias logic (Q2 ↔ `quarter_2`) across API and UI
-- GitHub Actions CI — unit tests on every push to `game_analyzer/`
+- GitHub Actions CI — unit tests on every push to `main` ([alex-Tesla3/game-analyzer](https://github.com/alex-Tesla3/game-analyzer))
 
 ## Resume one-liner
 

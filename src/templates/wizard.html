@@ -11,6 +11,8 @@
     <script src="/static/js/data-provenance.js"></script>
     <script src="/static/js/scenario-report.js"></script>
     <script src="/static/js/data-flow-guide.js"></script>
+    <script src="/static/js/analysis-guide.js"></script>
+    <script src="/static/js/site-map-panel.js" defer></script>
     <script src="/static/js/usage-badge.js"></script>
     <style>
         :root { --bg:#0f1419; --panel:#1a2332; --text:#e7ecf3; --muted:#94a3b8; --accent:#06b6d4; --border:rgba(255,255,255,0.08); }
@@ -54,6 +56,7 @@
             <span id="usage-badge"></span>
             <a class="btn" href="/work" style="margin-right:8px;">落地指导</a>
             <a class="btn" href="/import" style="margin-right:8px;">导入指标</a>
+            <button class="btn" type="button" data-sitemap-open title="帮助与指引">📖 指引</button>
             <a class="btn" href="/dashboard">← 看板</a>
         </div>
     </header>
@@ -61,7 +64,6 @@
         <div id="onboarding-root"></div>
         <div id="provenance-banner" style="display:none;margin-bottom:16px;"></div>
         <div id="demo-banner" style="display:none;margin-bottom:16px;padding:12px 16px;border-radius:10px;background:rgba(6,182,212,0.12);border:1px solid rgba(6,182,212,0.35);font-size:0.85rem;"></div>
-        <div id="data-flow-guide-root"></div>
         <div class="hero">
             <h1>输入游戏名或 AppID，一键生成可执行竞品报告</h1>
             <p>支持 Steam（PC）、TapTap 与 Google Play（手游）。抓取后的评论与指标<strong>自动进入运营看板</strong>，本页额外生成深度报告与行动清单。</p>
@@ -319,7 +321,7 @@
                 hint.textContent = 'TapTap 示例：原神, 王者荣耀 · 或 AppID 168332';
                 if (search) search.placeholder = '搜索 TapTap 游戏名…';
             } else if (selectedPlatform() === 'google_play') {
-                hint.textContent = 'Google Play 示例：原神, 王者荣耀 · 或包名 com.miHoYo.GenshinImpact';
+                hint.textContent = 'Google Play 示例：原神 · 王者荣耀国际服 · 或包名 com.miHoYo.GenshinImpact / com.levelinfinite.sgameGlobal（国服请选 TapTap）';
                 if (search) search.placeholder = '搜索 Google Play 游戏名…';
             } else {
                 hint.textContent = 'Steam 示例：Counter-Strike 2 · Dota 2 · 或 AppID 730, 570';
@@ -554,9 +556,6 @@
         (async function initWizard() {
             if (!(await ensureAuth())) return;
             UsageBadge.mount('usage-badge', token, { linkPricing: true });
-            if (typeof DataFlowGuide !== 'undefined') {
-                DataFlowGuide.render('data-flow-guide-root', { variant: 'wizard', theme: 'dark' });
-            }
             if (typeof OnboardingWizard !== 'undefined') OnboardingWizard.render('onboarding-root');
             DataProvenance.fetchProvenance(token()).then(p => DataProvenance.renderBanner('provenance-banner', p));
             const q = new URLSearchParams(location.search);

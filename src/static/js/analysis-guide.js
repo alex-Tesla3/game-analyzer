@@ -110,9 +110,10 @@
         try {
             const raw = sessionStorage.getItem(STORAGE_KEY);
             const map = raw ? JSON.parse(raw) : {};
+            if (!(key in map) && key === "home") return true;
             return !!map[key];
         } catch {
-            return false;
+            return key === "home";
         }
     }
 
@@ -248,7 +249,7 @@
             '<p class="ag-tip">💡 ' +
             esc(g.tips) +
             "</p>" +
-            '<p class="ag-back"><a href="/#analysis-guide">← 返回首页分析指引</a></p>' +
+            '<p class="ag-back"><a href="#" data-sitemap-open>← 打开帮助与指引</a></p>' +
             "</div></aside>";
 
         document.getElementById("ag-mod-toggle-" + moduleKey)?.addEventListener("click", () => {

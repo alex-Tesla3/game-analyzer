@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Game Analyzer — Project Showcase</title>
     <link rel="stylesheet" href="/static/css/app-nav.css">
+    <link rel="stylesheet" href="/static/css/analysis-guide.css">
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #f5f5f7; color: #1d1d1f; }
         .wrap { max-width: 960px; margin: 0 auto; padding: 72px 24px 48px; }
@@ -27,7 +28,7 @@
     <div class="nav-slot" id="app-nav-mount" data-active="home"></div>
     <div class="wrap" style="padding-top: 88px;">
         <h1>Game Analyzer <span class="badge">Portfolio</span></h1>
-        <p class="subtitle">Full-stack game BI &amp; competitor intelligence — FastAPI · vanilla JS · pytest (170+) · Playwright · Docker</p>
+        <p class="subtitle">Full-stack game BI &amp; competitor intelligence — Steam / TapTap / Google Play crawl → dashboard · FastAPI · pytest (170+) · Playwright · Docker</p>
 
         <div class="card">
             <h2>Links</h2>
@@ -59,6 +60,8 @@
                 <a href="/">产品首页</a>
                 <a href="/dashboard">数据看板</a>
                 <a href="/guide">分析向导</a>
+                <a href="/mvp">MVP 抓取</a>
+                <a href="/trust">数据流说明</a>
                 <a href="/games/compare">竞品分析</a>
                 <a href="/games/review">复盘归档</a>
                 <a href="/team">团队协作</a>
@@ -71,7 +74,7 @@
             <h2>Architecture</h2>
             <ul>
                 <li><strong>API</strong> — 17 FastAPI routers (data, wizard, competitor, team, billing, support)</li>
-                <li><strong>Data</strong> — SQLite + MVP snapshots + CSV import; provenance-aware fallback</li>
+                <li><strong>Data</strong> — SQLite + live crawl (Steam/TapTap/Google Play) → <code>data/mvp/</code> → dashboard sync; optional CSV import</li>
                 <li><strong>Frontend</strong> — Multi-page dashboard; <code>dashboard-filters.js</code> modular filter pipeline</li>
                 <li><strong>Quality</strong> — 170+ pytest cases, Playwright E2E, GitHub Actions CI</li>
             </ul>
@@ -80,8 +83,8 @@
         <div class="card">
             <h2>Resume highlights</h2>
             <ul>
-                <li>统一多源数据目录（CSV / MVP Steam / mock），修复看板筛选与 KPI 服务端重算</li>
-                <li>端到端链路：采集 → 报告 → 归档 → 团队共享 → 复测（CS2/Dota2 可复现案例）</li>
+                <li>三平台 live 抓取（Steam / TapTap / Google Play）→ 看板自动同步；统一数据目录与 KPI 服务端重算</li>
+                <li>端到端链路：抓取 → 报告 → 归档 → 团队共享 → 复测（CS2/Dota2 可复现案例）</li>
                 <li>工程化：模块化前端、健康检查、Docker/Fly/Cloudflare 隧道部署文档</li>
             </ul>
             <p class="demo-hint">完整 STAR 描述见仓库 <code>docs/RESUME.md</code></p>
@@ -114,7 +117,10 @@
             <pre id="health-json" style="background:#f5f5f7;padding:12px;border-radius:8px;overflow:auto;font-size:0.8rem;">Loading…</pre>
         </div>
     </div>
+    <script src="/static/js/data-flow-guide.js"></script>
+    <script src="/static/js/analysis-guide.js"></script>
     <script src="/static/js/app-nav.js"></script>
+    <script src="/static/js/site-map-panel.js"></script>
     <script>
         if (window.AppNav) AppNav.mount('#app-nav-mount');
         if ('{{HAS_PUBLIC_DEMO}}' === 'true') {

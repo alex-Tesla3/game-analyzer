@@ -15,6 +15,7 @@
     <script src="/static/js/data-flow-guide.js"></script>
     <script src="/static/js/onboarding-wizard.js"></script>
     <script src="/static/js/analysis-guide.js"></script>
+    <script src="/static/js/site-map-panel.js" defer></script>
     <script src="/static/js/speech-input.js"></script>
     <script src="/static/js/account-display.js" defer></script>
     <script src="/static/js/admin-menu.js" defer></script>
@@ -790,12 +791,32 @@
         .game-chip {
             display: inline-flex;
             align-items: center;
+            max-width: 220px;
             padding: 4px 12px;
             border-radius: 999px;
             background: rgba(0, 113, 227, 0.1);
             color: var(--apple-blue);
             font-size: 0.8125rem;
             font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .filter-group-dim .filter-label::after {
+            content: '（抓取数据无周期维度）';
+            font-weight: 400;
+            color: #94a3b8;
+            margin-left: 4px;
+        }
+        #product-select.filter-select {
+            min-width: 240px;
+            max-width: 320px;
+        }
+        #product-select option {
+            padding: 4px 0;
+        }
+        .kpi-grid.kpi-grid-crawl {
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         }
         .platform-rank-grid {
             display: grid;
@@ -1111,6 +1132,9 @@
         </div>
         <div class="sidebar-right">
             <span class="account-badge" data-account-badge title="当前登录账号">…</span>
+            <button class="btn btn-icon" type="button" data-sitemap-open title="帮助与指引（数据流 · 分析步骤）">
+                📖
+            </button>
             <button class="btn btn-icon" id="config-toggle" title="数据源/API 配置（非 LLM）">
                 ⚙️
             </button>
@@ -1156,8 +1180,6 @@
             </div>
         </div>
 
-        <div id="analysis-guide-root"></div>
-
         <!-- 仪表盘模板选择器 -->
         <div class="filter-bar" style="margin-bottom: 16px;">
             <div style="display: flex; gap: 12px; align-items: center;">
@@ -1173,12 +1195,9 @@
         </div>
 
         <div class="filter-bar">
-            <p class="filter-label" style="grid-column:1/-1;margin:0 0 4px;font-size:0.8rem;color:#86868b;line-height:1.5;">
-                看板读取与抓取相同的数据集：先在 <a href="/guide">分析向导</a> 或 <a href="/mvp">MVP</a> 抓取，再于此筛选查看（展开上方「数据流说明」）
-            </p>
             <div class="filter-group">
                 <label class="filter-label">产品选择</label>
-                <select id="product-select" class="filter-select" multiple size="4">
+                <select id="product-select" class="filter-select" multiple size="3">
                     <option value="" disabled selected>加载产品列表…</option>
                 </select>
             </div>
@@ -1231,7 +1250,6 @@
         </div>
 
         <div id="data-provenance-banner"></div>
-        <div id="data-flow-guide-root"></div>
         <div id="onboarding-wizard-root"></div>
 
         <div class="kpi-grid" id="kpi-grid">
@@ -1275,9 +1293,9 @@
                     <div class="product-compare" id="product-compare">
                         <div class="product-row header">
                             <div class="product-name">产品名称</div>
-                            <div class="metric-cell">下载量</div>
-                            <div class="metric-cell">ARPPU</div>
-                            <div class="metric-cell">留存率</div>
+                            <div class="metric-cell">评论样本</div>
+                            <div class="metric-cell">收入/价格</div>
+                            <div class="metric-cell">好评率</div>
                         </div>
                     </div>
                 </div>
@@ -2162,6 +2180,37 @@
             '充值': ['充值金额', 'revenue', '收入', '当前价格_美分'],
             '留存率': ['7日留存率', 'rating', '评分', 'score', '样本好评率', 'Steam汇总好评率']
         };
+        const CRAWL_METRIC_NAMES = ['抓取评论数', '样本好评率', 'Steam汇总评论数', 'Steam汇总好评率'];
+
+        function isCrawlDataMode(metrics) {
+            const src = String((window.dataProvenance || {}).source || '');
+            if (/^mvp_/.test(src) || src === 'taptap_public' || src === 'google_play_public') return true;
+            const rows = Array.isArray(metrics) ? metrics : [];
+            return rows.some((m) => CRAWL_METRIC_NAMES.includes(String(m.metric || m.指标 || '')));
+        }
+
+        function syncChartMetricTabs(crawlMode) {
+            const tabs = document.querySelectorAll('.metric-tabs .metric-tab');
+            if (!tabs.length) return;
+            const labels = crawlMode
+                ? { 0: '📝 评论样本', 1: '💰 价格', 2: '👍 好评率' }
+                : { 0: '📥 下载量', 1: '💰 充值', 2: '📊 留存率' };
+            tabs.forEach((tab, i) => {
+                if (labels[i]) tab.textContent = labels[i];
+            });
+            if (crawlMode && currentChartMetric === '充值') {
+                currentChartMetric = '留存率';
+                tabs.forEach((tab) => tab.classList.remove('active'));
+                if (tabs[2]) tabs[2].classList.add('active');
+            }
+        }
+
+        function shortProductLabel(name, maxLen) {
+            const text = String(name || '').trim();
+            if (!text) return '—';
+            const limit = maxLen || 24;
+            return text.length > limit ? text.slice(0, limit - 1) + '…' : text;
+        }
 
         function getProductLabel(productId, metrics) {
             if (productNamesMap[productId]) return productNamesMap[productId];
@@ -4644,58 +4693,86 @@
 
         function updateKPICards(metrics) {
             const filteredMetrics = Array.isArray(metrics) ? metrics : [];
-            const products = [...new Set(filteredMetrics.map(m => m.product))];
+            const products = [...new Set(filteredMetrics.map(m => m.product).filter(Boolean))];
             const kpiGrid = document.getElementById('kpi-grid');
             if (!filteredMetrics.length) {
                 if (kpiGrid) {
+                    kpiGrid.classList.remove('kpi-grid-crawl');
                     kpiGrid.innerHTML = `
                         <div class="kpi-card" style="grid-column: 1 / -1; text-align: center; padding: 28px;">
                             <div style="font-size: 1rem; color: #64748b; margin-bottom: 8px;">当前暂无指标数据</div>
                             <div style="font-size: 0.875rem; color: #94a3b8; margin-bottom: 12px;">请先 <a href="/guide">抓取竞品</a> 或 <a href="/import">导入数据</a>，再返回看板应用筛选</div>
                         </div>`;
                 }
+                syncChartMetricTabs(false);
                 return;
             }
-            
-            let totalDownloads = 0;
-            let totalArppu = 0, arppuCount = 0;
-            let totalRetention = 0, retentionCount = 0;
-            let totalDauMau = 0, dauMauCount = 0;
-            
+
+            const crawlMode = isCrawlDataMode(filteredMetrics);
+            syncChartMetricTabs(crawlMode);
+
             const downloadAliases = CHART_METRIC_ALIASES['下载量'];
             const arppuAliases = ['付费付费占比 (ARPPU)', 'ARPPU', 'arppu', '付费占比', '当前价格_美分'];
             const retentionAliases = CHART_METRIC_ALIASES['留存率'];
             const dauAliases = ['DAU/MAU', 'DAU', 'dau_mau', '中位总游玩时长_分钟'];
-            
+
+            let totalScale = 0;
+            let totalArppu = 0, arppuCount = 0;
+            let totalRate = 0, rateCount = 0;
+            let totalDauMau = 0, dauMauCount = 0;
+
             products.forEach(p => {
                 const pMetrics = filteredMetrics.filter(m => m.product === p);
-                const download = pMetrics.find(m => metricNameMatches(m, downloadAliases));
+                const scaleRow = pMetrics.find(m => metricNameMatches(m, downloadAliases));
                 const arppu = pMetrics.find(m => metricNameMatches(m, arppuAliases));
-                const retention = pMetrics.find(m => metricNameMatches(m, retentionAliases));
+                const rateRow = pMetrics.find(m => metricNameMatches(m, retentionAliases));
                 const dauMau = pMetrics.find(m => metricNameMatches(m, dauAliases));
-                
-                totalDownloads += parseMetricNumeric(download, false);
+
+                totalScale += parseMetricNumeric(scaleRow, false);
                 if (arppu) { totalArppu += parseMetricNumeric(arppu, false); arppuCount++; }
-                if (retention) { totalRetention += parseMetricNumeric(retention, true); retentionCount++; }
+                if (rateRow) { totalRate += parseMetricNumeric(rateRow, true); rateCount++; }
                 if (dauMau) { totalDauMau += parseMetricNumeric(dauMau, true); dauMauCount++; }
             });
-            
-            // 计算平均值；无对应指标时显示 — 
+
             const avgArppu = arppuCount > 0 ? (totalArppu / arppuCount).toFixed(2) : '—';
-            const avgRetention = retentionCount > 0 ? (totalRetention / retentionCount).toFixed(1) : '—';
+            const avgRate = rateCount > 0 ? (totalRate / rateCount).toFixed(1) : '—';
             const avgDauMau = dauMauCount > 0 ? (totalDauMau / dauMauCount).toFixed(1) : '—';
-            const retentionHealth = retentionCount === 0 ? 'yellow' : (parseFloat(avgRetention) >= 35 ? 'green' : parseFloat(avgRetention) >= 30 ? 'yellow' : 'red');
-            const dauMauHealth = dauMauCount === 0 ? 'yellow' : (parseFloat(avgDauMau) >= 12 ? 'green' : parseFloat(avgDauMau) >= 8 ? 'yellow' : 'red');
-            const crawlSource = /^(mvp_|taptap_public|google_play_public)/.test((window.dataProvenance || {}).source || '');
-            const kpiScaleTitle = crawlSource ? '评论样本总量' : '总下载量';
-            const kpiRateTitle = crawlSource ? '样本好评率' : '7日留存率';
+            const rateHealth = rateCount === 0 ? 'yellow' : (parseFloat(avgRate) >= 55 ? 'green' : parseFloat(avgRate) >= 45 ? 'yellow' : 'red');
+
             if (kpiGrid) {
                 kpiGrid.classList.toggle('demo-metrics', window.dataProvenance?.source === 'mock');
+                kpiGrid.classList.toggle('kpi-grid-crawl', crawlMode);
+
+                if (crawlMode) {
+                    kpiGrid.innerHTML = `
+                    <div class="kpi-card health-green">
+                        <div class="health-badge green">样本</div>
+                        <div class="kpi-header"><div class="kpi-title">评论样本总量</div><div class="kpi-icon">📝</div></div>
+                        <div class="kpi-value">${formatNumber(Math.round(totalScale))}</div>
+                        <span class="kpi-change up">已选 ${products.length} 款产品</span>
+                    </div>
+                    <div class="kpi-card health-${rateHealth}">
+                        <div class="health-badge ${rateHealth}">${rateHealth === 'green' ? '口碑佳' : rateHealth === 'yellow' ? '关注' : '预警'}</div>
+                        <div class="kpi-header"><div class="kpi-title">样本好评率</div><div class="kpi-icon">👍</div></div>
+                        <div class="kpi-value">${avgRate === '—' ? '—' : avgRate + '%'}</div>
+                        <span class="kpi-change up">公开评论统计</span>
+                    </div>
+                    <div class="kpi-card health-green">
+                        <div class="health-badge green">同步</div>
+                        <div class="kpi-header"><div class="kpi-title">数据来源</div><div class="kpi-icon">📡</div></div>
+                        <div class="kpi-value" style="font-size:1.1rem;">抓取真数据</div>
+                        <span class="kpi-change up">与 MVP / 向导共用数据集</span>
+                    </div>`;
+                    return;
+                }
+
+                const retentionHealth = rateCount === 0 ? 'yellow' : (parseFloat(avgRate) >= 35 ? 'green' : parseFloat(avgRate) >= 30 ? 'yellow' : 'red');
+                const dauMauHealth = dauMauCount === 0 ? 'yellow' : (parseFloat(avgDauMau) >= 12 ? 'green' : parseFloat(avgDauMau) >= 8 ? 'yellow' : 'red');
                 kpiGrid.innerHTML = `
                 <div class="kpi-card health-green">
                     <div class="health-badge green">健康</div>
-                    <div class="kpi-header"><div class="kpi-title">${kpiScaleTitle}</div><div class="kpi-icon">📱</div></div>
-                    <div class="kpi-value">${formatNumber(Math.round(totalDownloads))}</div>
+                    <div class="kpi-header"><div class="kpi-title">总下载量</div><div class="kpi-icon">📱</div></div>
+                    <div class="kpi-value">${formatNumber(Math.round(totalScale))}</div>
                     <span class="kpi-change up">▲ ${products.length}个产品</span>
                 </div>
                 <div class="kpi-card health-yellow">
@@ -4706,8 +4783,8 @@
                 </div>
                 <div class="kpi-card health-${retentionHealth}">
                     <div class="health-badge ${retentionHealth}">${retentionHealth === 'green' ? '健康' : retentionHealth === 'yellow' ? '关注' : '⚠ 预警'}</div>
-                    <div class="kpi-header"><div class="kpi-title">${kpiRateTitle}</div><div class="kpi-icon">❤️</div></div>
-                    <div class="kpi-value">${avgRetention === '—' ? '—' : avgRetention + '%'}</div>
+                    <div class="kpi-header"><div class="kpi-title">7日留存率</div><div class="kpi-icon">❤️</div></div>
+                    <div class="kpi-value">${avgRate === '—' ? '—' : avgRate + '%'}</div>
                     <span class="kpi-change up">▲ ${products.length}个产品平均</span>
                 </div>
                 <div class="kpi-card health-${dauMauHealth}">
@@ -4715,8 +4792,7 @@
                     <div class="kpi-header"><div class="kpi-title">DAU / MAU</div><div class="kpi-icon">📈</div></div>
                     <div class="kpi-value">${avgDauMau === '—' ? '—' : avgDauMau + '%'}</div>
                     <span class="kpi-change ${dauMauCount === 0 ? 'down' : (parseFloat(avgDauMau) >= 10 ? 'up' : 'down')}">${dauMauCount === 0 ? '—' : (parseFloat(avgDauMau) >= 10 ? '▲' : '▼') + ' ' + products.length + '个产品平均'}</span>
-                </div>
-            `;
+                </div>`;
             }
         }
 
@@ -4755,10 +4831,15 @@
                 if (!productIds.length) {
                     bar.innerHTML = '<span class="selected-games-label">已选游戏：</span><span class="game-chip">请在上方产品筛选中选择</span>';
                 } else {
-                    bar.innerHTML = '<span class="selected-games-label">已选游戏：</span>' + productIds.map(pid => {
-                        const label = getProductLabel(pid, viewMetrics);
-                        return `<span class="game-chip">🎮 ${escapeHtml(label)}</span>`;
+                    const maxChips = 4;
+                    const chips = productIds.slice(0, maxChips).map(pid => {
+                        const label = shortProductLabel(getProductLabel(pid, viewMetrics), 22);
+                        return `<span class="game-chip" title="${escapeHtml(getProductLabel(pid, viewMetrics))}">🎮 ${escapeHtml(label)}</span>`;
                     }).join('');
+                    const more = productIds.length > maxChips
+                        ? `<span class="game-chip">+${productIds.length - maxChips} 款</span>`
+                        : '';
+                    bar.innerHTML = '<span class="selected-games-label">已选游戏：</span>' + chips + more;
                 }
             }
 
@@ -5887,11 +5968,10 @@ ${data.summary || ''}
         }
 
         function goAnalysisGuide() {
-            const el = document.getElementById('analysis-guide');
-            if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            if (window.SiteMapPanel) {
+                SiteMapPanel.open();
             } else {
-                window.location.href = '/dashboard#analysis-guide';
+                window.location.href = '/dashboard#sitemap';
             }
         }
 
@@ -5900,25 +5980,18 @@ ${data.summary || ''}
             try {
             mountCohortHealthHelp();
             if (!checkAuth()) return;
-            if (window.AnalysisGuide) {
-                AnalysisGuide.renderHomeGuide('analysis-guide-root');
-            }
-            if (window.DataFlowGuide) {
-                DataFlowGuide.render('data-flow-guide-root', { variant: 'dashboard', theme: 'light' });
-            }
             if (window.OnboardingWizard) {
                 const t = getToken() || '';
                 OnboardingWizard.maybeShowAfterLibraryCheck('onboarding-wizard-root', t);
             }
-            if (location.hash === '#analysis-guide') {
-                setTimeout(() => goAnalysisGuide(), 400);
+            if (location.hash === '#analysis-guide' || location.hash === '#sitemap') {
+                setTimeout(() => goAnalysisGuide(), 200);
             }
             await loadFilterOptions();
             if (window.DashboardFilterViews) DashboardFilterViews.mountControls();
             if (window.CommercialBanner) CommercialBanner.mount('commercial-banner-slot');
             await loadData();
             renderDataSources();
-            renderProductList();
             checkAdminRole();
             loadDataConfigStatus();
 

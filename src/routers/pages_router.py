@@ -90,9 +90,15 @@ async def get_options(request: Request, token: Optional[str] = Query(None)):
     catalog = derive_data_catalog(comments or [], metrics or [])
     catalog = enrich_catalog_from_context(catalog, username=current_user.username)
     products = catalog["products"] or []
-    time_periods = catalog["time_periods"] or AVAILABLE_TIME_PERIODS
-    genres = catalog.get("genres") or []
     provenance = data_provenance_payload(current_user.username)
+    data_source = provenance.get("source") or ""
+    if catalog.get("time_periods"):
+        time_periods = catalog["time_periods"]
+    elif data_source in ("imported", "mock", "cached"):
+        time_periods = AVAILABLE_TIME_PERIODS
+    else:
+        time_periods = [{"id": "all", "name": "全部（抓取快照）"}]
+    genres = catalog.get("genres") or []
     return {
         "success": True,
         "products": products,

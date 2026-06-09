@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Export game_analyzer as a standalone git repo and push to GitHub.
+# Canonical repo: https://github.com/alex-Tesla3/game-analyzer
+# For day-to-day work in this checkout, prefer: git push origin main
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

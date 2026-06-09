@@ -296,13 +296,13 @@
         <p class="subtitle">Steam 真实评论抓取、确定性分析、源数据一致性验证</p>
       </div>
       <div class="actions">
+        <button class="button" type="button" data-sitemap-open title="帮助与指引">📖 指引</button>
         <a class="button" href="/dashboard">← 数据看板</a>
         <a class="button" href="/api/mvp/latest" target="_blank">查看 JSON</a>
       </div>
     </div>
   </header>
   <main class="wrap">
-    <div id="data-flow-guide-root"></div>
     <section class="filter-panel" aria-label="筛选条件">
       <div style="grid-column: 1 / -1;">
         <label>产品选择（可多选；TapTap 填 AppID，Google Play 填包名）</label>
@@ -329,6 +329,8 @@
     <section id="content"></section>
   </main>
   <script src="/static/js/data-flow-guide.js"></script>
+  <script src="/static/js/analysis-guide.js"></script>
+  <script src="/static/js/site-map-panel.js" defer></script>
   <script src="/static/js/product-picker.js"></script>
   <script>
     const statusEl = document.getElementById('status');
@@ -526,7 +528,7 @@
       const hints = {
         steam: '「重新抓取」从 Steam 拉取真实评论；本页「应用筛选」仅过滤当前报告。' + sync,
         taptap: 'TapTap 需 AppID 或 taptap.cn/app/数字 链接。' + sync,
-        google_play: 'Google Play 需包名（如 com.miHoYo.GenshinImpact）。' + sync,
+        google_play: 'Google Play 需包名（如 com.miHoYo.GenshinImpact）。王者荣耀国服请改选 TapTap；Play 上为国际服 com.levelinfinite.sgameGlobal。' + sync,
         app_store: 'App Store 暂不支持抓取，仅可筛选已有结果。',
       };
       return hints[channel] || hints.steam;
@@ -604,9 +606,12 @@
         if (!response.ok) throw new Error(await response.text());
         const payload = await response.json();
         const mode = payload.data_mode === 'live' ? '真实数据' : '演示回退';
+        const dashParams = new URLSearchParams();
+        dashParams.set('product_ids', ids.join(','));
+        if (channel && channel !== 'steam') dashParams.set('data_source', channel);
         statusEl.innerHTML =
           `${labels[channel]} 抓取完成（${mode}）· 数据已写入看板数据集，` +
-          '<a href="/dashboard" style="color:var(--accent);margin-left:6px;">前往看板查看 →</a>';
+          `<a href="/dashboard?${dashParams.toString()}" style="color:var(--accent);margin-left:6px;">前往看板查看 →</a>`;
         await loadLatest();
       } catch (error) {
         statusEl.textContent = `刷新失败：${error.message}`;
@@ -629,9 +634,6 @@
 
     (async function init() {
       try {
-        if (window.DataFlowGuide) {
-          DataFlowGuide.render('data-flow-guide-root', { variant: 'mvp', theme: 'light', showTable: false });
-        }
         await loadCatalog();
         await loadLatest();
       } catch (error) {

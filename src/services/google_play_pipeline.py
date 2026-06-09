@@ -33,8 +33,9 @@ _ALIASES: Dict[str, str] = {
     "原神": "com.miHoYo.GenshinImpact",
     "genshin": "com.miHoYo.GenshinImpact",
     "genshin impact": "com.miHoYo.GenshinImpact",
-    "王者荣耀": "com.tencent.tmgp.sgame",
-    "honor of kings": "com.tencent.tmgp.sgame",
+    "王者荣耀": "com.levelinfinite.sgameGlobal",
+    "王者荣耀国际服": "com.levelinfinite.sgameGlobal",
+    "honor of kings": "com.levelinfinite.sgameGlobal",
     "和平精英": "com.tencent.tmgp.pubgmhd",
     "pubg mobile": "com.tencent.ig",
     "崩坏星穹铁道": "com.HoYoverse.hkrpgoversea",
@@ -43,7 +44,7 @@ _ALIASES: Dict[str, str] = {
 
 _DEMO_GAMES: Dict[str, str] = {
     "com.miHoYo.GenshinImpact": "原神",
-    "com.tencent.tmgp.sgame": "王者荣耀",
+    "com.levelinfinite.sgameGlobal": "王者荣耀国际服",
     "com.tencent.tmgp.pubgmhd": "和平精英",
 }
 

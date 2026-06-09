@@ -17,9 +17,9 @@ Login: `demo` / `demo123`
 
 | Step | URL | What to show |
 |------|-----|--------------|
-| 1 | `/dashboard` | Products **Counter-Strike** (730) & **Dota 2** (570); genre filter FPS/MOBA |
-| 2 | `/games/compare` | Side-by-side six-dimension competitor scores |
-| 3 | `/guide` | Re-run analysis on AppID `730,570` |
+| 1 | `/guide` or `/mvp` | Crawl AppID `730,570` (or run `seed_demo.sh` offline) |
+| 2 | `/dashboard` | Products **Counter-Strike** (730) & **Dota 2** (570); apply filters |
+| 3 | `/games/compare` | Side-by-side six-dimension competitor scores |
 | 4 | `/games/review` | Archived report + share link |
 | 5 | `/work` | P0/P1 action items exported to CSV |
 
@@ -33,8 +33,8 @@ Login: `demo` / `demo123`
 
 ## Talking points (interview)
 
-1. **Problem** — Producers need competitor sentiment without a data team; spreadsheets don't scale across Steam/TapTap.
-2. **Approach** — Unified catalog merges library + MVP + user metrics; filters hit `/api/metrics` with server-side validation.
+1. **Problem** — Producers need competitor sentiment without a data team; spreadsheets don't scale across Steam/TapTap/Google Play.
+2. **Approach** — Crawl → `data/mvp/` → dashboard auto-sync; unified catalog merges library + MVP + user metrics; filters hit `/api/metrics` with server-side validation.
 3. **Trade-off** — SQLite + single worker for POC simplicity; documented path to Postgres for multi-tenant scale.
 4. **Outcome** — End-to-end loop: scrape → report → archive → team share → retest delta.
 

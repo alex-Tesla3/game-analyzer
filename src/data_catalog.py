@@ -180,6 +180,7 @@ def derive_data_catalog(
 ) -> Dict[str, Any]:
     names: Dict[str, str] = {}
     genres: Dict[str, str] = {}
+    platforms: Dict[str, str] = {}
     periods: Dict[str, str] = {}
     seen_products: set[str] = set()
 
@@ -188,6 +189,9 @@ def derive_data_catalog(
         if product_id:
             seen_products.add(product_id)
             _merge_product_name(names, product_id, _row_product_label(row, product_id))
+            plat = row.get("platform") or row.get("channel") or row.get("平台")
+            if plat and product_id not in platforms:
+                platforms[product_id] = str(plat).strip()
 
         cycle = row.get("cycle") or row.get("周期")
         if cycle:
@@ -204,7 +208,12 @@ def derive_data_catalog(
 
     catalog = {
         "products": [
-            {"id": pid, "name": names[pid], "genre": genres.get(pid, "PC Game")}
+            {
+                "id": pid,
+                "name": names[pid],
+                "genre": genres.get(pid, "PC Game"),
+                "platform": platforms.get(pid, ""),
+            }
             for pid in sorted(names.keys())
         ],
         "genres": [{"id": g, "name": g} for g in genre_set],

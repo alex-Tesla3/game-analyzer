@@ -130,10 +130,39 @@
 
     const DEMO_DEFAULT_PRODUCT_IDS = ["730", "570"];
 
+    function readProductIdsFromUrl() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const raw = params.get("product_ids") || params.get("products") || "";
+            return raw
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+        } catch (_e) {
+            return [];
+        }
+    }
+
+    function readDataSourceFromUrl() {
+        try {
+            return new URLSearchParams(window.location.search).get("data_source") || "";
+        } catch (_e) {
+            return "";
+        }
+    }
+
     function defaultProductIdsForList(list) {
+        const fromUrl = readProductIdsFromUrl();
+        if (fromUrl.length) {
+            const matched = fromUrl.filter((id) => list.some((p) => p.id === id));
+            if (matched.length) return matched;
+        }
+        // Small catalogs (typical right after a crawl) — show every product by default.
+        if (list.length <= 6) return list.map((p) => p.id);
         const demo = DEMO_DEFAULT_PRODUCT_IDS.filter((id) => list.some((p) => p.id === id));
-        if (demo.length) return demo;
-        return list.slice(0, 2).map((p) => p.id);
+        const extras = list.filter((p) => !DEMO_DEFAULT_PRODUCT_IDS.includes(p.id)).map((p) => p.id);
+        if (demo.length) return [...demo, ...extras];
+        return list.slice(0, Math.min(3, list.length)).map((p) => p.id);
     }
 
     function renderEmptyProductSelect(selectEl) {
@@ -158,7 +187,11 @@
             global.productNamesMap[item.id] = item.name || item.id;
             const option = document.createElement("option");
             option.value = item.id;
-            option.textContent = item.name || item.id;
+            let label = item.name || item.id;
+            if (label.length > 32) label = label.slice(0, 30) + "…";
+            if (item.platform) label += " · " + item.platform;
+            option.textContent = label;
+            option.title = (item.name || item.id) + (item.platform ? " · " + item.platform : "");
             option.selected = selectedIds.size
                 ? selectedIds.has(item.id)
                 : index < Math.min(defaultCount, products.length);
@@ -327,7 +360,12 @@
 
             const sourceSelect = document.getElementById("data-source-select");
             if (sourceSelect && Array.isArray(result.data_sources) && result.data_sources.length) {
-                const prevSource = sourceSelect.value || global.currentDataSource || "all";
+                const urlSource = readDataSourceFromUrl();
+                const prevSource =
+                    urlSource ||
+                    sourceSelect.value ||
+                    global.currentDataSource ||
+                    "all";
                 sourceSelect.innerHTML = "";
                 result.data_sources.forEach((item) => {
                     const opt = document.createElement("option");
@@ -371,14 +409,21 @@
 
             if (periodSelect && Array.isArray(result.time_periods) && result.time_periods.length) {
                 periodSelect.innerHTML = "";
+                const crawlSnapshot = result.time_periods.length === 1 && result.time_periods[0].id === "all";
                 result.time_periods.forEach((item, index) => {
                     global.timePeriodLabels[item.id] = item.name || item.id;
                     const option = document.createElement("option");
                     option.value = item.id;
                     option.textContent = item.name || item.id;
-                    option.selected = index === result.time_periods.length - 1;
+                    option.selected = crawlSnapshot ? true : index === result.time_periods.length - 1;
                     periodSelect.appendChild(option);
                 });
+                if (crawlSnapshot) {
+                    global.currentTimePeriod = "all";
+                    periodSelect.closest(".filter-group")?.classList.add("filter-group-dim");
+                } else {
+                    periodSelect.closest(".filter-group")?.classList.remove("filter-group-dim");
+                }
             }
 
             if (typeof global.syncReportProductOptions === "function") {

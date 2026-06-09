@@ -16,8 +16,6 @@
         { id: "import", label: "导入指标", href: "/import" },
         { id: "mvp", label: "真实竞品", href: "/mvp" },
         { id: "team", label: "团队协作", href: "/team" },
-        { divider: true },
-        { id: "guide-panel", label: "分析指引", href: "/dashboard#analysis-guide" },
         { id: "pricing", label: "订阅套餐", href: "/pricing" },
     ];
 
@@ -84,7 +82,8 @@
             '"><span class="app-nav-icon">⋯</span><span class="app-nav-label">更多</span></button>' +
             '<div class="app-nav-dropdown" id="app-nav-dropdown">' +
             moreItems +
-            "</div></div></nav>"
+            '</div></div><button type="button" class="app-nav-item app-nav-help" data-sitemap-open aria-label="帮助与指引" title="数据流与分析指引">' +
+            '<span class="app-nav-icon">📖</span><span class="app-nav-label">指引</span></button></nav>'
         );
     }
 

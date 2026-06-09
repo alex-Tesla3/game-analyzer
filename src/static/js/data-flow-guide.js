@@ -56,9 +56,10 @@
         try {
             const raw = sessionStorage.getItem(STORAGE_KEY);
             const map = raw ? JSON.parse(raw) : {};
+            if (!(key in map) && key === "dfg_dashboard") return true;
             return !!map[key];
         } catch {
-            return false;
+            return key === "dfg_dashboard";
         }
     }
 

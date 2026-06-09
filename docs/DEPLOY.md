@@ -105,9 +105,13 @@ Config file: `railway.toml` (Dockerfile build).
 
 - [ ] `/api/health` returns `status: ok`
 - [ ] `/showcase` loads project overview
-- [ ] Login + `/guide` analysis wizard completes
-- [ ] `./scripts/seed_demo.sh` run once on the volume (optional offline samples)
+- [ ] Login + `/guide` or `/mvp` — **crawl first** (Steam / TapTap / Google Play)
+- [ ] `/dashboard` shows crawled products after applying filters (same `data/mvp/` dataset)
+- [ ] `/trust` explains crawl → dashboard data flow
+- [ ] `./scripts/seed_demo.sh` run once on the volume (optional CS2/Dota2 offline samples)
 - [ ] Set `ALLOW_DEMO_ACCOUNTS=false` for non-demo production
+
+**Important:** The dashboard no longer falls back to mock data. Empty state means you need to crawl via `/guide` or `/mvp` first (or import owner CSV metrics).
 
 ## CI
 

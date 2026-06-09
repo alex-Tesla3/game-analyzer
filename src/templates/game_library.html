@@ -9,6 +9,8 @@
     <script src="/static/js/auth-token.js"></script>
     <link rel="stylesheet" href="/static/css/scenario-workspace.css">
     <script src="/static/js/analysis-guide.js"></script>
+    <script src="/static/js/data-flow-guide.js"></script>
+    <script src="/static/js/site-map-panel.js" defer></script>
     <script src="/static/js/scenario-report.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -346,7 +348,7 @@
             <button class="btn btn-ghost" onclick="location.href='/dashboard'">← 返回看板</button>
             <button class="btn btn-ghost" onclick="location.href='/games/compare'">竞品工作台</button>
             <button class="btn btn-ghost" onclick="location.href='/games/review'">复盘与归档</button>
-            <button class="btn btn-ghost" onclick="location.href='/dashboard#analysis-guide'">分析指引</button>
+            <button class="btn btn-ghost" type="button" data-sitemap-open>帮助指引</button>
             <button class="btn" onclick="syncMvp()">同步 Steam MVP</button>
             <button class="btn btn-primary" onclick="openCreateModal()">+ 添加游戏</button>
         </div>

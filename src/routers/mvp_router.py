@@ -69,8 +69,8 @@ async def get_mvp_catalog():
             "platform": "google_play",
         },
         {
-            "id": "com.tencent.tmgp.sgame",
-            "name": "王者荣耀",
+            "id": "com.levelinfinite.sgameGlobal",
+            "name": "王者荣耀国际服",
             "genre": "MOBA",
             "platform": "google_play",
         },

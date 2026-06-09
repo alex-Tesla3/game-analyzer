@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/alex-Tesla3/game-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/alex-Tesla3/game-analyzer/actions/workflows/ci.yml)
 
-本地运行的游戏 BI 仪表盘，支持评论/指标分析、MVP Steam 数据、在线客服、LLM 分析等。
+全栈游戏 BI 与竞品情报 POC：从 **Steam / TapTap / Google Play** 公开评论抓取，自动同步运营看板，支持 AI/规则报告、团队归档与商业化演示。
 
 | | |
 |---|---|
@@ -22,7 +22,7 @@ pip install -r requirements.txt
 ./scripts/dev.sh
 ```
 
-浏览器打开：http://127.0.0.1:8080 （产品首页） · 数据看板：http://127.0.0.1:8080/dashboard · **作品集页**：http://127.0.0.1:8080/showcase
+浏览器打开：http://127.0.0.1:8080 （产品首页） · **先抓取**：http://127.0.0.1:8080/guide 或 `/mvp` · 数据看板：http://127.0.0.1:8080/dashboard · **作品集页**：http://127.0.0.1:8080/showcase · 数据流说明：`/trust`
 
 `scripts/dev.sh` 会优先使用本项目 `.venv`，避免误用父目录或系统 Python。直接启动也可以：
 `.venv/bin/python -m uvicorn src.web_app:app --host 127.0.0.1 --port 8080 --reload`。
@@ -33,7 +33,7 @@ pip install -r requirements.txt
 
 **演示视频：** [docs/demo/game-analyzer-demo.mp4](docs/demo/game-analyzer-demo.mp4) · 重录 `./scripts/record_demo_video.sh`
 
-English README: [README.en.md](README.en.md) · 部署：[docs/DEPLOY.md](docs/DEPLOY.md) · **简历终稿：[docs/RESUME_PASTE.md](docs/RESUME_PASTE.md)** · 详细素材：[docs/RESUME.md](docs/RESUME.md)
+English README: [README.en.md](README.en.md) · 部署：[docs/DEPLOY.md](docs/DEPLOY.md) · GitHub 同步：[docs/GITHUB_PUBLISH.md](docs/GITHUB_PUBLISH.md) · **简历终稿：[docs/RESUME_PASTE.md](docs/RESUME_PASTE.md)** · 详细素材：[docs/RESUME.md](docs/RESUME.md)
 
 ## Render 免费层（推荐稳定 Demo）
 
@@ -54,14 +54,28 @@ Demo 账号：`demo` / `demo123`（`ALLOW_DEMO_ACCOUNTS=true` 已写在 Blueprin
 
 生产环境请修改密码并设置 `ALLOW_DEMO_ACCOUNTS=false`。
 
+## 数据流：抓取 → 看板（不隔离）
+
+```
+分析向导 /guide  或  MVP /mvp  抓取
+        ↓
+data/mvp/steam_dataset.json（评论 + 样本指标）
+        ↓
+运营看板 /dashboard  自动读取（/api/metrics）
+        ↓
+筛选栏「应用筛选」→ KPI / 平台排行 / 预警
+```
+
+各页面**共用同一份数据集**，分工不同：向导/MVP 侧重深度报告，看板侧重筛选汇总。详见 `/trust` 或看板内「数据流说明」。
+
 ## 数据优先级
 
 用户看到的评论/指标按以下顺序解析（见 `src/data_resolution.py`）：
 
-1. 用户导入数据
-2. MVP Steam 真数据（`data/mvp/`）
-3. 缓存
-4. `mock_data/` 演示数据
+1. **用户导入** CSV（Owner 经营指标，可选）
+2. **MVP 抓取真数据**（`data/mvp/`，含 Steam / TapTap / Google Play）
+3. **24h 缓存**
+4. **无数据** — 看板显示空态并引导先抓取（已不再默认回退 mock）
 
 高级分析 / 实时 WebSocket 在数据不足时会标注 `simulated: true`。
 
@@ -108,7 +122,11 @@ chmod +x scripts/run_tests.sh
 pytest tests/ -q                # 等价于上方脚本
 ```
 
-**分析向导（推荐入口）**：登录后访问 `/guide`，输入 Steam AppID 一键生成报告与行动清单。
+**分析向导（推荐入口）**：登录后访问 `/guide`，选择 Steam / TapTap / Google Play，抓取后数据自动进入看板。
+
+**MVP 快速抓取**：`/mvp` — 按渠道重新抓取并跳转看板。
+
+**数据说明**：`/trust` — 抓取与看板关系、真数据边界。
 
 **Playwright 浏览器 E2E**（登录 → 看板 → 高级分析 → 竞品工作台 → 资料库）：
 
@@ -136,8 +154,10 @@ PLAYWRIGHT_CHANNEL=chrome ./scripts/run_browser_e2e.sh
 | 页面 | 路径 | 用途 |
 |------|------|------|
 | **产品首页** | `/` | 默认 Landing，一键 Demo |
-| 数据看板 | `/dashboard` | BI 仪表盘、KPI |
-| 分析向导 | `/guide` | 抓取 → 报告 → 归档 |
+| MVP 抓取 | `/mvp` | 按渠道重新抓取 → 跳转看板 |
+| 数据看板 | `/dashboard` | BI 仪表盘、KPI（读取抓取数据） |
+| 分析向导 | `/guide` | 抓取 → 报告 → 归档 → 同步看板 |
+| 数据流说明 | `/trust` | 抓取与看板关系、真数据边界 |
 | 落地指导 | `/work` | 行动清单、导出、复测进度 |
 | 复盘归档 | `/games/review` | 案例库、分享、复测 |
 | 团队协作 | `/team` | 成员、共享报告 |
@@ -147,12 +167,13 @@ PLAYWRIGHT_CHANNEL=chrome ./scripts/run_browser_e2e.sh
 
 | 模块 | 状态 |
 |------|------|
+| 多平台抓取（Steam/TapTap/Google Play） | 可用 |
+| 抓取 → 看板自动同步 | 可用 |
 | 数据导入 / MVP / 过滤 | 可用 |
 | 游戏资料库 + 玩法拆解 | 可用（`/games/library`） |
 | 在线客服 + 坐席台 | 可用 |
 | LLM 分析 | 需配置 |
 | 告警调度 | 已接入后台任务 |
 | 支付 | **演示**（Mock 二维码，非真实收款） |
-| 平台同步 API | 无密钥时为 **模拟数据** |
 
 更多 MVP 流水线见 `MVP_README.md`。

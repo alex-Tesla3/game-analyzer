@@ -21,17 +21,12 @@
 
 ## 已知限制
 
-- **演示 vs 真数据**：未跑一键采集时，评论/指标为 mock；Steam 真数据需 `/guide` 采集
+- **数据需先抓取**：看板不再默认 mock；评论/指标来自 `/guide` 或 `/mvp` 抓取（Steam / TapTap / Google Play），或用户 CSV 导入
+- **演示支付**：定价页扫码为模拟流程，非真实收款（见 `docs/COMMERCIAL_LAUNCH.md`）
 - **web_app.py 单体路由**：部分 API 仍在 `web_app.py`，与 `routers/` 并存，后续可继续拆分
-- **双仓库**：开发目录 `Hermes-Agent/game_analyzer` 与导出目录 `~/Projects/game-analyzer` 需手动同步
 
-## 恢复源码
+## GitHub 仓库
 
-若 `src/*.py` 误删，可从备份同步：
-
-```bash
-rsync -a --exclude='.venv' --exclude='__pycache__' \
-  ~/Projects/game-analyzer/ /Users/wly/Hermes-Agent/game_analyzer/
-```
-
-然后重新应用本仓库中的鉴权与数据修复提交。
+- **Canonical：** https://github.com/alex-Tesla3/game-analyzer  
+- 日常 `git push origin main` 即可同步；CI 见 Actions  
+- 若仍从 Hermes monorepo 子目录开发，见 `docs/GITHUB_PUBLISH.md` 导出说明

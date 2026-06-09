@@ -11,10 +11,16 @@ def test_resolve_google_play_alias():
     assert out["app_ids"] == ["com.miHoYo.GenshinImpact"]
 
 
-def test_resolve_google_play_package():
-    out = resolve_google_play_inputs("com.tencent.tmgp.sgame")
+def test_resolve_google_play_honor_of_kings_alias():
+    out = resolve_google_play_inputs("王者荣耀")
     assert out["success"] is True
-    assert "com.tencent.tmgp.sgame" in out["app_ids"]
+    assert out["app_ids"] == ["com.levelinfinite.sgameGlobal"]
+
+
+def test_resolve_google_play_package():
+    out = resolve_google_play_inputs("com.levelinfinite.sgameGlobal")
+    assert out["success"] is True
+    assert "com.levelinfinite.sgameGlobal" in out["app_ids"]
 
 
 def test_run_google_play_pipeline_offline(tmp_path):

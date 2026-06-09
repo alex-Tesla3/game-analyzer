@@ -36,17 +36,26 @@ parent or system Python. Direct command:
 `.venv/bin/python -m uvicorn src.web_app:app --host 127.0.0.1 --port 8080 --reload`.
 
 - Home: http://127.0.0.1:8080  
-- Dashboard: http://127.0.0.1:8080/dashboard  
+- Dashboard: http://127.0.0.1:8080/dashboard (crawl first via `/guide` or `/mvp`)  
+- MVP crawl: http://127.0.0.1:8080/mvp  
+- Data flow docs: http://127.0.0.1:8080/trust  
 - Showcase (portfolio): http://127.0.0.1:8080/showcase  
 
 Demo login (development): `demo` / `demo123`
+
+## Data flow (crawl → dashboard)
+
+Crawls from `/guide` or `/mvp` write to `data/mvp/steam_dataset.json`. The dashboard reads the **same dataset** via `/api/metrics` — no separate import step. Filter on `/dashboard` after crawling.
+
+Priority: user CSV import → MVP crawl (Steam/TapTap/Google Play) → cache → empty (mock fallback removed).
 
 ## Features
 
 | Module | Description |
 |--------|-------------|
-| BI Dashboard | Dynamic product/genre/period filters, KPI cards, charts |
-| Analysis Wizard | AppID or game name → report → archive |
+| BI Dashboard | KPI from crawled reviews; product/source/period filters |
+| Analysis Wizard | Steam / TapTap / Google Play → report → auto-sync dashboard |
+| MVP page | Per-channel re-crawl + link to dashboard |
 | Competitor Workbench | Six-dimension comparison + AI summary |
 | Team Collaboration | Shared archives, member management |
 | Commercial POC | Plans, API quotas, demo payment |
@@ -79,7 +88,7 @@ See [docs/DEPLOY.md](docs/DEPLOY.md) for Fly.io / Railway.
 
 - [Resume material (STAR bullets)](docs/RESUME.md) — CN/EN, interview talking points  
 - [Project showcase](docs/PROJECT_SHOWCASE.md) — architecture, screenshots  
-- [Publish to GitHub](docs/GITHUB_PUBLISH.md) — standalone repo for recruiters  
+- [GitHub repo & sync guide](docs/GITHUB_PUBLISH.md) — https://github.com/alex-Tesla3/game-analyzer  
 - [Case study: CS vs Dota 2](docs/CASE_STUDY_CS2_DOTA2.md) — demo script  
 - [Commercial demo script](docs/COMMERCIAL_DEMO.md) — 5-minute walkthrough  
 

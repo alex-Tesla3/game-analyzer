@@ -64,7 +64,7 @@ def infer_product_genre(product_id: str, product_name: str = "") -> str:
         return STEAM_APP_GENRES[pid]
     name = (product_name or "").lower()
     rules = [
-        ("MOBA", ("dota", "moba", "legend", "league")),
+        ("MOBA", ("dota", "moba", "legend", "league", "honor of kings", "王者荣耀", "王者")),
         ("FPS", ("counter", "shooter", "apex", "cs2", "valorant", "fortress")),
         ("Battle Royale", ("pubg", "battleground", "royale")),
         ("RPG", ("elden", "ring", "rpg", "souls")),

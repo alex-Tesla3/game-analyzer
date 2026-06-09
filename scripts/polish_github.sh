@@ -16,7 +16,7 @@ fi
 
 echo "Updating ${REPO} …"
 gh repo edit "$REPO" \
-  --description "Full-stack game BI & competitor intelligence POC — FastAPI, pytest, Playwright CI" \
+  --description "Full-stack game BI & competitor intelligence — Steam/TapTap/Google Play crawl → dashboard · FastAPI · pytest · Playwright CI" \
   --add-topic fastapi --add-topic python --add-topic playwright \
   --add-topic sqlite --add-topic dashboard --add-topic game-analytics \
   --add-topic pytest --add-topic docker
