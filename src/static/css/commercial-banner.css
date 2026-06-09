@@ -1,0 +1,29 @@
+.commercial-env-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    border-radius: 10px;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: #92400e;
+}
+
+.commercial-env-banner-text {
+    flex: 1 1 240px;
+}
+
+.commercial-env-banner-links a {
+    color: #b45309;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.commercial-env-banner-links a:hover {
+    text-decoration: underline;
+}

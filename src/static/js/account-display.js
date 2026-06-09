@@ -8,13 +8,26 @@
         user: "用户",
     };
 
+    function fallbackUsername() {
+        if (typeof getAuthUsername === "function") {
+            return getAuthUsername() || "—";
+        }
+        return (
+            sessionStorage.getItem("username") ||
+            localStorage.getItem("username") ||
+            "—"
+        );
+    }
+
     async function fetchAccount() {
-        const token = typeof getAuthToken === "function" ? getAuthToken() : localStorage.getItem("access_token");
+        const token =
+            typeof getAuthToken === "function"
+                ? getAuthToken()
+                : localStorage.getItem("access_token");
         if (!token) return null;
         try {
-            const response = await fetch(
-                "/api/user?token=" + encodeURIComponent(token)
-            );
+            const fetchFn = typeof authFetch === "function" ? authFetch : fetch;
+            const response = await fetchFn("/api/user");
             if (!response.ok) return null;
             return await response.json();
         } catch (err) {
@@ -36,7 +49,7 @@
         if (!nodes.length) return null;
 
         const user = await fetchAccount();
-        const fallbackName = localStorage.getItem("username") || "—";
+        const fallbackName = fallbackUsername();
 
         nodes.forEach((el) => {
             if (user) {
@@ -55,7 +68,10 @@
     };
 
     function boot() {
-        const token = typeof getAuthToken === "function" ? getAuthToken() : localStorage.getItem("access_token");
+        const token =
+            typeof getAuthToken === "function"
+                ? getAuthToken()
+                : localStorage.getItem("access_token");
         if (!token) return;
         initAccountDisplay();
     }

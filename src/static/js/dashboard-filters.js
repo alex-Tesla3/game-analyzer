@@ -5,7 +5,7 @@
 (function (global) {
     "use strict";
 
-    global.selectedProducts = global.selectedProducts || ["game_a", "game_b", "game_c"];
+    global.selectedProducts = global.selectedProducts || [];
     global.currentMetricsData = global.currentMetricsData || [];
     global.allMetricsData = global.allMetricsData ?? null;
     global.metricsLoadPromise = global.metricsLoadPromise ?? null;
@@ -14,11 +14,7 @@
     global.currentGenre = global.currentGenre || "all";
     global.productGenreMap = global.productGenreMap || {};
     global.allProductsCatalog = global.allProductsCatalog || [];
-    global.productNamesMap = global.productNamesMap || {
-        game_a: "游戏A - 战神传说",
-        game_b: "游戏B - 星际争霸",
-        game_c: "游戏C - 魔法大陆",
-    };
+    global.productNamesMap = global.productNamesMap || {};
     global.timePeriodLabels = global.timePeriodLabels || {
         week_20: "第20周",
         week_21: "第21周",
@@ -140,9 +136,20 @@
         return list.slice(0, 2).map((p) => p.id);
     }
 
+    function renderEmptyProductSelect(selectEl) {
+        if (!selectEl) return;
+        selectEl.innerHTML =
+            '<option value="" disabled selected>暂无产品 — 请先抓取竞品数据</option>';
+        global.selectedProducts = [];
+    }
+
     function fillProductSelect(selectEl, products, options) {
         options = options || {};
-        if (!selectEl || !Array.isArray(products) || !products.length) return;
+        if (!selectEl) return;
+        if (!Array.isArray(products) || !products.length) {
+            renderEmptyProductSelect(selectEl);
+            return;
+        }
         const selectedIds =
             options.selectedIds instanceof Set ? options.selectedIds : new Set(options.selectedIds || []);
         const defaultCount = options.defaultCount ?? 2;
@@ -214,9 +221,7 @@
         const checkAuth = global.checkAuth || (() => !!global.getToken?.());
         if (!checkAuth()) return null;
         syncFiltersFromDom();
-        const token = global.getToken();
         const params = new URLSearchParams();
-        params.set("token", token);
         const productIds = getSelectedProductIds();
         if (productIds.length) params.set("product_ids", productIds.join(","));
         if (global.currentTimePeriod && global.currentTimePeriod !== "all") {
@@ -225,11 +230,15 @@
         if (global.currentDataSource && global.currentDataSource !== "all") {
             params.set("data_source", global.currentDataSource);
         }
-        const response = await fetch(`/api/metrics?${params.toString()}`);
+        const fetchFn = global.authFetch || fetch;
+        const response = await fetchFn(`/api/metrics?${params.toString()}`);
         if (response.status === 401) {
-            if (typeof global.clearAuthToken === "function") global.clearAuthToken();
-            else localStorage.removeItem("access_token");
-            window.location.href = "/login";
+            if (typeof global.redirectToLogin === "function") {
+                global.redirectToLogin("/dashboard");
+            } else {
+                if (typeof global.clearAuthToken === "function") global.clearAuthToken();
+                window.location.href = "/login?redirect=%2Fdashboard&reason=expired";
+            }
             return null;
         }
         const result = await response.json();
@@ -287,11 +296,15 @@
         const token = global.getToken?.();
         if (!token) return false;
         try {
-            const response = await fetch(`/api/options?token=${encodeURIComponent(token)}`);
+            const fetchFn = global.authFetch || fetch;
+            const response = await fetchFn(`/api/options`);
             if (response.status === 401) {
-                if (typeof global.clearAuthToken === "function") global.clearAuthToken();
-                else localStorage.removeItem("access_token");
-                window.location.href = "/login?redirect=%2Fdashboard";
+                if (typeof global.redirectToLogin === "function") {
+                    global.redirectToLogin("/dashboard");
+                } else {
+                    if (typeof global.clearAuthToken === "function") global.clearAuthToken();
+                    window.location.href = "/login?redirect=%2Fdashboard&reason=expired";
+                }
                 return false;
             }
             if (!response.ok) {
@@ -304,12 +317,28 @@
             const productSelect = document.getElementById("product-select");
             const periodSelect = document.getElementById("time-period-select");
 
-            if (productSelect && Array.isArray(result.products) && result.products.length) {
-                global.allProductsCatalog = result.products;
+            if (productSelect) {
+                global.allProductsCatalog = Array.isArray(result.products) ? result.products : [];
                 global.productGenreMap = {};
-                result.products.forEach((p) => {
+                global.allProductsCatalog.forEach((p) => {
                     if (p.genre) global.productGenreMap[p.id] = p.genre;
                 });
+            }
+
+            const sourceSelect = document.getElementById("data-source-select");
+            if (sourceSelect && Array.isArray(result.data_sources) && result.data_sources.length) {
+                const prevSource = sourceSelect.value || global.currentDataSource || "all";
+                sourceSelect.innerHTML = "";
+                result.data_sources.forEach((item) => {
+                    const opt = document.createElement("option");
+                    opt.value = item.id || item.name;
+                    opt.textContent = item.name || item.id;
+                    sourceSelect.appendChild(opt);
+                });
+                sourceSelect.value = [...sourceSelect.options].some((o) => o.value === prevSource)
+                    ? prevSource
+                    : "all";
+                global.currentDataSource = sourceSelect.value;
             }
 
             const genreSelect = document.getElementById("genre-select");
@@ -332,8 +361,9 @@
                 const prov = {
                     source: result.data_source,
                     trust: result.data_trust,
-                    show_mock_warning: result.data_source === "mock",
+                    show_mock_warning: result.data_source === "mock" || result.data_source === "empty",
                     collapse_demo_metrics: result.data_source === "mvp_steam" || result.data_source === "imported",
+                    needs_crawl: result.data_source === "empty",
                 };
                 global.DataProvenance.renderBanner("data-provenance-banner", prov);
                 if (global.DashboardGovernance) global.DashboardGovernance.apply(prov);

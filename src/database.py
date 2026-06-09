@@ -1085,12 +1085,12 @@ class ProductRepository:
     
     @staticmethod
     def get_all() -> List[Dict]:
-        """获取所有产品"""
-        return [
-            {'id': 'game_a', 'name': '游戏A - 战神传说', 'color': '#0071e3'},
-            {'id': 'game_b', 'name': '游戏B - 星际争霸', 'color': '#34c759'},
-            {'id': 'game_c', 'name': '游戏C - 魔法大陆', 'color': '#ff9500'}
-        ]
+        """获取所有产品（仅来自数据库；看板产品由抓取/导入数据动态生成）。"""
+        try:
+            rows = db_manager.execute('SELECT * FROM products ORDER BY name')
+            return rows or []
+        except Exception:
+            return []
     
     @staticmethod
     def create(product_data: Dict) -> bool:

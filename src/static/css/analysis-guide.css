@@ -258,3 +258,97 @@
     background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08);
     max-height: 360px; overflow: auto;
 }
+
+/* 数据流指引 — 抓取 ↔ 看板 */
+.dfg-panel {
+    border-radius: 14px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+.dfg-theme-light {
+    background: #fff;
+    border-color: rgba(0, 0, 0, 0.08);
+}
+.dfg-theme-dark {
+    background: #1a2332;
+    border-color: rgba(255, 255, 255, 0.08);
+    color: #e7ecf3;
+}
+.dfg-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 18px 0;
+}
+.dfg-title { font-size: 1rem; margin: 0 0 6px; font-weight: 650; }
+.dfg-summary, .dfg-variant-note {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin: 0 0 6px;
+}
+.dfg-theme-light .dfg-summary { color: #6e6e73; }
+.dfg-theme-light .dfg-variant-note { color: #0071e3; font-weight: 500; }
+.dfg-theme-dark .dfg-summary { color: #94a3b8; }
+.dfg-theme-dark .dfg-variant-note { color: #67e8f9; font-weight: 500; }
+.dfg-toggle {
+    flex-shrink: 0;
+    border: 1px solid rgba(128, 128, 128, 0.35);
+    background: transparent;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.78rem;
+}
+.dfg-body { padding: 12px 18px 16px; }
+.dfg-steps {
+    list-style: none;
+    margin: 0 0 14px;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+}
+.dfg-step {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.04);
+}
+.dfg-theme-dark .dfg-step { background: rgba(0, 0, 0, 0.22); }
+.dfg-step-active {
+    outline: 2px solid rgba(6, 182, 212, 0.45);
+    background: rgba(6, 182, 212, 0.08);
+}
+.dfg-num {
+    font-weight: 700;
+    min-width: 1.6rem;
+    color: #06b6d4;
+}
+.dfg-step strong { display: block; font-size: 0.88rem; margin-bottom: 4px; }
+.dfg-step p { margin: 0; font-size: 0.8rem; line-height: 1.45; opacity: 0.9; }
+.dfg-links { display: block; margin-top: 6px; font-size: 0.78rem; }
+.dfg-links a { color: #06b6d4; text-decoration: none; margin-right: 8px; }
+.dfg-theme-light .dfg-links a { color: #0071e3; }
+.dfg-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    margin-bottom: 10px;
+}
+.dfg-table th, .dfg-table td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+    vertical-align: top;
+}
+.dfg-table th { width: 32%; font-weight: 600; opacity: 0.85; }
+.dfg-optional {
+    font-size: 0.78rem;
+    line-height: 1.5;
+    margin: 0;
+    opacity: 0.85;
+}
+.dfg-optional a { color: inherit; text-decoration: underline; }

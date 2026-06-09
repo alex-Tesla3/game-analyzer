@@ -353,8 +353,8 @@
     <div class="container">
         <header>
             <div class="header-left">
-                <h1>⚙️ 系统设置</h1>
-                <p>管理用户账户、权限和大模型配置</p>
+                <h1>⚙️ 系统管理</h1>
+                <p>用户与账号、LLM / AI 配置（同一页面内切换标签）</p>
             </div>
             <div style="display: flex; gap: 10px; align-items: center;">
                 <span class="account-badge" data-account-badge style="color: #94a3b8; background: rgba(255,255,255,0.08);">…</span>
@@ -441,7 +441,7 @@
                 
                 <div class="form-group">
                     <label class="form-label">自定义端点（可选）</label>
-                    <input type="text" class="form-input" id="llm-endpoint" placeholder="如Ollama本地地址 http://localhost:11434">
+                    <input type="text" class="form-input" id="llm-endpoint" placeholder="Ollama 根地址，如 http://localhost:11434（勿带 /api/generate）">
                 </div>
                 
                 <div class="form-group">
@@ -622,7 +622,7 @@
             const token = getToken();
             if (!token) return false;
             try {
-                const response = await fetch(`/api/llm/providers?token=${encodeURIComponent(token)}`);
+                const response = await authFetch(`/api/llm/providers`);
                 const result = await response.json();
                 if (response.status === 401) {
                     window.location.href = '/login?redirect=' + encodeURIComponent('/admin');
@@ -664,7 +664,7 @@
         async function loadLLMConfig() {
             const token = getToken();
             try {
-                const response = await fetch(`/api/llm/config?token=${token}`);
+                const response = await authFetch(`/api/llm/config`);
                 const result = await response.json();
                 if (result.success) {
                     const config = result.config;
@@ -703,20 +703,30 @@
             const providerId = document.getElementById('llm-provider').value;
             const provider = llmProviders.find(p => p.id === providerId);
             const modelSelect = document.getElementById('llm-model');
+            const msgEl = document.getElementById('llm-message');
             
             if (provider) {
                 modelSelect.innerHTML = provider.models.map(m => 
                     `<option value="${m}">${m}</option>`
                 ).join('');
             }
-            if (savedModel) {
-                if (![...modelSelect.options].some(o => o.value === savedModel)) {
+            let activeModel = savedModel;
+            if (providerId === 'ollama' && provider && provider.models.length) {
+                if (savedModel && !provider.models.includes(savedModel)) {
+                    activeModel = provider.models[0];
+                    if (msgEl) {
+                        msgEl.innerHTML = `<div style="color: var(--accent-yellow, #fbbf24); padding: 10px; background: rgba(245, 158, 11, 0.15); border-radius: 8px;">⚠️ 已保存模型「${savedModel}」未在本机 Ollama 中安装，已自动切换为「${activeModel}」。请保存配置后重新测试。</div>`;
+                    }
+                }
+            }
+            if (activeModel) {
+                if (![...modelSelect.options].some(o => o.value === activeModel)) {
                     const opt = document.createElement('option');
-                    opt.value = savedModel;
-                    opt.textContent = savedModel + ' (已保存)';
+                    opt.value = activeModel;
+                    opt.textContent = activeModel + ' (已保存)';
                     modelSelect.appendChild(opt);
                 }
-                modelSelect.value = savedModel;
+                modelSelect.value = activeModel;
             }
         }
 
@@ -738,7 +748,7 @@
             }
             
             try {
-                const response = await fetch(`/api/llm/config?token=${token}`, {
+                const response = await authFetch(`/api/llm/config`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(config)
@@ -775,7 +785,7 @@
             msgEl.innerHTML = `<div style="color: var(--accent-blue); padding: 10px; background: rgba(6, 182, 212, 0.15); border-radius: 8px;">正在测试连接...</div>`;
             
             try {
-                const response = await fetch(`/api/llm/test?token=${token}`, {
+                const response = await authFetch(`/api/llm/test`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(testConfig)
@@ -797,7 +807,7 @@
             
             const token = getToken();
             try {
-                const response = await fetch(`/api/users?token=${token}`);
+                const response = await authFetch(`/api/users`);
                 if (response.status === 401) {
                     if (typeof clearAuthToken === 'function') clearAuthToken();
                 else localStorage.removeItem('access_token');
@@ -905,7 +915,7 @@
             };
 
             try {
-                const response = await fetch(`/api/users?token=${token}`, {
+                const response = await authFetch(`/api/users`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(userData)
@@ -974,7 +984,7 @@
             userData.disabled = document.getElementById('edit-disabled').checked;
 
             try {
-                const response = await fetch(`/api/users/${editingUser}?token=${token}`, {
+                const response = await authFetch(`/api/users/${editingUser}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(userData)
@@ -1004,7 +1014,7 @@
             
             const token = getToken();
             try {
-                const response = await fetch(`/api/users/${username}?token=${token}`, {
+                const response = await authFetch(`/api/users/${username}`, {
                     method: 'DELETE'
                 });
                 const result = await response.json();
@@ -1028,7 +1038,33 @@
             if (e.target === document.getElementById('edit-modal')) closeEditModal();
         });
 
-        document.addEventListener('DOMContentLoaded', loadUsers);
+        async function ensureAdminAccess() {
+            if (!checkAuth()) return false;
+            try {
+                const res = await authFetch('/api/user');
+                if (!res.ok) {
+                    window.location.href = '/login?redirect=' + encodeURIComponent('/admin');
+                    return false;
+                }
+                const me = await res.json();
+                if (me.role !== 'admin') {
+                    alert('仅管理员可访问系统管理');
+                    window.location.href = '/dashboard';
+                    return false;
+                }
+                if (typeof initAccountDisplay === 'function') await initAccountDisplay();
+                if (location.hash === '#llm') switchTab('llm');
+                return true;
+            } catch (e) {
+                console.error(e);
+                return false;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!(await ensureAdminAccess())) return;
+            loadUsers();
+        });
     </script>
 </body>
 </html>

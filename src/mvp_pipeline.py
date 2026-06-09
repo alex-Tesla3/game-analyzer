@@ -25,7 +25,27 @@ DEFAULT_STEAM_APP_IDS = (
     "1091500",   # Cyberpunk 2077
     "1245620",   # Elden Ring
 )
+
+# UI catalog for MVP product picker (id = Steam app_id).
+STEAM_APP_CATALOG: List[Dict[str, str]] = [
+    {"id": "730", "name": "Counter-Strike 2", "genre": "FPS"},
+    {"id": "570", "name": "Dota 2", "genre": "MOBA"},
+    {"id": "1172470", "name": "Apex Legends", "genre": "Battle Royale"},
+    {"id": "440", "name": "Team Fortress 2", "genre": "FPS"},
+    {"id": "252490", "name": "Rust", "genre": "Survival"},
+    {"id": "578080", "name": "PUBG", "genre": "Battle Royale"},
+    {"id": "381210", "name": "Dead by Daylight", "genre": "Horror"},
+    {"id": "236390", "name": "War Thunder", "genre": "Simulation"},
+    {"id": "1091500", "name": "Cyberpunk 2077", "genre": "RPG"},
+    {"id": "1245620", "name": "Elden Ring", "genre": "Action RPG"},
+]
+
 DEFAULT_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "mvp")
+
+
+def steam_app_catalog() -> List[Dict[str, str]]:
+    """Copy of default Steam catalog for API/UI."""
+    return [dict(item) for item in STEAM_APP_CATALOG]
 
 
 class SteamCrawlerError(RuntimeError):

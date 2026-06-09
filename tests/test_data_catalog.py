@@ -47,7 +47,8 @@ def test_is_meaningful_product_rejects_noise():
     assert not is_meaningful_product("999001", "999001")
     assert not is_meaningful_product("12345", "Steam App 12345")
     assert is_meaningful_product("730", "Counter-Strike 2")
-    assert is_meaningful_product("game_a", "游戏A - 战神传说")
+    assert not is_meaningful_product("game_a", "游戏A - 战神传说")
+    assert not is_meaningful_product("lib_1", "AI测试游戏")
 
 
 def test_filter_meaningful_products_prioritizes_showcase():

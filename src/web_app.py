@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request, Query, Depends, HTTPException, status, Web
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from src.middleware.bearer_token_bridge import BearerTokenQueryBridgeMiddleware
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 import json
@@ -74,6 +75,7 @@ from src.routers.wizard_router import router as wizard_router
 from src.routers.competitor_router import router as competitor_router
 from src.routers.game_intel_router import router as game_intel_router
 from src.routers.health_router import router as health_router
+from src.routers.commercial_router import router as commercial_router
 from src.middleware_limits import limits_middleware
 from src.services.report_helpers import (
     analyze_trends,
@@ -147,6 +149,7 @@ app = FastAPI(
 )
 app.include_router(mvp_router)
 app.include_router(health_router)
+app.include_router(commercial_router)
 app.include_router(game_intel_router)
 app.include_router(competitor_router)
 app.include_router(data_router)
@@ -161,6 +164,9 @@ app.include_router(pages_router)
 app.include_router(support_router)
 app.include_router(speech_router)
 app.include_router(wizard_router)
+
+# Legacy routes read ?token=; authFetch sends Authorization: Bearer only.
+app.add_middleware(BearerTokenQueryBridgeMiddleware)
 
 # 配置CORS（allow_credentials 与 allow_origins="*" 不可同时使用）
 app.add_middleware(

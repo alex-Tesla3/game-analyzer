@@ -6,6 +6,7 @@
     <title>分享报告</title>
     <link rel="stylesheet" href="/static/css/scenario-workspace.css">
     <script src="/static/js/data-provenance.js"></script>
+    <script src="/static/js/markdown-preview.js"></script>
     <script src="/static/js/scenario-report.js"></script>
     <style>
         body { font-family:-apple-system,BlinkMacSystemFont,sans-serif; background:#0f1419; color:#e7ecf3; margin:0; padding:24px; }
@@ -48,15 +49,35 @@
                     '类型：' + (data.report?.report_type || 'report') +
                     ' · 创建于 ' + ((data.report?.created_at || '').slice(0, 19));
 
-                if (report.success !== false && (report.title || report.executive_summary || report.markdown)) {
-                    ScenarioReport.renderResult(el, report);
+                const snapshot = report.snapshot || report.snapshot_json || {};
+                const structured = Object.assign({}, report, snapshot, {
+                    success: true,
+                    dimension_scores: report.dimension_scores || snapshot.dimension_scores,
+                    facts: {
+                        score_dimensions: snapshot.score_dimensions || report.score_dimensions,
+                        dimension_scores: snapshot.dimension_scores || report.dimension_scores,
+                    },
+                    action_items: report.action_items || snapshot.action_items,
+                    sections: report.sections || snapshot.sections,
+                    executive_summary: report.executive_summary || snapshot.executive_summary,
+                    data_source: report.data_source || snapshot.data_source,
+                });
+
+                if (structured.title || structured.executive_summary || structured.sections?.length) {
+                    ScenarioReport.renderResult(el, structured);
+                    const md = report.markdown || report.body_markdown || '';
+                    if (md && window.MarkdownPreview) {
+                        el.insertAdjacentHTML('beforeend', MarkdownPreview.render(md));
+                    }
                     return;
                 }
 
-                const md = report.markdown || '';
-                const html = report.html || '';
+                const md = report.markdown || report.body_markdown || '';
+                const html = report.html || report.html_excerpt || '';
                 if (html) {
                     el.innerHTML = html;
+                } else if (md && window.MarkdownPreview) {
+                    el.innerHTML = MarkdownPreview.render(md);
                 } else if (md) {
                     el.innerHTML = '<pre style="white-space:pre-wrap;font-size:0.9rem;">' + md.replace(/</g, '&lt;') + '</pre>';
                 } else {

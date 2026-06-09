@@ -9,6 +9,9 @@ from src.mvp_data import get_mvp_analysis, normalize_time_period, record_product
 from src.services.game_genre import infer_product_genre, lookup_steam_product_name
 
 KNOWN_MOCK_PRODUCTS = {"game_a", "game_b", "game_c"}
+_TEST_PRODUCT_NAME = re.compile(
+    r"(?i)(ai测试|测试游戏|测试竞品|演示游戏|空拆解|demo\s*game|游戏[a-z]\s*[-—]|matrix\s*test|slime\s*farmer)"
+)
 KNOWN_MOCK_METRICS = {
     "用户总下载量",
     "平均用户在线时长",
@@ -32,9 +35,11 @@ def is_meaningful_product(product_id: str, name: str) -> bool:
         return False
     if _REF_GAME_ID.match(pid):
         return False
-    if lookup_steam_product_name(pid):
-        return True
     if pid in KNOWN_MOCK_PRODUCTS:
+        return False
+    if _TEST_PRODUCT_NAME.search(label):
+        return False
+    if lookup_steam_product_name(pid):
         return True
     if _RANDOM_GAME_ID.match(pid) and (
         not label or label == pid or _STEAM_APP_PLACEHOLDER.match(label)
@@ -63,8 +68,6 @@ def filter_meaningful_products(products: List[Dict[str, Any]]) -> List[Dict[str,
         pid = str(p.get("id", ""))
         if pid in _SHOWCASE_PRODUCT_ORDER:
             return (0, _SHOWCASE_PRODUCT_ORDER.index(pid), "")
-        if pid in KNOWN_MOCK_PRODUCTS:
-            return (2, 0, str(p.get("name", "")).lower())
         return (1, 0, str(p.get("name", "")).lower())
 
     kept.sort(key=rank_key)
@@ -76,6 +79,39 @@ def _finalize_catalog_products(catalog: Dict[str, Any]) -> Dict[str, Any]:
     genre_ids = sorted({p.get("genre") for p in products if p.get("genre")})
     genres = [{"id": g, "name": g} for g in genre_ids]
     return {**catalog, "products": products, "genres": genres or catalog.get("genres", [])}
+
+
+def restrict_catalog_to_dataset(
+    catalog: Dict[str, Any],
+    comments: List[Dict[str, Any]],
+    metrics: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Limit filter pickers to products/periods present in the active dataset."""
+    data_ids: set[str] = set()
+    for row in list(comments or []) + list(metrics or []):
+        pid = record_product(row)
+        if not pid:
+            continue
+        data_ids.add(pid)
+        data_ids.add(_catalog_key(pid))
+    if not data_ids:
+        return catalog
+
+    products = [
+        p
+        for p in (catalog.get("products") or [])
+        if _catalog_key(str(p.get("id", ""))) in data_ids
+        or str(p.get("id", "")) in data_ids
+    ]
+    periods = catalog.get("time_periods") or []
+    period_ids: set[str] = set()
+    for row in list(comments or []) + list(metrics or []):
+        cycle = row.get("cycle") or row.get("周期")
+        if cycle:
+            period_ids.add(normalize_time_period(str(cycle)) or str(cycle))
+    if period_ids:
+        periods = [p for p in periods if p.get("id") in period_ids]
+    return _finalize_catalog_products({**catalog, "products": products, "time_periods": periods})
 
 
 GENRE_PRESETS = [
@@ -250,7 +286,9 @@ def enrich_catalog_from_context(
             if _REF_GAME_ID.match(game_id):
                 continue
             name = str(game.get("name") or "").strip()
-            if not name:
+            if not name or _TEST_PRODUCT_NAME.search(name):
+                continue
+            if str(game.get("game_id") or "") in KNOWN_MOCK_PRODUCTS:
                 continue
             genre = str(game.get("genre") or game.get("sub_genre") or "").strip()
             for raw_key in _catalog_product_keys(game):

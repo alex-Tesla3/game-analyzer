@@ -1,4 +1,4 @@
-"""Google Play public review MVP — package resolve, offline demo crawl, merge into MVP."""
+"""Google Play public review MVP — package resolve, live scrape, merge into MVP."""
 
 from __future__ import annotations
 
@@ -13,6 +13,19 @@ from src.mvp_pipeline import (
     analyze_actual_steam_data,
     validate_analysis,
 )
+from src.services.platform_crawl_utils import allow_demo_fallback
+
+try:
+    from google_play_scraper import app as gplay_app
+    from google_play_scraper import reviews as gplay_reviews
+    from google_play_scraper import search as gplay_search
+
+    _GPLAY_AVAILABLE = True
+except ImportError:
+    gplay_app = None  # type: ignore
+    gplay_reviews = None  # type: ignore
+    gplay_search = None  # type: ignore
+    _GPLAY_AVAILABLE = False
 
 _PACKAGE_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$")
 
@@ -24,6 +37,8 @@ _ALIASES: Dict[str, str] = {
     "honor of kings": "com.tencent.tmgp.sgame",
     "和平精英": "com.tencent.tmgp.pubgmhd",
     "pubg mobile": "com.tencent.ig",
+    "崩坏星穹铁道": "com.HoYoverse.hkrpgoversea",
+    "星穹铁道": "com.HoYoverse.hkrpgoversea",
 }
 
 _DEMO_GAMES: Dict[str, str] = {
@@ -37,26 +52,70 @@ class GooglePlayCrawlerError(RuntimeError):
     pass
 
 
+def _gplay_locale() -> tuple[str, str]:
+    return (
+        os.getenv("GOOGLE_PLAY_LANG", "zh").strip() or "zh",
+        os.getenv("GOOGLE_PLAY_COUNTRY", "cn").strip() or "cn",
+    )
+
+
 class GooglePlayPublicCrawler:
-    """Offline-first demo crawler for known package names (no API key required)."""
+    """Live Google Play scrape via google-play-scraper (public store pages)."""
 
     def search(self, term: str, *, limit: int = 8) -> List[Dict[str, Any]]:
         query = (term or "").strip()
         if len(query) < 2:
             return []
+
+        pkg_from_url = _extract_package_id(query)
+        if pkg_from_url:
+            return [{"package_id": pkg_from_url, "app_id": pkg_from_url, "name": pkg_from_url, "type": "app"}]
+
         alias = _ALIASES.get(query.lower())
         if alias:
-            return [{"package_id": alias, "app_id": alias, "name": _DEMO_GAMES.get(alias, query), "type": "app"}]
+            return [
+                {
+                    "package_id": alias,
+                    "app_id": alias,
+                    "name": _DEMO_GAMES.get(alias, query),
+                    "type": "app",
+                }
+            ]
+
+        if _PACKAGE_RE.match(query):
+            return [{"package_id": query, "app_id": query, "name": query.split(".")[-1], "type": "app"}]
+
+        if not _GPLAY_AVAILABLE:
+            return self._offline_search(query, limit=limit)
+
+        lang, country = _gplay_locale()
+        try:
+            hits = gplay_search(query, lang=lang, country=country, n_hits=min(limit, 10))
+            out: List[Dict[str, Any]] = []
+            for row in hits or []:
+                pkg = str(row.get("appId") or "")
+                if not pkg:
+                    continue
+                out.append(
+                    {
+                        "package_id": pkg,
+                        "app_id": pkg,
+                        "name": row.get("title") or pkg,
+                        "type": "app",
+                        "score": row.get("score"),
+                    }
+                )
+            return out[:limit]
+        except Exception:
+            return self._offline_search(query, limit=limit)
+
+    def _offline_search(self, query: str, *, limit: int) -> List[Dict[str, Any]]:
         hits: List[Dict[str, Any]] = []
         lower = query.lower()
         for pkg, name in _DEMO_GAMES.items():
             if lower in name.lower() or lower in pkg.lower():
                 hits.append({"package_id": pkg, "app_id": pkg, "name": name, "type": "app"})
-        if hits:
-            return hits[:limit]
-        if _PACKAGE_RE.match(query):
-            return [{"package_id": query, "app_id": query, "name": query.split(".")[-1], "type": "app"}]
-        return []
+        return hits[:limit]
 
     def crawl(
         self,
@@ -69,23 +128,83 @@ class GooglePlayPublicCrawler:
         comments: List[Dict[str, Any]] = []
         metrics: List[Dict[str, Any]] = []
         games: List[Dict[str, Any]] = []
+        errors: List[Dict[str, str]] = []
+        used_demo = False
+
         for pkg in ids:
-            pkg = str(pkg).strip()
+            pkg = str(pkg).strip().replace("google_play_", "", 1)
             if not pkg:
                 continue
-            name = _DEMO_GAMES.get(pkg, pkg.split(".")[-1])
-            reviews = self._demo_reviews(pkg, name)[: max(3, min(max_reviews_per_app, 50))]
-            games.append({"package_id": pkg, "name": name, "platform": "Google Play"})
-            comments.extend(self._normalize_reviews(pkg, name, reviews))
-            metrics.extend(self._build_metrics(pkg, name, reviews))
+            try:
+                game, reviews, demo = self._fetch_package(pkg, max_reviews_per_app)
+                used_demo = used_demo or demo
+                games.append(game)
+                comments.extend(self._normalize_reviews(pkg, game["name"], reviews))
+                metrics.extend(self._build_metrics(pkg, game["name"], reviews))
+            except Exception as exc:
+                errors.append({"package_id": pkg, "error": str(exc)})
+
+        if not comments and not metrics:
+            raise GooglePlayCrawlerError(f"No usable Google Play data. Errors: {errors}")
+
         return {
             "source": "google_play_public",
+            "data_mode": "demo_fallback" if used_demo else "live",
             "crawled_at": datetime.now(timezone.utc).isoformat(),
             "platform": "Google Play",
             "games": games,
             "comments": comments,
             "metrics": metrics,
+            "errors": errors,
         }
+
+    def _fetch_package(
+        self, package_id: str, max_reviews: int
+    ) -> tuple[Dict[str, Any], List[Dict[str, Any]], bool]:
+        if _GPLAY_AVAILABLE:
+            lang, country = _gplay_locale()
+            try:
+                info = gplay_app(package_id, lang=lang, country=country)
+                name = info.get("title") or _DEMO_GAMES.get(package_id) or package_id.split(".")[-1]
+                count = min(max(max_reviews, 3), 100)
+                rows, _ = gplay_reviews(package_id, lang=lang, country=country, count=count)
+                parsed = [
+                    {
+                        "score": row.get("score"),
+                        "text": row.get("content") or "",
+                        "thumbsUp": (row.get("score") or 0) >= 4,
+                    }
+                    for row in (rows or [])
+                    if row.get("content")
+                ]
+                if parsed:
+                    return (
+                        {
+                            "package_id": package_id,
+                            "name": name,
+                            "platform": "Google Play",
+                            "score": info.get("score"),
+                            "installs": info.get("installs"),
+                        },
+                        parsed,
+                        False,
+                    )
+            except Exception as exc:
+                if not allow_demo_fallback():
+                    raise GooglePlayCrawlerError(str(exc)) from exc
+
+        if allow_demo_fallback() or package_id in _DEMO_GAMES:
+            name = _DEMO_GAMES.get(package_id, package_id.split(".")[-1])
+            reviews = self._demo_reviews(package_id, name)[: max(3, min(max_reviews, 50))]
+            return (
+                {"package_id": package_id, "name": name, "platform": "Google Play"},
+                reviews,
+                True,
+            )
+
+        raise GooglePlayCrawlerError(
+            f"Google Play 抓取失败（{package_id}）。请安装 google-play-scraper 并确认包名正确。"
+        )
 
     def _demo_reviews(self, package_id: str, name: str) -> List[Dict[str, Any]]:
         return [
@@ -143,6 +262,18 @@ class GooglePlayPublicCrawler:
         ]
 
 
+def _extract_package_id(token: str) -> Optional[str]:
+    raw = (token or "").strip()
+    if not raw:
+        return None
+    if "play.google.com" in raw and "id=" in raw:
+        return raw.split("id=", 1)[1].split("&")[0].strip()
+    bare = raw.replace("google_play_", "", 1)
+    if _PACKAGE_RE.match(bare):
+        return bare
+    return None
+
+
 def search_google_play_games(term: str, *, limit: int = 8) -> List[Dict[str, Any]]:
     return GooglePlayPublicCrawler().search(term, limit=limit)
 
@@ -170,6 +301,11 @@ def resolve_google_play_inputs(raw: Sequence[str] | str, *, max_games: int = 5) 
     for token in tokens:
         if len(app_ids) >= max_games:
             errors.append(f"最多 {max_games} 款，已忽略：{token}")
+            continue
+        pkg = _extract_package_id(token)
+        if pkg and pkg not in app_ids:
+            app_ids.append(pkg)
+            resolved.append({"input": token, "app_id": pkg, "via": "url"})
             continue
         bare = token.replace("google_play_", "", 1)
         if _PACKAGE_RE.match(bare):
@@ -243,6 +379,7 @@ def merge_into_mvp_dataset(gplay_dataset: Dict[str, Any], output_dir: str = DEFA
         "comments": list(existing.get("comments") or []) + list(gplay_dataset.get("comments") or []),
         "metrics": list(existing.get("metrics") or []) + list(gplay_dataset.get("metrics") or []),
         "platforms": sorted(platforms),
+        "data_mode": gplay_dataset.get("data_mode", "live"),
     }
     analysis = analyze_actual_steam_data(merged["comments"], merged["metrics"])
     validation = validate_analysis(merged["comments"], merged["metrics"], analysis)
@@ -279,6 +416,7 @@ def run_google_play_pipeline(
     return {
         "success": merge_result.get("success"),
         "platform": "google_play",
+        "data_mode": dataset.get("data_mode"),
         "dataset": dataset,
         "artifacts": merge_result.get("artifacts"),
         "validation": merge_result.get("validation"),

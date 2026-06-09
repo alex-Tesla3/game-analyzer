@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据与订阅说明 · Game Analyzer</title>
+    <link rel="stylesheet" href="/static/css/app-nav.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f7;
+            color: #1d1d1f;
+            min-height: 100vh;
+        }
+        .topbar {
+            position: sticky; top: 0; z-index: 10;
+            background: rgba(255,255,255,0.9);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(0,0,0,0.08);
+            padding: 8px 24px;
+            display: flex; justify-content: center;
+        }
+        .wrap { max-width: 720px; margin: 0 auto; padding: 32px 24px 64px; }
+        h1 { font-size: 1.75rem; margin-bottom: 8px; }
+        .sub { color: #6e6e73; margin-bottom: 24px; line-height: 1.6; }
+        .card {
+            background: #fff;
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 14px;
+            padding: 20px 22px;
+            margin-bottom: 16px;
+        }
+        .card h2 { font-size: 1.05rem; margin-bottom: 12px; color: #0071e3; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+        th { color: #6e6e73; font-weight: 600; width: 38%; }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
+        .tag-real { background: #dcfce7; color: #166534; }
+        .tag-mix { background: #fef9c3; color: #854d0e; }
+        .tag-demo { background: #fee2e2; color: #991b1b; }
+        ul { padding-left: 1.2rem; line-height: 1.7; color: #424245; font-size: 0.9rem; }
+        .status-box {
+            padding: 14px 16px;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        .status-demo { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; }
+        .status-prod { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+        .cta { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 10px; }
+        .btn {
+            padding: 10px 18px; border-radius: 10px; text-decoration: none;
+            font-weight: 600; font-size: 0.9rem;
+        }
+        .btn-primary { background: #0071e3; color: #fff; }
+        .btn-ghost { background: #fff; color: #0071e3; border: 1px solid #0071e3; }
+    </style>
+    <script src="/static/js/app-nav.js" defer></script>
+</head>
+<body>
+    <header class="topbar">
+        <div id="app-nav-mount" data-active="home"></div>
+    </header>
+    <div class="wrap">
+        <h1>数据与订阅说明</h1>
+        <p class="sub">面向客户 POC / 试点评估：哪些指标来自真实公开数据，哪些需要您导入，以及当前环境的支付边界。</p>
+
+        <div id="deploy-status" class="status-box status-demo">加载部署信息…</div>
+
+        <div class="card">
+            <h2>真实竞品 ↔ 看板：数据怎么流动</h2>
+            <ol style="padding-left:1.2rem;line-height:1.75;font-size:0.9rem;color:#424245;margin-bottom:12px;">
+                <li><strong>抓取</strong>：分析向导 <code>/guide</code> 或 MVP <code>/mvp</code> 选择 Steam / TapTap / Google Play，拉取公开评论。</li>
+                <li><strong>写入</strong>：结果保存到 <code>data/mvp/steam_dataset.json</code>（评论 + 样本指标），全站一份数据集。</li>
+                <li><strong>看板读取</strong>：运营看板 <code>/dashboard</code> 通过 API 读同一份数据，抓取后<strong>自动同步</strong>，无需单独导入。</li>
+                <li><strong>筛选查看</strong>：在看板选择产品、数据来源、周期，点击「应用筛选」展示 KPI 与排行。</li>
+            </ol>
+            <p style="font-size:0.85rem;color:#6e6e73;line-height:1.6;">
+                <strong>页面分工（数据同源）：</strong>MVP/向导侧重深度报告与行动建议；看板侧重筛选汇总与预警；竞品工作台侧重横向对比。不是三套独立数据库。
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>指标数据来源</h2>
+            <table>
+                <tr>
+                    <th>Steam / TapTap / Google Play 评论与评分</th>
+                    <td><span class="tag tag-real">真数据</span> 公开评论抓取；看板与竞品页会标注来源。</td>
+                </tr>
+                <tr>
+                    <th>Owner DAU / 收入 / 内购</th>
+                    <td><span class="tag tag-mix">需导入</span> 通过「导入指标」上传 CSV，不与公开商店自动打通。</td>
+                </tr>
+                <tr>
+                    <th>高级分析 · 实时曲线 · 部分漏斗</th>
+                    <td><span class="tag tag-demo">可能为演示</span> 数据不足时接口返回 <code>simulated: true</code>，页面会提示。</td>
+                </tr>
+                <tr>
+                    <th>平台同步 API（无密钥时）</th>
+                    <td><span class="tag tag-demo">模拟</span> 配置密钥后切换为真实拉取。</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>订阅与支付</h2>
+            <ul>
+                <li><strong>公网 Demo / 开发环境</strong>：模拟支付，扫码后点「支付完成」即可演示升级，无真实扣款。</li>
+                <li><strong>生产试点</strong>：通用回调 <code>POST /api/payment/webhook</code>（HMAC）；或 <strong>Stripe Checkout</strong> <code>POST /api/payment/webhook/stripe</code>（沙箱卡号 4242…）。</li>
+                <li><strong>API 配额</strong>：按套餐月度计数；管理员与坐席账号不限。</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>试点上线检查（技术）</h2>
+            <ul>
+                <li>设置 <code>SECRET_KEY</code>、<code>APP_ENV=production</code></li>
+                <li>关闭 <code>ALLOW_DEMO_ACCOUNTS</code>（正式客户环境）</li>
+                <li>关闭 <code>PAYMENT_TEST_MODE</code> 并配置 <code>PAYMENT_WEBHOOK_SECRET</code></li>
+                <li>持久化 <code>data/</code> 卷（SQLite）或迁移 Postgres</li>
+            </ul>
+            <p style="margin-top:12px;font-size:0.85rem;color:#6e6e73;">详见仓库 <code>docs/COMMERCIAL_LAUNCH.md</code></p>
+        </div>
+
+        <div class="cta">
+            <a class="btn btn-primary" href="/pricing">查看订阅套餐</a>
+            <a class="btn btn-ghost" href="/import">导入 Owner 指标</a>
+            <a class="btn btn-ghost" href="/">返回首页</a>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.AppNav) AppNav.mount('#app-nav-mount');
+            fetch('/api/commercial/status')
+                .then(r => r.json())
+                .then(s => {
+                    const el = document.getElementById('deploy-status');
+                    if (!el || !s.success) return;
+                    const demo = s.deploy_profile === 'public_demo' || s.deploy_profile === 'development';
+                    el.className = 'status-box ' + (demo ? 'status-demo' : 'status-prod');
+                    let html = '<strong>当前环境：' + (s.deploy_profile_label || s.deploy_profile) + '</strong><br>';
+                    html += s.payment_message || '';
+                    if (s.production_warnings && s.production_warnings.length) {
+                        html += '<ul style="margin:8px 0 0 1rem;">';
+                        s.production_warnings.forEach(w => { html += '<li>' + w + '</li>'; });
+                        html += '</ul>';
+                    }
+                    if (s.pilot_contact_email) {
+                        html += '<br>试点咨询：<a href="mailto:' + s.pilot_contact_email + '">' + s.pilot_contact_email + '</a>';
+                    }
+                    if (s.ready_for_paid_pilot) {
+                        html += '<p style="margin-top:10px;color:#065f46;">✅ 当前配置满足付费试点上线检查项。</p>';
+                    } else if (s.production_warnings && s.production_warnings.length) {
+                        html += '<p style="margin-top:10px;">正式收费前请处理上方警告项。</p>';
+                    }
+                    if (s.public_demo_url) {
+                        html += '<p style="margin-top:8px;font-size:0.85rem;">公网 Demo：<a href="' + s.public_demo_url + '">' + s.public_demo_url + '</a></p>';
+                    }
+                    el.innerHTML = html;
+                })
+                .catch(() => {});
+        });
+    </script>
+</body>
+</html>

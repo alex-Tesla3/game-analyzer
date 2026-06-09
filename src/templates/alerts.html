@@ -504,7 +504,7 @@
         // 加载告警规则列表
         async function loadAlerts() {
             try {
-                const response = await fetch('/api/alerts?token=' + token);
+                const response = await authFetch('/api/alerts');
                 const result = await response.json();
                 
                 if (result.success) {
@@ -686,14 +686,14 @@
                 let response;
                 if (id) {
                     // 更新
-                    response = await fetch(`/api/alerts/${id}?token=${token}`, {
+                    response = await authFetch(`/api/alerts/${id}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(alertData)
                     });
                 } else {
                     // 创建
-                    response = await fetch(`/api/alerts?token=${token}`, {
+                    response = await authFetch(`/api/alerts`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(alertData)
@@ -720,7 +720,7 @@
         // 切换告警启用状态
         async function toggleAlert(id, enabled) {
             try {
-                const response = await fetch(`/api/alerts/${id}?token=${token}`, {
+                const response = await authFetch(`/api/alerts/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ enabled: enabled ? 1 : 0 })
@@ -742,7 +742,7 @@
             if (!confirm('确定要删除这个告警规则吗？')) return;
             
             try {
-                const response = await fetch(`/api/alerts/${id}?token=${token}`, {
+                const response = await authFetch(`/api/alerts/${id}`, {
                     method: 'DELETE'
                 });
                 

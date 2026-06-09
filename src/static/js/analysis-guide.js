@@ -56,16 +56,33 @@
         wizard: {
             icon: "🧭",
             title: "分析向导",
-            subtitle: "输入游戏名或 AppID，一键抓取 → 报告 → 归档",
+            subtitle: "抓取真实竞品 → 自动同步看板 → 生成报告与归档",
             href: "/guide",
             homeLabel: "开始分析",
             steps: [
                 "选择平台：Steam / TapTap / Google Play",
-                "输入游戏名或 AppID（最多 5 款）",
-                "一键分析：抓取评论 → 生成报告 → 自动归档",
+                "输入游戏名、AppID 或包名（最多 5 款）",
+                "执行抓取：评论与样本指标写入统一数据集（与看板共用）",
+                "返回运营看板：点击「应用筛选」查看 KPI 与平台排行",
+                "本向导额外产出：深度报告、行动清单、归档（MVP 页侧重样本验证）",
                 "导出行动清单到 CSV / 飞书 / Jira",
             ],
-            tips: "Demo：/welcome 一键体验 CS2 vs Dota 2；支持跳过抓取使用已有样本数据。",
+            tips: "抓取 ≠ 看板隔离：数据自动进入 /dashboard。可选 CSV 导入经营指标与评论合并分析。",
+        },
+        dashboard: {
+            icon: "📊",
+            title: "运营看板",
+            subtitle: "读取抓取/导入后的统一数据集，筛选查看 KPI 与预警",
+            href: "/dashboard",
+            homeLabel: "去看板",
+            steps: [
+                "数据来源：优先用户导入 CSV，其次 MVP 抓取数据集（steam_dataset.json）",
+                "若看板为空：先去 /guide 或 /mvp 完成抓取，再回本页点「应用筛选」",
+                "产品 / 来源 / 周期筛选：作用于同一份已写入的评论与指标",
+                "KPI 展示：抓取数据为「评论样本量 / 样本好评率」；导入后可显示 DAU/收入等",
+                "竞品工作台、复盘页读取同一数据集，分工不同而非数据隔离",
+            ],
+            tips: "顶部「数据流说明」可展开查看抓取 ↔ 看板四步关系。",
         },
         workflow: {
             icon: "📋",
@@ -152,7 +169,7 @@
             '<div class="ag-header">' +
             "<div>" +
             "<h2 class=\"ag-title\">📐 分析指引</h2>" +
-            "<p class=\"ag-subtitle\">核心场景：分析向导 · 落地指导 · 竞品分析 · 玩法拆解 · 数据复盘。点击下方卡片进入对应模块。</p>" +
+            "<p class=\"ag-subtitle\">核心场景：分析向导 · 运营看板 · 落地指导 · 竞品分析 · 玩法拆解 · 数据复盘。真实竞品抓取后自动同步看板。</p>" +
             "</div>" +
             '<button type="button" class="ag-toggle" id="ag-home-toggle" aria-expanded="' +
             (!collapsed) +

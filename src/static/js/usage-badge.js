@@ -3,7 +3,8 @@
     async function fetchUsage(token) {
         if (!token) return null;
         try {
-            const res = await fetch("/api/user?token=" + encodeURIComponent(token));
+            const fetchFn = typeof authFetch !== "undefined" ? authFetch : fetch;
+            const res = await fetchFn("/api/user");
             if (!res.ok) return null;
             return await res.json();
         } catch (_) {

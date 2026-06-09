@@ -83,15 +83,13 @@ async def metrics_page():
         return f.read()
 
 @router.get("/api/options")
-async def get_options(token: Optional[str] = Query(None)):
-    if not token:
-        raise HTTPException(status_code=401, detail="Token required")
-    current_user = await get_current_user(token)
+async def get_options(request: Request, token: Optional[str] = Query(None)):
+    current_user = await get_current_user(request, token)
     comments = get_user_comments_data(current_user.username)
     metrics = get_user_metrics_data(current_user.username)
     catalog = derive_data_catalog(comments or [], metrics or [])
     catalog = enrich_catalog_from_context(catalog, username=current_user.username)
-    products = catalog["products"] or AVAILABLE_PRODUCTS
+    products = catalog["products"] or []
     time_periods = catalog["time_periods"] or AVAILABLE_TIME_PERIODS
     genres = catalog.get("genres") or []
     provenance = data_provenance_payload(current_user.username)
@@ -450,6 +448,6 @@ async def get_sync_status(token: Optional[str] = Query(None)):
                 "size": os.path.getsize(comments_path) if os.path.exists(comments_path) else 0
             }
         },
-        "available_platforms": ["Steam", "Google Play", "App Store"]
+        "available_platforms": ["Steam", "TapTap", "Google Play", "App Store"]
     }
 

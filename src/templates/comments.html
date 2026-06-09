@@ -327,6 +327,11 @@
         }
     </style>
     <link rel="stylesheet" href="/static/css/app-nav.css">
+    <script src="/static/js/auth-token.js"></script>
+    <script src="/static/js/catalog-filters.js"></script>
+    <script src="/static/js/data-provenance.js"></script>
+    <script src="/static/js/account-display.js" defer></script>
+    <script src="/static/js/admin-menu.js" defer></script>
     <script src="/static/js/app-nav.js" defer></script>
 </head>
 <body>
@@ -355,6 +360,7 @@
             <p class="header-subtitle">实时监控用户反馈，深度分析评论情感与关键词</p>
         </div>
 
+        <div id="provenance-banner" style="margin-bottom:16px;display:none;"></div>
         <div class="filter-bar">
             <div class="filter-row">
                 <div class="filter-group">
@@ -441,9 +447,7 @@
         </div>
     </div>
 
-    <script src="/static/js/auth-token.js"></script>
     <script src="/static/js/chart.js"></script>
-    <script src="/static/js/account-display.js" defer></script>
     <script>
         let commentsData = [];
         let sentimentChartInstance = null;
@@ -460,41 +464,18 @@
             return true;
         }
 
-        function populateProductSelect(catalog, preserveValue) {
-            const select = document.getElementById('product-select');
-            if (!select || !catalog?.products?.length) return;
-            const current = preserveValue !== undefined ? preserveValue : select.value;
-            select.innerHTML = '<option value="all">全部产品</option>';
-            catalog.products.forEach((item) => {
-                const label = item.name || item.id;
-                select.innerHTML += `<option value="${item.id}">${label}</option>`;
-            });
-            const has = Array.from(select.options).some((o) => o.value === current);
-            select.value = has ? current : 'all';
-        }
-
-        function populatePeriodSelect(catalog, preserveValue) {
-            const select = document.getElementById('period-select');
-            if (!select || !catalog?.time_periods?.length) return;
-            const current = preserveValue !== undefined ? preserveValue : select.value;
-            select.innerHTML = '<option value="all">全部周期</option>';
-            catalog.time_periods.forEach((item) => {
-                select.innerHTML += `<option value="${item.id}">${item.name || item.id}</option>`;
-            });
-            const has = Array.from(select.options).some((o) => o.value === current);
-            select.value = has ? current : 'all';
-        }
-
         async function initFilters() {
             if (!ensureLoggedIn()) return false;
-            const token = getToken();
-            const response = await fetch(`/api/options?token=${encodeURIComponent(token)}`);
-            if (!response.ok) return false;
-            const result = await response.json();
-            if (result.success) {
-                populateProductSelect({ products: result.products, time_periods: result.time_periods });
-                populatePeriodSelect({ time_periods: result.time_periods });
-            }
+            const result = await CatalogFilters.fetchCatalog(getToken());
+            if (!result) return false;
+            CatalogFilters.populateSingleProductSelect(
+                document.getElementById('product-select'),
+                result.products
+            );
+            CatalogFilters.populatePeriodSelect(
+                document.getElementById('period-select'),
+                result.time_periods
+            );
             return true;
         }
 
@@ -513,22 +494,48 @@
             const product = document.getElementById('product-select').value;
             const period = document.getElementById('period-select').value;
             const sentiment = document.getElementById('sentiment-select').value;
-            let url = `/api/comments?token=${encodeURIComponent(token)}`;
-            if (product !== 'all') url += `&product=${encodeURIComponent(product)}`;
-            if (period && period !== 'all') url += `&time_period=${encodeURIComponent(period)}`;
-            if (sentiment !== 'all') url += `&sentiment=${encodeURIComponent(sentiment)}`;
+            let url = '/api/comments';
+            const q = new URLSearchParams();
+            if (product !== 'all') q.set('product', product);
+            if (period && period !== 'all') q.set('time_period', period);
+            if (sentiment !== 'all') q.set('sentiment', sentiment);
+            if (q.toString()) url += '?' + q.toString();
 
-            const response = await fetch(url);
+            const fetchFn = typeof authFetch === 'function' ? authFetch : fetch;
+            const response = await fetchFn(url);
             if (response.status === 401) {
-                window.location.href = '/login?redirect=' + encodeURIComponent('/comments');
+                if (typeof redirectToLogin === 'function') redirectToLogin('/comments');
+                else window.location.href = '/login?redirect=' + encodeURIComponent('/comments') + '&reason=expired';
+                return;
+            }
+            if (!response.ok) {
+                const hint = document.getElementById('filter-hint');
+                if (hint) hint.textContent = '评论加载失败，请刷新或重新登录';
                 return;
             }
             const result = await response.json();
             if (result.success) {
+                if (result.total > 0 && (result.data || []).length === 0 &&
+                    (product !== 'all' || (period && period !== 'all') || sentiment !== 'all')) {
+                    document.getElementById('product-select').value = 'all';
+                    document.getElementById('period-select').value = 'all';
+                    document.getElementById('sentiment-select').value = 'all';
+                    CatalogFilters.writeStoredProduct(document.getElementById('product-select'));
+                    CatalogFilters.writeStoredPeriod('all');
+                    return loadComments();
+                }
                 commentsData = result.data || [];
                 if (result.catalog) {
-                    populateProductSelect(result.catalog, product);
-                    populatePeriodSelect(result.catalog, period);
+                    CatalogFilters.populateSingleProductSelect(
+                        document.getElementById('product-select'),
+                        result.catalog.products,
+                        { preserveValue: product }
+                    );
+                    CatalogFilters.populatePeriodSelect(
+                        document.getElementById('period-select'),
+                        result.catalog.time_periods,
+                        { preserveValue: period }
+                    );
                 }
                 if (result.total > 0 && commentsData.length === 0) {
                     console.warn('筛选后无评论，请切换产品、周期或情感条件');
@@ -700,7 +707,14 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (window.AppNav) AppNav.mount('#app-nav-mount');
+            if (window.AdminMenu && AdminMenu.apply) await AdminMenu.apply();
             await initFilters();
+            if (window.DataProvenance) {
+                const prov = await DataProvenance.fetchProvenance(getToken());
+                if (prov) DataProvenance.renderBanner('provenance-banner', prov);
+            }
+            CatalogFilters.bindPersistence(document.getElementById('product-select'), loadComments);
+            CatalogFilters.bindPersistence(document.getElementById('period-select'), loadComments);
             await loadComments();
         });
     </script>

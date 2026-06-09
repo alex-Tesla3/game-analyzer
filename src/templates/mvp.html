@@ -5,6 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Game Analyzer MVP</title>
+  <link rel="stylesheet" href="/static/css/analysis-guide.css">
   <style>
     :root {
       color-scheme: light;
@@ -213,7 +214,74 @@
       border-radius: 8px;
       color: var(--muted);
     }
+    .filter-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+      display: grid;
+      grid-template-columns: 1fr 200px 120px auto;
+      gap: 14px 16px;
+      align-items: end;
+    }
+    .filter-panel label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    .filter-panel select,
+    .filter-panel input[type="number"] {
+      width: 100%;
+      min-height: 38px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-size: 14px;
+      background: #fff;
+    }
+    #product-picker {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 6px;
+      max-height: 160px;
+      overflow-y: auto;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fafbfc;
+    }
+    .product-picker-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .product-picker-item:hover { background: #eef1f5; }
+    .product-picker-name { flex: 1; }
+    .product-picker-genre {
+      font-size: 11px;
+      color: var(--muted);
+      background: #eef1f5;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+    .product-picker-empty { font-size: 13px; color: var(--muted); margin: 0; }
+    .filter-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .filter-hint {
+      grid-column: 1 / -1;
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0;
+    }
+    #product-select { display: none; }
     @media (max-width: 860px) {
+      .filter-panel { grid-template-columns: 1fr; }
       .topbar, .game-head { align-items: stretch; flex-direction: column; }
       .actions { justify-content: flex-start; }
       .metrics, .grid, .split, .strategy-grid { grid-template-columns: 1fr; }
@@ -228,19 +296,49 @@
         <p class="subtitle">Steam 真实评论抓取、确定性分析、源数据一致性验证</p>
       </div>
       <div class="actions">
-        <button id="refresh" class="primary" type="button">重新抓取</button>
+        <a class="button" href="/dashboard">← 数据看板</a>
         <a class="button" href="/api/mvp/latest" target="_blank">查看 JSON</a>
       </div>
     </div>
   </header>
   <main class="wrap">
+    <div id="data-flow-guide-root"></div>
+    <section class="filter-panel" aria-label="筛选条件">
+      <div style="grid-column: 1 / -1;">
+        <label>产品选择（可多选；TapTap 填 AppID，Google Play 填包名）</label>
+        <div id="product-picker"></div>
+        <select id="product-select" multiple></select>
+      </div>
+      <div>
+        <label for="channel-select">渠道 / 数据来源</label>
+        <select id="channel-select">
+          <option value="steam">Steam</option>
+        </select>
+      </div>
+      <div>
+        <label for="max-reviews">每款评论数</label>
+        <input id="max-reviews" type="number" min="5" max="100" value="20">
+      </div>
+      <div class="filter-actions">
+        <button id="apply-filter" type="button">应用筛选</button>
+        <button id="refresh" class="primary" type="button">重新抓取</button>
+      </div>
+      <p id="filter-hint" class="filter-hint">加载产品列表…</p>
+    </section>
     <div id="status" class="status">正在读取最新 MVP 结果...</div>
     <section id="content"></section>
   </main>
+  <script src="/static/js/data-flow-guide.js"></script>
+  <script src="/static/js/product-picker.js"></script>
   <script>
     const statusEl = document.getElementById('status');
     const contentEl = document.getElementById('content');
     const refreshButton = document.getElementById('refresh');
+    const filterHintEl = document.getElementById('filter-hint');
+    const channelSelect = document.getElementById('channel-select');
+    let lastPayload = null;
+    let catalogProducts = [];
+    let defaultByChannel = {};
 
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -248,14 +346,55 @@
       }[ch]));
     }
 
+    function selectedProductIds() {
+      if (window.ProductPicker) {
+        return ProductPicker.getSelectedIds();
+      }
+      const sel = document.getElementById('product-select');
+      if (!sel) return [];
+      return Array.from(sel.selectedOptions).map((o) => o.value).filter(Boolean);
+    }
+
+    function selectedChannel() {
+      return (channelSelect && channelSelect.value) || 'steam';
+    }
+
+    function filterPayload(payload) {
+      const ids = new Set(selectedProductIds());
+      if (!ids.size) return payload;
+      const analysis = payload.analysis || {};
+      const reports = (analysis.product_reports || []).filter((r) =>
+        ids.has(String(r.product || ''))
+      );
+      const filteredAnalysis = Object.assign({}, analysis, {
+        product_reports: reports,
+        summary: Object.assign({}, analysis.summary || {}, {
+          total_products: reports.length,
+        }),
+      });
+      if (analysis.ai_strategy && analysis.ai_strategy.peer_comparison) {
+        filteredAnalysis.ai_strategy = Object.assign({}, analysis.ai_strategy, {
+          peer_comparison: (analysis.ai_strategy.peer_comparison || []).filter((p) =>
+            ids.has(String(p.product || p.product_id || ''))
+          ),
+        });
+      }
+      return Object.assign({}, payload, { analysis: filteredAnalysis });
+    }
+
     function render(payload) {
+      lastPayload = payload;
+      payload = filterPayload(payload);
       const analysis = payload.analysis || {};
       const validation = payload.validation || {};
       const summary = analysis.summary || {};
       const strategy = analysis.ai_strategy || {};
       const reports = analysis.product_reports || [];
       const checks = validation.checks || [];
-      statusEl.textContent = `最新结果生成时间：${summary.generated_at || validation.checked_at || '未知'}`;
+      const ids = selectedProductIds();
+      const ch = selectedChannel();
+      statusEl.textContent =
+        `最新结果：${summary.generated_at || validation.checked_at || '未知'} · 已选 ${ids.length} 款产品 · 渠道 ${ch}`;
 
       if (!reports.length) {
         contentEl.innerHTML = '<div class="empty">还没有可展示的 MVP 分析结果，请点击“重新抓取”。</div>';
@@ -275,7 +414,7 @@
             <div class="game-head">
               <div>
                 <h2>${escapeHtml(report.product_name)}</h2>
-                <div class="label">Steam App ID：${escapeHtml(report.product)}</div>
+                <div class="label">产品 ID：${escapeHtml(report.product)} · ${escapeHtml(ch)}</div>
               </div>
               <span class="badge ${riskClass}">风险：${escapeHtml(report.risk_level)}</span>
             </div>
@@ -376,6 +515,60 @@
       `;
     }
 
+    function productsForChannel(channel) {
+      const ch = channel || selectedChannel();
+      const scoped = catalogProducts.filter((p) => !p.platform || p.platform === ch);
+      return scoped.length ? scoped : catalogProducts;
+    }
+
+    function channelHint(channel) {
+      const sync = '抓取成功后数据自动写入看板数据集，请前往 /dashboard 点「应用筛选」查看。';
+      const hints = {
+        steam: '「重新抓取」从 Steam 拉取真实评论；本页「应用筛选」仅过滤当前报告。' + sync,
+        taptap: 'TapTap 需 AppID 或 taptap.cn/app/数字 链接。' + sync,
+        google_play: 'Google Play 需包名（如 com.miHoYo.GenshinImpact）。' + sync,
+        app_store: 'App Store 暂不支持抓取，仅可筛选已有结果。',
+      };
+      return hints[channel] || hints.steam;
+    }
+
+    function renderProductPicker(channel) {
+      const ch = channel || selectedChannel();
+      const products = productsForChannel(ch);
+      const defaults = defaultByChannel[ch] || dataDefaultIds(ch);
+      if (window.ProductPicker) {
+        ProductPicker.render('product-picker', products, {
+          selectedIds: defaults.filter((id) => products.some((p) => p.id === id)),
+          defaultCount: Math.min(3, products.length),
+          onChange: () => {
+            if (lastPayload) render(lastPayload);
+          },
+        });
+      }
+    }
+
+    function dataDefaultIds(channel) {
+      if (channel === 'taptap') return ['168332'];
+      if (channel === 'google_play') return ['com.miHoYo.GenshinImpact'];
+      return [];
+    }
+
+    async function loadCatalog() {
+      const res = await fetch('/api/mvp/catalog');
+      if (!res.ok) throw new Error('无法加载产品列表');
+      const data = await res.json();
+      catalogProducts = data.products || [];
+      defaultByChannel = data.default_by_channel || {};
+      channelSelect.innerHTML = (data.channels || [{ id: 'steam', label: 'Steam' }])
+        .map((c) => {
+          const label = c.label + (c.crawl_supported ? '' : '（仅展示）');
+          return `<option value="${escapeHtml(c.id)}">${escapeHtml(label)}</option>`;
+        })
+        .join('');
+      renderProductPicker(selectedChannel());
+      filterHintEl.textContent = channelHint(selectedChannel());
+    }
+
     async function loadLatest() {
       const response = await fetch('/api/mvp/latest');
       if (!response.ok) throw new Error(await response.text());
@@ -383,11 +576,37 @@
     }
 
     async function refreshData() {
+      const channel = selectedChannel();
+      const crawlRoutes = {
+        steam: '/api/mvp/steam',
+        taptap: '/api/mvp/taptap',
+        google_play: '/api/mvp/google-play',
+      };
+      const route = crawlRoutes[channel];
+      if (!route) {
+        statusEl.textContent = '当前渠道暂不支持重新抓取，请切换 Steam / TapTap / Google Play。';
+        return;
+      }
+      const ids = selectedProductIds();
+      if (!ids.length) {
+        statusEl.textContent = '请至少选择一款产品';
+        return;
+      }
+      const labels = { steam: 'Steam', taptap: 'TapTap', google_play: 'Google Play' };
+      const maxReviews = Math.min(100, Math.max(5, parseInt(document.getElementById('max-reviews').value, 10) || 20));
       refreshButton.disabled = true;
-      statusEl.textContent = '正在重新抓取 Steam 真实评论并验证分析结果...';
+      statusEl.textContent = `正在从 ${labels[channel] || channel} 抓取 ${ids.length} 款产品（每款最多 ${maxReviews} 条评论）…`;
       try {
-        const response = await fetch('/api/mvp/steam?app_ids=730,570,1172470,440,252490,578080,381210,236390,1091500,1245620&max_reviews=20');
+        const params = new URLSearchParams();
+        params.set('app_ids', ids.join(','));
+        params.set('max_reviews', String(maxReviews));
+        const response = await fetch(route + '?' + params.toString());
         if (!response.ok) throw new Error(await response.text());
+        const payload = await response.json();
+        const mode = payload.data_mode === 'live' ? '真实数据' : '演示回退';
+        statusEl.innerHTML =
+          `${labels[channel]} 抓取完成（${mode}）· 数据已写入看板数据集，` +
+          '<a href="/dashboard" style="color:var(--accent);margin-left:6px;">前往看板查看 →</a>';
         await loadLatest();
       } catch (error) {
         statusEl.textContent = `刷新失败：${error.message}`;
@@ -396,11 +615,30 @@
       }
     }
 
-    refreshButton.addEventListener('click', refreshData);
-    loadLatest().catch((error) => {
-      statusEl.textContent = `读取失败：${error.message}`;
-      contentEl.innerHTML = '<div class="empty">还没有结果。点击“重新抓取”生成 MVP 展示数据。</div>';
+    document.getElementById('apply-filter').addEventListener('click', () => {
+      if (lastPayload) render(lastPayload);
+      else loadLatest().catch((e) => { statusEl.textContent = e.message; });
     });
+    channelSelect.addEventListener('change', () => {
+      const ch = selectedChannel();
+      filterHintEl.textContent = channelHint(ch);
+      renderProductPicker(ch);
+      if (lastPayload) render(lastPayload);
+    });
+    refreshButton.addEventListener('click', refreshData);
+
+    (async function init() {
+      try {
+        if (window.DataFlowGuide) {
+          DataFlowGuide.render('data-flow-guide-root', { variant: 'mvp', theme: 'light', showTable: false });
+        }
+        await loadCatalog();
+        await loadLatest();
+      } catch (error) {
+        statusEl.textContent = `读取失败：${error.message}`;
+        contentEl.innerHTML = '<div class="empty">还没有结果。选择产品后点击「重新抓取」。</div>';
+      }
+    })();
   </script>
 </body>
 </html>

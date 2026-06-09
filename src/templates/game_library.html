@@ -785,7 +785,7 @@
                 alert('需要至少 2 款产品（当前 + 对标竞品）');
                 return;
             }
-            const res = await fetch('/api/games/compare?token=' + encodeURIComponent(getToken()) + '&ids=' + encodeURIComponent(ids.join(',')));
+            const res = await api('/api/games/compare?ids=' + encodeURIComponent(ids.join(',')));
             const data = await res.json();
             const el = document.getElementById('inline-compare-result');
             if (!data.items?.length) { el.innerHTML = '<p style="color:var(--muted)">无对比数据</p>'; return; }

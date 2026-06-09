@@ -4,16 +4,18 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
-from src.auth import PLANS
-from src.data_catalog import derive_data_catalog
+from src.data_catalog import (
+    derive_data_catalog,
+    enrich_catalog_from_context,
+    restrict_catalog_to_dataset,
+)
 from src.data_resolution import (
     get_user_comments_data,
     get_user_metrics_data,
     resolve_user_data_source,
 )
-from src.deps import get_current_user
 from src.mvp_data import (
     build_mvp_report_payload,
     filter_records,
@@ -22,6 +24,7 @@ from src.mvp_data import (
 )
 from src.services.llm_client import llm_is_configured
 from src.services.llm_mvp_summary import summarize_mvp_with_llm
+from src.web_common import get_current_user
 
 router = APIRouter(tags=["data"])
 
@@ -29,8 +32,29 @@ router = APIRouter(tags=["data"])
 from src.analytics_engine import run_business_intelligence_report
 
 
+def _filter_catalog_for_user(
+    comments: List[dict],
+    metrics: List[dict],
+    username: str,
+) -> dict:
+    try:
+        from src.services.game_intel import GameLibraryRepository
+
+        if hasattr(GameLibraryRepository, "purge_noise_games"):
+            GameLibraryRepository.purge_noise_games(username=username)
+    except Exception:
+        pass
+    catalog = derive_data_catalog(comments or [], metrics or [])
+    return enrich_catalog_from_context(catalog, username=username)
+
+
+async def _resolve_user(request: Request, token: Optional[str]):
+    return await get_current_user(request, token)
+
+
 @router.get("/api/comments")
 async def get_comments(
+    request: Request,
     token: Optional[str] = Query(None),
     product: Optional[str] = Query(None),
     products: Optional[str] = Query(None),
@@ -40,10 +64,9 @@ async def get_comments(
     data_source: Optional[str] = Query(None),
     sentiment: Optional[str] = Query(None),
 ):
-    if not token:
-        raise HTTPException(status_code=401, detail="Token required")
-    current_user = await get_current_user(token)
+    current_user = await _resolve_user(request, token)
     comments = get_user_comments_data(current_user.username)
+    metrics = get_user_metrics_data(current_user.username)
     source = resolve_user_data_source(current_user.username)
     product_list = None
     raw_products = products or product_ids
@@ -59,7 +82,11 @@ async def get_comments(
         time_period=time_period,
         sentiment=sentiment,
     )
-    catalog = derive_data_catalog(comments or [], [])
+    catalog = restrict_catalog_to_dataset(
+        _filter_catalog_for_user(comments or [], metrics or [], current_user.username),
+        comments or [],
+        metrics or [],
+    )
     return {
         "success": True,
         "data": filtered_comments,
@@ -79,6 +106,7 @@ async def get_comments(
 
 @router.get("/api/metrics")
 async def get_metrics(
+    request: Request,
     token: Optional[str] = Query(None),
     product: Optional[str] = Query(None),
     products: Optional[str] = Query(None),
@@ -87,9 +115,8 @@ async def get_metrics(
     platform: Optional[str] = Query(None),
     data_source: Optional[str] = Query(None),
 ):
-    if not token:
-        raise HTTPException(status_code=401, detail="Token required")
-    current_user = await get_current_user(token)
+    current_user = await _resolve_user(request, token)
+    comments = get_user_comments_data(current_user.username)
     metrics = get_user_metrics_data(current_user.username)
     source = resolve_user_data_source(current_user.username)
     product_list = None
@@ -105,7 +132,11 @@ async def get_metrics(
         platform=platform,
         time_period=time_period,
     )
-    catalog = derive_data_catalog([], metrics or [])
+    catalog = restrict_catalog_to_dataset(
+        _filter_catalog_for_user(comments or [], metrics or [], current_user.username),
+        comments or [],
+        metrics or [],
+    )
     return {
         "success": True,
         "data": filtered_metrics,
@@ -124,6 +155,7 @@ async def get_metrics(
 
 @router.get("/api/report")
 async def get_report(
+    request: Request,
     token: Optional[str] = Query(None),
     product: Optional[str] = Query(None),
     time_period: Optional[str] = Query(None),
@@ -131,9 +163,7 @@ async def get_report(
     products: Optional[str] = Query(None),
     include_llm_summary: bool = Query(False),
 ):
-    if not token:
-        raise HTTPException(status_code=401, detail="Token required")
-    current_user = await get_current_user(token)
+    current_user = await _resolve_user(request, token)
     comments = get_user_comments_data(current_user.username)
     metrics = get_user_metrics_data(current_user.username)
     source = resolve_user_data_source(current_user.username)

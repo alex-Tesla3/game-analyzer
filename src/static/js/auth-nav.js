@@ -3,7 +3,8 @@
     async function validateToken(token) {
         if (!token) return false;
         try {
-            const res = await fetch("/api/user?token=" + encodeURIComponent(token));
+            const fetchFn = global.authFetch || fetch;
+            const res = await fetchFn("/api/user");
             return res.ok;
         } catch (_) {
             return false;

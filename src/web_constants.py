@@ -8,11 +8,7 @@ HTML_FILE = os.path.join(BASE_DIR, "templates", "index.html")
 LOGIN_FILE = os.path.join(BASE_DIR, "templates", "login.html")
 ADMIN_FILE = os.path.join(BASE_DIR, "templates", "admin.html")
 
-AVAILABLE_PRODUCTS = [
-    {"id": "game_a", "name": "游戏A - 战神传说"},
-    {"id": "game_b", "name": "游戏B - 星际争霸"},
-    {"id": "game_c", "name": "游戏C - 魔法大陆"},
-]
+AVAILABLE_PRODUCTS: list = []
 
 AVAILABLE_TIME_PERIODS = [
     {"id": "week_22", "name": "第22周"},
@@ -26,6 +22,7 @@ AVAILABLE_TIME_PERIODS = [
 AVAILABLE_DATA_SOURCES = [
     {"id": "all", "name": "全部来源"},
     {"id": "steam", "name": "Steam"},
+    {"id": "taptap", "name": "TapTap"},
     {"id": "google_play", "name": "Google Play"},
     {"id": "app_store", "name": "App Store"},
 ]

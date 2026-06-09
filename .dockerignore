@@ -1,0 +1,16 @@
+.venv
+venv
+__pycache__
+*.pyc
+.git
+.pytest_cache
+.mypy_cache
+data/*.db
+data/**/*.db-journal
+node_modules
+*.mp4
+.DS_Store
+.env
+*.md
+tests
+docs/screenshots

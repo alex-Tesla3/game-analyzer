@@ -56,6 +56,23 @@ def test_merge_llm_never_injects_raw_json():
     assert merged["sections"][0]["title"] == "商业化"
 
 
+def test_merge_llm_preserves_dimension_section():
+    base = {
+        "executive_summary": "规则摘要",
+        "sections": [
+            {"title": "对比结论", "content": "A 领先"},
+            {"title": "六维评分解读", "content": "· 原神：均分 4.2"},
+        ],
+    }
+    raw = '{"executive_summary":"AI 摘要","sections":[{"title":"机会点","content":"加强社交"}]}'
+    merged, using_llm, err = _merge_llm_into_report(base, raw)
+    assert using_llm is True
+    assert err is None
+    titles = [s["title"] for s in merged["sections"]]
+    assert "六维评分解读" in titles
+    assert merged["executive_summary"] == "AI 摘要"
+
+
 def test_merge_llm_fallback_on_unparseable():
     base = _rule_breakdown_report(
         [{"name": "CS2", "genre": "FPS"}],
@@ -77,7 +94,7 @@ async def test_breakdown_report_rejects_json_pollution(monkeypatch):
 {"executive_summary":"玩法对比结论","sections":[{"title":"差异","content":"核心循环不同"}]}
 ```"""
 
-    monkeypatch.setattr("src.services.scenario_ai.complete_prompt", fake_complete)
+    monkeypatch.setattr("src.services.scenario_ai.complete_prompt_with_retry", fake_complete)
 
     from src.services.game_intel import GameLibraryRepository
     from src.services.scenario_ai import generate_breakdown_scenario_report

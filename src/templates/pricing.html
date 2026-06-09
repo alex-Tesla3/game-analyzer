@@ -432,7 +432,45 @@
                 grid-template-columns: 1fr;
             }
         }
+        .commercial-env-banner {
+            max-width: 900px;
+            margin: 0 auto 16px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            background: rgba(245, 158, 11, 0.12);
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            font-size: 0.875rem;
+            color: #fcd34d;
+            display: none;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .commercial-env-banner-links a { color: #67e8f9; margin-left: 8px; }
+        .data-lineage-card {
+            max-width: 900px;
+            margin: 0 auto 28px;
+            padding: 18px 20px;
+            border-radius: 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .data-lineage-card h3 { color: var(--primary); margin-bottom: 10px; font-size: 1rem; }
+        .data-lineage-card table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        .data-lineage-card th, .data-lineage-card td {
+            text-align: left;
+            padding: 8px 6px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .tag-real { color: var(--success); }
+        .tag-demo { color: var(--warning); }
     </style>
+    <link rel="stylesheet" href="/static/css/commercial-banner.css">
+    <script src="/static/js/commercial-banner.js"></script>
 </head>
 <body>
     <div class="header">
@@ -444,13 +482,33 @@
     </div>
 
     <div class="container">
+        <div id="commercial-banner-slot" class="commercial-env-banner"></div>
+
         <div class="page-title">
             <h2>选择您的订阅套餐</h2>
             <p>解锁更多高级功能，提升游戏数据分析能力</p>
         </div>
 
-        <div id="demo-payment-notice" style="max-width:900px;margin:0 auto 24px;padding:14px 18px;border-radius:10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);font-size:0.875rem;color:#fcd34d;text-align:center;">
+        <div id="demo-payment-notice" style="display:none;max-width:900px;margin:0 auto 24px;padding:14px 18px;border-radius:10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);font-size:0.875rem;color:#fcd34d;text-align:center;">
             ⚠️ 演示环境：支付为模拟流程，不会产生真实扣款。订阅升级仅供产品演示与 POC 评估。
+        </div>
+
+        <div class="data-lineage-card" id="data-lineage-card">
+            <h3>📊 套餐与数据血缘</h3>
+            <p>不同套餐解锁的分析能力，对应的数据来源与可信度如下。商业结论请优先使用「真数据」行标注的来源。</p>
+            <table>
+                <thead>
+                    <tr><th>能力</th><th>数据来源</th><th>可信度</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Steam 口碑 KPI / 竞品工作台</td><td>Steam 公开商店与评论样本</td><td class="tag-real">高（真数据）</td></tr>
+                    <tr><td>TapTap / Google Play 评论</td><td>公开评论抓取</td><td class="tag-real">高（真数据）</td></tr>
+                    <tr><td>经营指标看板</td><td>用户 CSV 导入或演示 Mock</td><td>导入=高 / Mock=低</td></tr>
+                    <tr><td>高级留存 / 漏斗 / 实时曲线</td><td>模型演示曲线</td><td class="tag-demo">演示（不可直接作竞品结论）</td></tr>
+                </tbody>
+            </table>
+            <p style="margin-top:12px;"><a href="/trust" style="color:var(--primary);">完整数据说明 →</a>
+                · <a href="/import" style="color:var(--primary);">导入真实经营数据 →</a></p>
         </div>
 
         <div class="current-plan" id="currentPlan" style="display: none;">
@@ -767,6 +825,26 @@
             window.location.href = '/';
         }
 
+        async function initCommercialUi() {
+            if (window.CommercialBanner) {
+                await CommercialBanner.mount('commercial-banner-slot', { force: true });
+            }
+            try {
+                const res = await fetch('/api/commercial/status');
+                const status = await res.json();
+                if (status.success && (status.payment_mode === 'demo' || status.deploy_profile === 'development')) {
+                    const notice = document.getElementById('demo-payment-notice');
+                    if (notice) {
+                        notice.style.display = 'block';
+                        if (status.payment_message) {
+                            notice.textContent = '⚠️ ' + status.payment_message;
+                        }
+                    }
+                }
+            } catch (_) { /* ignore */ }
+        }
+
+        initCommercialUi();
         loadPlans();
         loadCurrentPlan();
         loadOrders();

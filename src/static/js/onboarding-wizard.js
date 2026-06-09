@@ -2,23 +2,25 @@
 (function (global) {
     const STORAGE_KEY = "ga_onboarding_done_v1";
 
-    const STEPS = [
-        {
-            title: "① 打开分析向导",
-            body: "输入游戏名（如 CS2）或 AppID，一键完成抓取、报告与归档。",
-            action: { label: "开始分析", href: "/guide" },
-        },
-        {
-            title: "② 导出行动清单",
-            body: "P0/P1 任务可导出 CSV / 飞书 / Jira，排进迭代 backlog。",
-            action: { label: "落地指导", href: "/work#actions" },
-        },
-        {
-            title: "③ 复测验证",
-            body: "2 周后从归档一键复测，系统自动对比口碑并更新验证状态。",
-            action: { label: "复盘归档", href: "/games/review#archives" },
-        },
-    ];
+    function defaultSteps() {
+        return [
+            {
+                title: "① 抓取真实竞品",
+                body: "向导/MVP 抓取后，评论与指标写入统一数据集（与看板共用，无需再导入）。",
+                action: { label: "分析向导", href: "/guide" },
+            },
+            {
+                title: "② 看板查看 KPI",
+                body: "返回本页，选择产品与数据来源，点击「应用筛选」查看样本量、好评率与排行。",
+                action: { label: "刷新筛选", href: "#" },
+            },
+            {
+                title: "③ 报告与落地",
+                body: "深度报告在向导/MVP；行动清单导出与复测在落地指导 / 复盘归档。",
+                action: { label: "落地指导", href: "/work#actions" },
+            },
+        ];
+    }
 
     function esc(s) {
         const d = document.createElement("div");
@@ -40,13 +42,15 @@
         } catch (_) { /* ignore */ }
     }
 
-    function render(containerId) {
+    function render(containerId, steps) {
         const el = document.getElementById(containerId);
         if (!el || isDone()) return;
+        const STEPS = steps || defaultSteps();
 
         el.innerHTML =
             '<div class="onboarding-wizard">' +
-            '<div class="onboarding-head"><h3>🚀 首次使用 · 三步开始真实竞品分析</h3>' +
+            '<div class="onboarding-head"><div><h3>🚀 操作路径 · 抓取数据自动进看板</h3>' +
+            '<p style="font-size:0.8rem;color:#94a3b8;margin:6px 0 0;line-height:1.45;">真实竞品与看板<strong>不隔离</strong>：抓取 → 统一数据集 → 本页筛选展示。展开上方「数据流说明」查看详情。</p></div>' +
             '<button type="button" class="onboarding-dismiss" id="onboarding-dismiss">不再显示</button></div>' +
             '<div class="onboarding-steps">' +
             STEPS.map(
@@ -67,24 +71,49 @@
             markDone();
             el.innerHTML = "";
         };
+        el.querySelectorAll('.onboarding-link[href="#"]').forEach((link) => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (typeof global.applyFilters === 'function') global.applyFilters();
+            });
+        });
     }
 
     async function maybeShowAfterLibraryCheck(containerId, token) {
         if (isDone() || !token) return;
         try {
-            const res = await fetch(
-                "/api/games/library?token=" + encodeURIComponent(token)
-            );
-            if (!res.ok) return;
-            const data = await res.json();
-            const steamCount = (data.games || []).filter((g) =>
+            const fetchFn = typeof authFetch !== "undefined" ? authFetch : fetch;
+            const [libRes, provRes] = await Promise.all([
+                fetchFn("/api/games/library"),
+                global.DataProvenance && global.DataProvenance.fetchProvenance
+                    ? global.DataProvenance.fetchProvenance(token)
+                    : Promise.resolve(null),
+            ]);
+            if (!libRes.ok) return;
+            const data = await libRes.json();
+            const prov = provRes && provRes.success !== false ? provRes : null;
+            const needsCrawl =
+                prov?.source === "empty" ||
+                prov?.source === "mock" ||
+                prov?.show_mock_warning;
+            const liveCount = (data.games || []).filter((g) =>
                 String(g.source || "").includes("mvp")
             ).length;
-            if (steamCount >= 3) {
+            if (liveCount >= 1 && !needsCrawl) {
                 markDone();
                 return;
             }
-            render(containerId);
+            const steps = defaultSteps();
+            if (needsCrawl) {
+                steps[0].body =
+                    "当前暂无数据。请从 Steam / TapTap / Google Play 抓取评论，写入后与看板自动同步。";
+                steps.push({
+                    title: "④ 导入经营指标（可选）",
+                    body: "DAU/收入等 Owner 数据可通过 CSV 导入，与抓取评论合并分析。",
+                    action: { label: "去导入", href: "/import" },
+                });
+            }
+            render(containerId, steps);
         } catch (_) {
             render(containerId);
         }

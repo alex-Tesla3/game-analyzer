@@ -113,7 +113,7 @@
             const token = typeof getAuthToken === 'function' ? getAuthToken() : '';
             if (!token || !(await AuthNav.validateToken(token))) return;
             try {
-                const res = await fetch('/api/user?token=' + encodeURIComponent(token));
+                const res = await (typeof authFetch === 'function' ? authFetch : fetch)('/api/user');
                 const me = await res.json();
                 const bar = document.getElementById('user-bar');
                 bar.style.display = 'block';

@@ -9,7 +9,9 @@ from typing import Any, Dict, Optional
 
 from auth import PLANS, UserInDB
 from database import OperationLogRepository, UserRepository, get_db_connection
-from src.deps import get_current_user as deps_get_current_user
+from src.deps import get_current_user, resolve_user_from_token
+
+# Re-export for routers: Depends(get_current_user) and await get_current_user(token).
 
 
 def mask_secret(value: Optional[str]) -> str:
@@ -79,5 +81,6 @@ def mark_order_paid(order: Dict[str, Any], transaction_id: str) -> Dict[str, Any
     return {"plan_id": order["plan_id"], "expires_at": expires_at}
 
 
-async def get_current_user(token: str) -> UserInDB:
-    return await deps_get_current_user(token)
+async def get_user_by_token(token: str) -> UserInDB:
+    """Alias for manual auth call sites."""
+    return await get_current_user(token)

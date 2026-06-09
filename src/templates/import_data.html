@@ -43,10 +43,14 @@
     </main>
     <script>
         function token() { return typeof getAuthToken === 'function' ? getAuthToken() : ''; }
+        function apiFetch(path, options) {
+            const fn = typeof authFetch === 'function' ? authFetch : fetch;
+            return fn(path, options || {});
+        }
         if (!token()) location.href = '/login?redirect=' + encodeURIComponent('/import');
 
         document.getElementById('btn-template').onclick = async () => {
-            const res = await fetch('/api/import/template?dataset_type=metrics&token=' + encodeURIComponent(token()));
+            const res = await apiFetch('/api/import/template?dataset_type=metrics');
             const blob = await res.blob();
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -61,7 +65,7 @@
             status.textContent = '导入中…';
             const form = new FormData();
             form.append('file', file);
-            const res = await fetch('/api/import/file?token=' + encodeURIComponent(token()) + '&dataset_type=metrics', {
+            const res = await apiFetch('/api/import/file?dataset_type=metrics', {
                 method: 'POST',
                 body: form,
             });
@@ -75,7 +79,7 @@
             }
         };
 
-        fetch('/api/import/template?dataset_type=metrics&token=' + encodeURIComponent(token()))
+        apiFetch('/api/import/template?dataset_type=metrics')
             .then(r => r.text())
             .then(t => { document.getElementById('sample-pre').textContent = t.slice(0, 800); })
             .catch(() => {});

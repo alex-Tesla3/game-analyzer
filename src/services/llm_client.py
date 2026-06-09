@@ -48,10 +48,32 @@ def refresh_llm_config_from_db() -> None:
 
 def _ollama_base_url(endpoint: str) -> str:
     base = (endpoint or "http://localhost:11434").strip().rstrip("/")
-    for suffix in ("/api/generate", "/api/chat", "/v1/chat/completions", "/v1"):
+    for suffix in ("/api/generate", "/api/chat", "/v1/chat/completions", "/v1", "/api"):
         if base.endswith(suffix):
             base = base[: -len(suffix)]
     return base.rstrip("/")
+
+
+def _ollama_error_message(response: Any, model: str, base: str) -> str:
+    """Turn Ollama HTTP errors into actionable Chinese messages."""
+    err_text = ""
+    try:
+        body = response.json()
+        err_text = str(body.get("error") or body.get("message") or "")
+    except Exception:
+        err_text = (getattr(response, "text", None) or "")[:200]
+
+    if "not found" in err_text.lower() or getattr(response, "status_code", None) == 404:
+        hint = f"模型「{model}」未在本机 Ollama 中安装。"
+        if err_text:
+            hint += f" ({err_text})"
+        hint += " 请运行 `ollama list` 查看已安装模型，或在管理页选择本地模型（如 gemma4:latest）。"
+        return hint
+
+    status = getattr(response, "status_code", "?")
+    if status == 405:
+        return f"Ollama 地址配置有误：{base}。请只填写根地址，例如 http://localhost:11434"
+    return f"Ollama 请求失败（HTTP {status}）{(': ' + err_text) if err_text else ''}"
 
 
 async def call_openai_api(prompt: str, api_key: str, model: str, endpoint: str, *, max_tokens: int = 500) -> str:
@@ -125,29 +147,49 @@ async def call_ollama_api(prompt: str, model: str, endpoint: str, *, max_tokens:
     timeout = httpx.Timeout(180.0)
 
     async with httpx.AsyncClient(timeout=timeout) as client:
+        try:
+            probe = await client.get(f"{base}/api/tags", timeout=5.0)
+            if probe.status_code != 200:
+                raise RuntimeError(
+                    f"无法连接 Ollama（{base}）。请确认已执行 `ollama serve`，地址为 http://localhost:11434"
+                )
+        except httpx.ConnectError as exc:
+            raise RuntimeError(
+                f"无法连接 Ollama（{base}）。请确认已启动 Ollama 服务（ollama serve 或打开 Ollama 应用）。"
+            ) from exc
+
         chat_payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "stream": False,
             "options": {"num_predict": max_tokens},
         }
-        try:
-            response = await client.post(chat_url, json=chat_payload)
+        generate_payload = {
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {"num_predict": max_tokens},
+        }
+
+        last_error: Optional[str] = None
+        for url, payload, extract in (
+            (chat_url, chat_payload, lambda b: (b.get("message") or {}).get("content")),
+            (generate_url, generate_payload, lambda b: b.get("response")),
+        ):
+            try:
+                response = await client.post(url, json=payload)
+            except httpx.HTTPError as exc:
+                last_error = str(exc)
+                continue
             if response.status_code == 200:
-                body = response.json()
-                message = body.get("message") or {}
-                content = message.get("content")
+                content = extract(response.json())
                 if content:
                     return content
-        except Exception as exc:
-            print(f"Ollama chat API fallback to generate: {exc}")
+            if response.status_code in (404, 400):
+                raise RuntimeError(_ollama_error_message(response, model, base))
+            last_error = _ollama_error_message(response, model, base)
 
-        response = await client.post(
-            generate_url,
-            json={"model": model, "prompt": prompt, "stream": False, "options": {"num_predict": max_tokens}},
-        )
-        response.raise_for_status()
-        return response.json().get("response", "")
+        raise RuntimeError(last_error or f"Ollama 无有效响应（{base}）")
 
 
 async def _complete_prompt_inner(prompt: str, *, max_tokens: int = 500) -> str:
@@ -174,6 +216,32 @@ async def complete_prompt(prompt: str, *, max_tokens: int = 500, timeout: Option
         return await asyncio.wait_for(_complete_prompt_inner(prompt, max_tokens=max_tokens), timeout=limit)
     except asyncio.TimeoutError as exc:
         raise RuntimeError(f"LLM 请求超时（{int(limit)} 秒），已回退规则引擎") from exc
+
+
+async def complete_prompt_with_retry(
+    prompt: str,
+    *,
+    max_tokens: int = 500,
+    timeout: Optional[float] = None,
+    retries: int = 1,
+) -> str:
+    """Call LLM with one or more retries on transport/timeout failures."""
+    last_exc: Optional[Exception] = None
+    for attempt in range(retries + 1):
+        try:
+            suffix = ""
+            if attempt > 0:
+                suffix = (
+                    "\n\n重要：仅输出一个合法 JSON 对象，不要用 Markdown 代码块，不要附加说明文字。"
+                )
+            return await complete_prompt(prompt + suffix, max_tokens=max_tokens, timeout=timeout)
+        except RuntimeError as exc:
+            last_exc = exc
+            if attempt >= retries:
+                raise
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("LLM 请求失败")
 
 
 async def llm_is_reachable() -> bool:

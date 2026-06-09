@@ -54,7 +54,8 @@ def get_mvp_analysis(output_dir: Optional[str] = None) -> Optional[Dict[str, Any
 def get_mvp_comments_and_metrics(
     output_dir: Optional[str] = None,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
-    dataset = get_mvp_dataset(output_dir)
+    """Load crawled comments/metrics for dashboard — does not require validation to pass."""
+    dataset = load_mvp_artifact("dataset", output_dir)
     if not dataset:
         return [], [], None
     comments = list(dataset.get("comments") or [])

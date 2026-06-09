@@ -73,6 +73,10 @@
     <script src="/static/js/auth-token.js"></script>
     <script>
         function token() { return typeof getAuthToken === 'function' ? getAuthToken() : ''; }
+        function apiFetch(path, options) {
+            const fn = typeof authFetch === 'function' ? authFetch : fetch;
+            return fn(path, options || {});
+        }
         if (!token()) location.href = '/login?redirect=' + encodeURIComponent('/team');
 
         let teams = [];
@@ -114,7 +118,7 @@
 
         async function loadTeams(options) {
             const opts = options || {};
-            const res = await fetch('/api/teams?token=' + encodeURIComponent(token()));
+            const res = await apiFetch('/api/teams');
             let data = {};
             try { data = await res.json(); } catch (_) {}
             if (!res.ok || data.success === false) {
@@ -138,8 +142,8 @@
             detail.innerHTML = '<p class="hint">加载中…</p>';
             try {
                 const [membersRes, archivesRes] = await Promise.all([
-                    fetch('/api/teams/' + teamId + '/members?token=' + encodeURIComponent(token())),
-                    fetch('/api/teams/' + teamId + '/archives?token=' + encodeURIComponent(token())),
+                    apiFetch('/api/teams/' + teamId + '/members'),
+                    apiFetch('/api/teams/' + teamId + '/archives'),
                 ]);
                 if (requestId !== detailRequestId) return;
                 const membersData = await membersRes.json().catch(() => ({}));
@@ -183,7 +187,7 @@
         async function inviteMember(teamId) {
             const username = document.getElementById('invite-username')?.value?.trim();
             if (!username) { alert('请输入用户名'); return; }
-            const res = await fetch('/api/teams/' + teamId + '/members?token=' + encodeURIComponent(token()), {
+            const res = await apiFetch('/api/teams/' + teamId + '/members', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, role: 'member' }),
@@ -199,7 +203,7 @@
         async function createTeam() {
             const name = document.getElementById('new-team-name').value.trim();
             if (!name) return;
-            const res = await fetch('/api/teams?token=' + encodeURIComponent(token()), {
+            const res = await apiFetch('/api/teams', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name }),

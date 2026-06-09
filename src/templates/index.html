@@ -12,12 +12,17 @@
     <script src="/static/js/auth-token.js"></script>
     <script src="/static/js/data-provenance.js"></script>
     <script src="/static/js/dashboard-governance.js"></script>
+    <script src="/static/js/data-flow-guide.js"></script>
     <script src="/static/js/onboarding-wizard.js"></script>
     <script src="/static/js/analysis-guide.js"></script>
     <script src="/static/js/speech-input.js"></script>
     <script src="/static/js/account-display.js" defer></script>
+    <script src="/static/js/admin-menu.js" defer></script>
     <script src="/static/js/app-nav.js" defer></script>
     <script src="/static/js/dashboard-filters.js"></script>
+    <script src="/static/js/dashboard-filter-views.js"></script>
+    <link rel="stylesheet" href="/static/css/commercial-banner.css">
+    <script src="/static/js/commercial-banner.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
@@ -1106,7 +1111,7 @@
         </div>
         <div class="sidebar-right">
             <span class="account-badge" data-account-badge title="当前登录账号">…</span>
-            <button class="btn btn-icon" id="config-toggle" title="配置管理">
+            <button class="btn btn-icon" id="config-toggle" title="数据源/API 配置（非 LLM）">
                 ⚙️
             </button>
             <button class="btn btn-primary" onclick="performAIAnalysis()">
@@ -1136,6 +1141,7 @@
     </div>
 
     <div class="container">
+        <div id="commercial-banner-slot" style="display:none;margin-bottom:12px;"></div>
         <div class="header">
             <h1 class="header-title">Game BI Dashboard</h1>
             <p class="header-subtitle">游戏数据分析平台 - 实时监控、智能分析、业务洞察</p>
@@ -1167,11 +1173,13 @@
         </div>
 
         <div class="filter-bar">
+            <p class="filter-label" style="grid-column:1/-1;margin:0 0 4px;font-size:0.8rem;color:#86868b;line-height:1.5;">
+                看板读取与抓取相同的数据集：先在 <a href="/guide">分析向导</a> 或 <a href="/mvp">MVP</a> 抓取，再于此筛选查看（展开上方「数据流说明」）
+            </p>
             <div class="filter-group">
                 <label class="filter-label">产品选择</label>
                 <select id="product-select" class="filter-select" multiple size="4">
-                    <option value="730" selected>Counter-Strike 2</option>
-                    <option value="570" selected>Dota 2</option>
+                    <option value="" disabled selected>加载产品列表…</option>
                 </select>
             </div>
             <div class="filter-group">
@@ -1194,13 +1202,26 @@
                 <select id="data-source-select" class="filter-select">
                     <option value="all">全部来源</option>
                     <option value="steam">Steam</option>
+                    <option value="taptap">TapTap</option>
                     <option value="google_play">Google Play</option>
                     <option value="app_store">App Store</option>
                 </select>
             </div>
-            <div style="display: flex; gap: 10px; align-items: flex-end;">
+            <div class="filter-group">
+                <label class="filter-label">已保存视图</label>
+                <select id="filter-views-select" class="filter-select" style="min-width:160px;">
+                    <option value="">已保存的视图…</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
                 <button class="btn btn-primary" id="apply-filters-btn" onclick="applyFilters()">
                     🔍 应用筛选
+                </button>
+                <button class="btn btn-secondary" id="save-filter-view-btn" type="button" title="保存当前产品/周期/来源组合">
+                    💾 保存视图
+                </button>
+                <button class="btn btn-secondary" id="delete-filter-view-btn" type="button" title="删除选中的已保存视图">
+                    🗑️
                 </button>
                 <button class="btn btn-secondary" onclick="resetFilters()">
                     ↻ 重置
@@ -1210,44 +1231,17 @@
         </div>
 
         <div id="data-provenance-banner"></div>
+        <div id="data-flow-guide-root"></div>
         <div id="onboarding-wizard-root"></div>
 
         <div class="kpi-grid" id="kpi-grid">
-            <div class="kpi-card health-green">
-                <div class="health-badge green">健康</div>
-                <div class="kpi-header">
-                    <div class="kpi-title">总下载量</div>
-                    <div class="kpi-icon">📱</div>
+            <div class="kpi-card" style="grid-column: 1 / -1; text-align: center; padding: 28px;">
+                <div style="font-size: 1rem; color: #64748b; margin-bottom: 8px;">看板数据来自抓取或导入</div>
+                <div style="font-size: 0.875rem; color: #94a3b8; margin-bottom: 12px;">抓取结果会自动同步到本看板，无需单独导入</div>
+                <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                    <a href="/guide" class="btn btn-primary" style="text-decoration:none;">🚀 分析向导</a>
+                    <a href="/mvp" class="btn btn-secondary" style="text-decoration:none;">MVP 抓取</a>
                 </div>
-                <div class="kpi-value">146K</div>
-                <span class="kpi-change up">▲ 3个产品</span>
-            </div>
-            <div class="kpi-card health-yellow">
-                <div class="health-badge yellow">关注</div>
-                <div class="kpi-header">
-                    <div class="kpi-title">平均ARPPU</div>
-                    <div class="kpi-icon">💵</div>
-                </div>
-                <div class="kpi-value">¥15.6</div>
-                <span class="kpi-change down">▼ 产品差异大</span>
-            </div>
-            <div class="kpi-card health-green">
-                <div class="health-badge green">健康</div>
-                <div class="kpi-header">
-                    <div class="kpi-title">7日留存率</div>
-                    <div class="kpi-icon">❤️</div>
-                </div>
-                <div class="kpi-value">36.8%</div>
-                <span class="kpi-change up">▲ 3个产品</span>
-            </div>
-            <div class="kpi-card health-red">
-                <div class="health-badge red">⚠ 预警</div>
-                <div class="kpi-header">
-                    <div class="kpi-title">DAU / MAU</div>
-                    <div class="kpi-icon">📈</div>
-                </div>
-                <div class="kpi-value">8.2%</div>
-                <span class="kpi-change down">▼ 15.2%</span>
             </div>
         </div>
 
@@ -2178,6 +2172,7 @@
         function normalizePlatformName(raw) {
             const s = String(raw || '').toLowerCase().replace(/_/g, ' ');
             if (s.includes('steam')) return 'Steam';
+            if (s.includes('taptap')) return 'TapTap';
             if (s.includes('google')) return 'Google Play';
             if (s.includes('app store') || s === 'appstore' || s === 'ios') return 'App Store';
             return raw || '其他';
@@ -2232,7 +2227,7 @@
         }
 
         function buildPlatformRankings(metrics) {
-            const platformOrder = ['Steam', 'Google Play', 'App Store'];
+            const platformOrder = ['Steam', 'TapTap', 'Google Play', 'App Store'];
             const buckets = {};
             platformOrder.forEach(p => { buckets[p] = {}; });
 
@@ -2286,7 +2281,7 @@
 
             const rankingMetrics = filterMetricsByPeriodAndSource(metrics || allMetricsData || []);
             const rankings = buildPlatformRankings(rankingMetrics);
-            const platforms = ['Steam', 'Google Play', 'App Store'];
+            const platforms = ['Steam', 'TapTap', 'Google Play', 'App Store'];
 
             grid.innerHTML = platforms.map(platform => {
                 const list = rankings[platform] || [];
@@ -2332,7 +2327,7 @@
                 const c = m.channel || m.platform || m.平台;
                 if (c) channels.add(c);
             });
-            const preferred = ['Steam', 'Google Play', 'App Store'];
+            const preferred = ['Steam', 'TapTap', 'Google Play', 'App Store'];
             const list = Array.from(channels);
             if (!list.length) return preferred.slice();
             return list.sort((a, b) => {
@@ -2376,7 +2371,7 @@
             const token = getToken();
             if (!token) return;
             try {
-                const response = await fetch(`/api/options?token=${encodeURIComponent(token)}`);
+                const response = await authFetch(`/api/options`);
                 if (!response.ok) return;
                 const result = await response.json();
                 if (result.success) {
@@ -2480,7 +2475,8 @@
         function checkAuth() {
             const token = getToken();
             if (!token) {
-                window.location.href = '/login';
+                const dest = '/login?redirect=' + encodeURIComponent('/dashboard');
+                window.location.replace(dest);
                 return false;
             }
             return true;
@@ -2753,7 +2749,7 @@
             const compare = productInfo.compareMode ? 'true' : 'false';
             
             try {
-                const response = await fetch(`/api/advanced/dashboard?token=${encodeURIComponent(token)}&product_ids=${encodeURIComponent(productIds)}&compare_mode=${compare}`);
+                const response = await authFetch(`/api/advanced/dashboard?product_ids=${encodeURIComponent(productIds)}&compare_mode=${compare}`);
                 if (!response.ok) {
                     showAdvancedLoadError('高级分析加载失败 (' + response.status + ')');
                     return;
@@ -3045,7 +3041,7 @@
             const compare = productInfo?.compareMode ? 'true' : 'false';
             
             try {
-                const response = await fetch(`/api/advanced/journey?token=${token}&product_ids=${productIds}&compare_mode=${compare}`);
+                const response = await authFetch(`/api/advanced/journey?product_ids=${productIds}&compare_mode=${compare}`);
                 const result = await response.json();
                 if (result.success) {
                     if (result.compare_mode) {
@@ -3229,7 +3225,7 @@
             const compare = productInfo?.compareMode ? 'true' : 'false';
             
             try {
-                const response = await fetch(`/api/advanced/funnel?token=${token}&product_ids=${productIds}&compare_mode=${compare}`);
+                const response = await authFetch(`/api/advanced/funnel?product_ids=${productIds}&compare_mode=${compare}`);
                 const result = await response.json();
                 if (result.success) {
                     if (result.compare_mode) {
@@ -3402,7 +3398,7 @@
             const compare = productInfo?.compareMode ? 'true' : 'false';
             
             try {
-                const response = await fetch(`/api/advanced/cohort?token=${token}&product_ids=${productIds}&compare_mode=${compare}`);
+                const response = await authFetch(`/api/advanced/cohort?product_ids=${productIds}&compare_mode=${compare}`);
                 const result = await response.json();
                 if (result.success) {
                     if (result.compare_mode) {
@@ -3662,7 +3658,7 @@
             const productIds = productInfo?.products?.join(',') || '';
             const compare = productInfo?.compareMode ? 'true' : 'false';
             try {
-                const response = await fetch(`/api/advanced/anomaly?token=${token}&product_ids=${productIds}&compare_mode=${compare}`);
+                const response = await authFetch(`/api/advanced/anomaly?product_ids=${productIds}&compare_mode=${compare}`);
                 const result = await response.json();
                 if (result.success) {
                     if (result.compare_mode) {
@@ -3811,7 +3807,7 @@
             try {
                 container.innerHTML = '<div style="color: #38bdf8;">正在检测...</div>';
                 
-                const response = await fetch(`/api/advanced/anomaly/test?token=${token}`, {
+                const response = await authFetch(`/api/advanced/anomaly/test`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -3887,7 +3883,7 @@
             const productIds = productInfo?.products?.join(',') || '';
             const compare = productInfo?.compareMode ? 'true' : 'false';
             try {
-                const response = await fetch(`/api/predictive/dashboard?token=${token}&product_ids=${productIds}&compare_mode=${compare}`);
+                const response = await authFetch(`/api/predictive/dashboard?product_ids=${productIds}&compare_mode=${compare}`);
                 const result = await response.json();
                 
                 if (result.success) {
@@ -4194,7 +4190,7 @@
             const token = getToken();
             
             try {
-                const response = await fetch(`/api/reports/send?token=${token}&report_type=daily&product_ids=${productIds}&to_email=${email}`, {
+                const response = await authFetch(`/api/reports/send?report_type=daily&product_ids=${productIds}&to_email=${email}`, {
                     method: 'POST'
                 });
                 const result = await response.json();
@@ -4355,7 +4351,7 @@
             };
             
             try {
-                const response = await fetch(`/api/abtest/experiments?token=${token}&name=${encodeURIComponent(name)}&description=${encodeURIComponent(description)}&traffic_allocation=${trafficAllocation}`, {
+                const response = await authFetch(`/api/abtest/experiments?name=${encodeURIComponent(name)}&description=${encodeURIComponent(description)}&traffic_allocation=${trafficAllocation}`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({filters, targeting})
@@ -4383,7 +4379,7 @@
             }
             
             try {
-                const response = await fetch(`/api/abtest/experiments/${experimentId}/results?token=${token}`);
+                const response = await authFetch(`/api/abtest/experiments/${experimentId}/results`);
                 
                 if (!response.ok) {
                     throw new Error('网络请求失败');
@@ -4540,7 +4536,7 @@
             const token = getToken();
             
             try {
-                const response = await fetch(`/api/abtest/experiments/${experimentId}?token=${token}&end_date=${new Date().toISOString().split('T')[0]}`, {
+                const response = await authFetch(`/api/abtest/experiments/${experimentId}?end_date=${new Date().toISOString().split('T')[0]}`, {
                     method: 'PUT'
                 });
                 const result = await response.json();
@@ -4560,7 +4556,7 @@
             const token = getToken();
             
             try {
-                const response = await fetch(`/api/abtest/experiments/${experimentId}?token=${token}`, {
+                const response = await authFetch(`/api/abtest/experiments/${experimentId}`, {
                     method: 'DELETE'
                 });
                 const result = await response.json();
@@ -4580,12 +4576,12 @@
             'game_c': { type: 'green', title: '保持强劲增长', desc: '各指标表现优秀，可考虑增加新内容和活动' }
         };
 
-        let dataSources = ['steam', 'google_play', 'app_store'];
+        let dataSources = ['steam', 'taptap', 'google_play', 'app_store'];
 
         async function exportCSV() {
             const productSelect = document.getElementById('product-select');
             const currentProducts = Array.from(productSelect.selectedOptions).map(o => o.value);
-            const effectiveProducts = currentProducts.length > 0 ? currentProducts : ['game_a', 'game_b', 'game_c'];
+            const effectiveProducts = currentProducts.length > 0 ? currentProducts : [];
             
             const params = new URLSearchParams();
             params.set('token', getToken());
@@ -4614,7 +4610,7 @@
         async function exportExcel() {
             const productSelect = document.getElementById('product-select');
             const currentProducts = Array.from(productSelect.selectedOptions).map(o => o.value);
-            const effectiveProducts = currentProducts.length > 0 ? currentProducts : ['game_a', 'game_b', 'game_c'];
+            const effectiveProducts = currentProducts.length > 0 ? currentProducts : [];
             
             const params = new URLSearchParams();
             params.set('token', getToken());
@@ -4654,8 +4650,8 @@
                 if (kpiGrid) {
                     kpiGrid.innerHTML = `
                         <div class="kpi-card" style="grid-column: 1 / -1; text-align: center; padding: 28px;">
-                            <div style="font-size: 1rem; color: #64748b; margin-bottom: 8px;">当前筛选条件下暂无指标数据</div>
-                            <div style="font-size: 0.875rem; color: #94a3b8;">请调整产品、时间周期或数据来源后重试</div>
+                            <div style="font-size: 1rem; color: #64748b; margin-bottom: 8px;">当前暂无指标数据</div>
+                            <div style="font-size: 0.875rem; color: #94a3b8; margin-bottom: 12px;">请先 <a href="/guide">抓取竞品</a> 或 <a href="/import">导入数据</a>，再返回看板应用筛选</div>
                         </div>`;
                 }
                 return;
@@ -4690,12 +4686,15 @@
             const avgDauMau = dauMauCount > 0 ? (totalDauMau / dauMauCount).toFixed(1) : '—';
             const retentionHealth = retentionCount === 0 ? 'yellow' : (parseFloat(avgRetention) >= 35 ? 'green' : parseFloat(avgRetention) >= 30 ? 'yellow' : 'red');
             const dauMauHealth = dauMauCount === 0 ? 'yellow' : (parseFloat(avgDauMau) >= 12 ? 'green' : parseFloat(avgDauMau) >= 8 ? 'yellow' : 'red');
+            const crawlSource = /^(mvp_|taptap_public|google_play_public)/.test((window.dataProvenance || {}).source || '');
+            const kpiScaleTitle = crawlSource ? '评论样本总量' : '总下载量';
+            const kpiRateTitle = crawlSource ? '样本好评率' : '7日留存率';
             if (kpiGrid) {
                 kpiGrid.classList.toggle('demo-metrics', window.dataProvenance?.source === 'mock');
                 kpiGrid.innerHTML = `
                 <div class="kpi-card health-green">
                     <div class="health-badge green">健康</div>
-                    <div class="kpi-header"><div class="kpi-title">总下载量</div><div class="kpi-icon">📱</div></div>
+                    <div class="kpi-header"><div class="kpi-title">${kpiScaleTitle}</div><div class="kpi-icon">📱</div></div>
                     <div class="kpi-value">${formatNumber(Math.round(totalDownloads))}</div>
                     <span class="kpi-change up">▲ ${products.length}个产品</span>
                 </div>
@@ -4707,7 +4706,7 @@
                 </div>
                 <div class="kpi-card health-${retentionHealth}">
                     <div class="health-badge ${retentionHealth}">${retentionHealth === 'green' ? '健康' : retentionHealth === 'yellow' ? '关注' : '⚠ 预警'}</div>
-                    <div class="kpi-header"><div class="kpi-title">7日留存率</div><div class="kpi-icon">❤️</div></div>
+                    <div class="kpi-header"><div class="kpi-title">${kpiRateTitle}</div><div class="kpi-icon">❤️</div></div>
                     <div class="kpi-value">${avgRetention === '—' ? '—' : avgRetention + '%'}</div>
                     <span class="kpi-change up">▲ ${products.length}个产品平均</span>
                 </div>
@@ -4931,7 +4930,7 @@
                 const currentProducts = Array.from(productSelect.selectedOptions).map(o => o.value);
                 const effectiveProducts = currentProducts.length > 0
                     ? currentProducts
-                    : (selectedProducts && selectedProducts.length ? selectedProducts : ['game_a', 'game_b', 'game_c']);
+                    : (selectedProducts && selectedProducts.length ? selectedProducts : []);
                 
                 const params = new URLSearchParams();
                 params.set('token', token);
@@ -5176,7 +5175,7 @@ ${data.summary || ''}
         async function loadSavedDashboard(dashboardId) {
             const token = getToken();
             try {
-                const response = await fetch(`/api/dashboard/${dashboardId}?token=${token}`);
+                const response = await authFetch(`/api/dashboard/${dashboardId}`);
                 const result = await response.json();
                 
                 if (result.success) {
@@ -5239,7 +5238,7 @@ ${data.summary || ''}
         async function loadSavedDashboards() {
             const token = getToken();
             try {
-                const response = await fetch(`/api/dashboard/list?token=${token}`);
+                const response = await authFetch(`/api/dashboard/list`);
                 const result = await response.json();
                 
                 const listEl = document.getElementById('saved-dashboards-list');
@@ -5269,7 +5268,7 @@ ${data.summary || ''}
             
             const token = getToken();
             try {
-                const response = await fetch(`/api/dashboard/${dashboardId}?token=${token}`, { method: 'DELETE' });
+                const response = await authFetch(`/api/dashboard/${dashboardId}`, { method: 'DELETE' });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -5333,7 +5332,7 @@ ${data.summary || ''}
         async function loadSharedReports() {
             const token = getToken();
             try {
-                const response = await fetch(`/api/report/history?token=${token}`);
+                const response = await authFetch(`/api/report/history`);
                 const result = await response.json();
                 
                 const listEl = document.getElementById('shared-reports-list');
@@ -5411,7 +5410,7 @@ ${data.summary || ''}
             if (!token) return;
 
             try {
-                const response = await fetch('/api/data/config/status?token=' + token);
+                const response = await authFetch('/api/data/config/status');
                 if (!response.ok) {
                     console.log('Data config status API not available, skipping');
                     return;
@@ -5546,7 +5545,7 @@ ${data.summary || ''}
             
             const token = getToken();
             try {
-                const response = await fetch(`/api/alerts?token=${token}`);
+                const response = await authFetch(`/api/alerts`);
                 const result = await response.json();
                 if (result.success) {
                     renderAlerts(result.alerts);
@@ -5622,7 +5621,7 @@ ${data.summary || ''}
             }
             
             try {
-                const response = await fetch(`/api/alerts?token=${token}`, {
+                const response = await authFetch(`/api/alerts`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(alertData)
@@ -5649,7 +5648,7 @@ ${data.summary || ''}
             
             const token = getToken();
             try {
-                const response = await fetch(`/api/alerts/${alertId}?token=${token}`, {
+                const response = await authFetch(`/api/alerts/${alertId}`, {
                     method: 'DELETE'
                 });
                 
@@ -5675,7 +5674,7 @@ ${data.summary || ''}
             
             const token = getToken();
             try {
-                const response = await fetch(`/api/alerts/test?token=${token}`, {
+                const response = await authFetch(`/api/alerts/test`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: email })
@@ -5696,7 +5695,7 @@ ${data.summary || ''}
             const list = document.getElementById('new-products-list');
             list.innerHTML = '<div style="color:#64748b;padding:20px;text-align:center;">⏳ 正在从平台采集新品...</div>';
             try {
-                const response = await fetch(`/api/discover_new?token=${token}`);
+                const response = await authFetch(`/api/discover_new`);
                 if (response.status === 401) {
                     if (typeof clearAuthToken === 'function') clearAuthToken();
                 else localStorage.removeItem('access_token');
@@ -5751,20 +5750,8 @@ ${data.summary || ''}
         }
 
         async function checkAdminRole() {
-            const token = getToken();
-            try {
-                const user = typeof initAccountDisplay === 'function'
-                    ? await initAccountDisplay()
-                    : null;
-                const profile = user || (await (async () => {
-                    const response = await fetch(`/api/user?token=${token}`);
-                    return response.ok ? await response.json() : null;
-                })());
-                if (profile && profile.role === 'admin') {
-                    document.getElementById('admin-nav').style.display = 'flex';
-                }
-            } catch (e) {
-                console.error('Failed to check admin role:', e);
+            if (typeof AdminMenu !== 'undefined' && AdminMenu.apply) {
+                await AdminMenu.apply();
             }
         }
 
@@ -5773,7 +5760,7 @@ ${data.summary || ''}
         function openChatModal() {
             const productSelect = document.getElementById('product-select');
             const currentProducts = Array.from(productSelect.selectedOptions).map(o => o.value);
-            const effectiveProducts = currentProducts.length > 0 ? currentProducts : ['game_a', 'game_b', 'game_c'];
+            const effectiveProducts = currentProducts.length > 0 ? currentProducts : [];
             
             const productNames = {
                 'game_a': '游戏A - 战神传说',
@@ -5800,7 +5787,7 @@ ${data.summary || ''}
         async function loadChatHistory() {
             const token = getToken();
             try {
-                const response = await fetch(`/api/conversation/history?conversation_id=${chatConversationId}&token=${token}`);
+                const response = await authFetch(`/api/conversation/history?conversation_id=${chatConversationId}`);
                 const result = await response.json();
                 if (result.success && result.history) {
                     renderChatMessages(result.history);
@@ -5916,14 +5903,19 @@ ${data.summary || ''}
             if (window.AnalysisGuide) {
                 AnalysisGuide.renderHomeGuide('analysis-guide-root');
             }
+            if (window.DataFlowGuide) {
+                DataFlowGuide.render('data-flow-guide-root', { variant: 'dashboard', theme: 'light' });
+            }
             if (window.OnboardingWizard) {
-                const t = localStorage.getItem('access_token') || '';
+                const t = getToken() || '';
                 OnboardingWizard.maybeShowAfterLibraryCheck('onboarding-wizard-root', t);
             }
             if (location.hash === '#analysis-guide') {
                 setTimeout(() => goAnalysisGuide(), 400);
             }
             await loadFilterOptions();
+            if (window.DashboardFilterViews) DashboardFilterViews.mountControls();
+            if (window.CommercialBanner) CommercialBanner.mount('commercial-banner-slot');
             await loadData();
             renderDataSources();
             renderProductList();
@@ -6531,7 +6523,7 @@ ${data.summary || ''}
             const message = document.getElementById('support-chat-input').value.trim()
                 || '用户申请转人工客服';
             try {
-                const response = await fetch(`/api/support/chat/escalate?token=${token}`, {
+                const response = await authFetch(`/api/support/chat/escalate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ chat_id: chatId, message })

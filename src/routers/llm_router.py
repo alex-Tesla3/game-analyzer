@@ -156,7 +156,28 @@ async def test_llm_connection(request: Request, token: Optional[str] = Query(Non
         api_key = LLM_CONFIG.get("api_key", "")
     if provider == "ollama" and not endpoint:
         endpoint = "http://localhost:11434"
-    
+
+    if provider == "ollama":
+        local_models = await get_local_ollama_models(endpoint)
+        if not local_models:
+            return {
+                "success": False,
+                "message": (
+                    f"无法连接 Ollama（{endpoint}）。请确认服务已启动，"
+                    "地址填写 http://localhost:11434（不要带 /api/generate）。"
+                ),
+            }
+        if model not in local_models:
+            sample = "、".join(local_models[:3])
+            return {
+                "success": False,
+                "message": (
+                    f"模型「{model}」未在本机安装。已检测到：{sample}"
+                    f"{' 等' if len(local_models) > 3 else ''}。"
+                    "请在下方模型下拉框选择已安装模型后重试。"
+                ),
+            }
+
     test_prompt = "请回复'连接测试成功'，只需要回复这四个字。"
     
     try:

@@ -15,8 +15,15 @@ from src.mvp_pipeline import (
     analyze_actual_steam_data,
     validate_analysis,
 )
+from src.services.platform_crawl_utils import (
+    allow_demo_fallback,
+    extract_taptap_app_id,
+    parse_taptap_review_row,
+    taptap_params,
+)
 
 _TAPTAP_ID_RE = re.compile(r"^\d{4,12}$")
+_TAPTAP_BASE = os.getenv("TAPTAP_API_BASE", "https://www.taptap.cn/webapiv2").rstrip("/")
 
 _TAPTAP_ALIASES: Dict[str, str] = {
     "原神": "168332",
@@ -26,6 +33,16 @@ _TAPTAP_ALIASES: Dict[str, str] = {
     "honor of kings": "23167",
     "和平精英": "70056",
     "pubg mobile": "70056",
+    "崩坏星穹铁道": "170608",
+    "星穹铁道": "170608",
+    "honkai star rail": "170608",
+    "绝区零": "234280",
+    "zenless zone zero": "234280",
+    "明日方舟": "70253",
+    "arknights": "70253",
+    "阴阳师": "124047",
+    "英雄联盟手游": "58881",
+    "lolm": "58881",
 }
 
 _DEMO_GAMES: Dict[str, str] = {
@@ -40,60 +57,77 @@ class TapTapCrawlerError(RuntimeError):
 
 
 class TapTapPublicCrawler:
-    """TapTap store search + review sample (falls back to offline demo for known IDs)."""
-
-    SEARCH_URL = "https://www.taptap.cn/webapiv2/search/v4/agg"
-    REVIEW_URL = "https://www.taptap.cn/webapiv2/review/v2/list-by-app"
+    """TapTap webapiv2 — live crawl with optional demo fallback."""
 
     def __init__(self, timeout: int = 20, session: Optional[requests.Session] = None):
         self.timeout = timeout
         self.session = session or requests.Session()
         self.session.headers.update(
             {
-                "User-Agent": "GameAnalyzer/1.0",
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                ),
                 "Accept": "application/json",
                 "Accept-Language": "zh-CN,zh;q=0.9",
+                "Referer": "https://www.taptap.cn/",
             }
         )
+
+    def _get_json(self, path: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        url = f"{_TAPTAP_BASE}/{path.lstrip('/')}"
+        response = self.session.get(
+            url,
+            params=taptap_params(params),
+            timeout=self.timeout,
+        )
+        if response.status_code != 200:
+            raise TapTapCrawlerError(f"TapTap HTTP {response.status_code} for {path}")
+        payload = response.json()
+        if payload.get("success") is False:
+            err = (payload.get("data") or {}).get("msg") or payload.get("error") or "unknown"
+            raise TapTapCrawlerError(f"TapTap API error: {err}")
+        return payload
 
     def search(self, term: str, *, limit: int = 8) -> List[Dict[str, Any]]:
         query = (term or "").strip()
         if len(query) < 2:
             return []
+
+        app_from_url = extract_taptap_app_id(query)
+        if app_from_url:
+            detail = self._fetch_game(app_from_url)
+            return [
+                {
+                    "app_id": app_from_url,
+                    "name": detail.get("name") or app_from_url,
+                    "type": "app",
+                }
+            ]
+
         alias = _TAPTAP_ALIASES.get(query.lower())
         if alias:
-            return [{"app_id": alias, "name": _DEMO_GAMES.get(alias, query), "type": "app"}]
-        try:
-            response = self.session.get(
-                self.SEARCH_URL,
-                params={"q": query, "limit": min(limit, 10), "types": "app"},
-                timeout=self.timeout,
-            )
-            if response.status_code != 200:
-                return []
-            payload = response.json()
-            items = []
-            for block in payload.get("data", {}).get("list") or payload.get("data") or []:
-                if isinstance(block, dict) and block.get("type") == "app":
-                    app = block.get("app") or block
-                    app_id = str(app.get("id") or app.get("app_id") or "")
-                    if app_id:
-                        items.append(
-                            {
-                                "app_id": app_id,
-                                "name": app.get("title") or app.get("name") or app_id,
-                                "type": "app",
-                            }
-                        )
-            return items[:limit]
-        except Exception:
-            return []
+            return [
+                {
+                    "app_id": alias,
+                    "name": _DEMO_GAMES.get(alias, query),
+                    "type": "app",
+                }
+            ]
+
+        if _TAPTAP_ID_RE.match(query.replace("taptap_", "", 1)):
+            bare = query.replace("taptap_", "", 1)
+            detail = self._fetch_game(bare)
+            return [{"app_id": bare, "name": detail.get("name") or bare, "type": "app"}]
+
+        return []
 
     def crawl(self, app_ids: Sequence[str], max_reviews_per_app: int = 30) -> Dict[str, Any]:
         comments: List[Dict[str, Any]] = []
         metrics: List[Dict[str, Any]] = []
         games: List[Dict[str, Any]] = []
         errors: List[Dict[str, str]] = []
+        used_demo = False
 
         for raw_id in app_ids:
             app_id = str(raw_id).strip().replace("taptap_", "")
@@ -101,7 +135,8 @@ class TapTapPublicCrawler:
                 continue
             try:
                 game = self._fetch_game(app_id)
-                reviews = self._fetch_reviews(app_id, max_reviews_per_app)
+                reviews, demo = self._fetch_reviews(app_id, max_reviews_per_app)
+                used_demo = used_demo or demo
                 games.append(game)
                 comments.extend(self._normalize_reviews(app_id, game["name"], reviews))
                 metrics.extend(self._build_metrics(app_id, game, reviews))
@@ -113,6 +148,7 @@ class TapTapPublicCrawler:
 
         return {
             "source": "taptap_public",
+            "data_mode": "demo_fallback" if used_demo else "live",
             "crawled_at": datetime.now(timezone.utc).isoformat(),
             "app_ids": list(app_ids),
             "games": games,
@@ -122,35 +158,36 @@ class TapTapPublicCrawler:
         }
 
     def _fetch_game(self, app_id: str) -> Dict[str, Any]:
-        if app_id in _DEMO_GAMES:
-            return {"app_id": app_id, "name": _DEMO_GAMES[app_id], "platform": "TapTap"}
-        detail_url = f"https://www.taptap.cn/webapiv2/app/v6/detail?id={app_id}"
-        try:
-            response = self.session.get(detail_url, timeout=self.timeout)
-            if response.status_code == 200:
-                data = response.json().get("data") or {}
-                title = (data.get("title") or data.get("name") or f"TapTap {app_id}").strip()
-                return {"app_id": app_id, "name": title, "platform": "TapTap"}
-        except Exception:
-            pass
-        return {"app_id": app_id, "name": f"TapTap App {app_id}", "platform": "TapTap"}
+        payload = self._get_json("app/v6/detail", {"id": app_id})
+        app = (payload.get("data") or {}).get("app") or payload.get("data") or {}
+        title = (app.get("title") or app.get("name") or f"TapTap {app_id}").strip()
+        return {"app_id": app_id, "name": title, "platform": "TapTap"}
 
-    def _fetch_reviews(self, app_id: str, limit: int) -> List[Dict[str, Any]]:
-        if app_id in _DEMO_GAMES:
-            return self._demo_reviews(app_id)
+    def _fetch_reviews(self, app_id: str, limit: int) -> tuple[List[Dict[str, Any]], bool]:
         try:
-            response = self.session.get(
-                self.REVIEW_URL,
-                params={"app_id": app_id, "limit": min(limit, 30), "sort": "new"},
-                timeout=self.timeout,
+            payload = self._get_json(
+                "review/v2/list-by-app",
+                {
+                    "app_id": app_id,
+                    "limit": min(max(limit, 3), 30),
+                    "sort": "new",
+                },
             )
-            if response.status_code == 200:
-                rows = response.json().get("data", {}).get("list") or []
-                if rows:
-                    return rows
-        except Exception:
-            pass
-        return self._demo_reviews(app_id)
+            rows = (payload.get("data") or {}).get("list") or []
+            parsed = [parse_taptap_review_row(row) for row in rows if row]
+            parsed = [r for r in parsed if r.get("content")]
+            if parsed:
+                return parsed, False
+        except TapTapCrawlerError:
+            if not allow_demo_fallback() and app_id not in _DEMO_GAMES:
+                raise
+
+        if allow_demo_fallback() or app_id in _DEMO_GAMES:
+            return self._demo_reviews(app_id), True
+        raise TapTapCrawlerError(
+            f"TapTap 评论抓取失败（app_id={app_id}）。"
+            "请确认 AppID 正确，或设置 GA_PLATFORM_DEMO_FALLBACK=true 启用演示回退。"
+        )
 
     def _demo_reviews(self, app_id: str) -> List[Dict[str, Any]]:
         name = _DEMO_GAMES.get(app_id, f"App {app_id}")
@@ -164,11 +201,10 @@ class TapTapPublicCrawler:
         self, app_id: str, game_name: str, reviews: Sequence[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []
-        for idx, review in enumerate(reviews, start=1):
-            text = ""
-            if isinstance(review.get("contents"), dict):
+        for review in reviews:
+            text = review.get("content") or review.get("text") or ""
+            if isinstance(review.get("contents"), dict) and not text:
                 text = review["contents"].get("text") or ""
-            text = text or review.get("content") or review.get("text") or ""
             score = review.get("score") or review.get("rating") or 0
             positive = bool(review.get("voted_up")) if "voted_up" in review else int(score) >= 4
             out.append(
@@ -235,7 +271,7 @@ def split_input_tokens(raw: Sequence[str] | str) -> List[str]:
 def resolve_taptap_inputs(raw: Sequence[str] | str, *, max_games: int = 5) -> Dict[str, Any]:
     tokens = split_input_tokens(raw)
     if not tokens:
-        return {"success": False, "message": "请输入 TapTap 游戏名或 AppID", "app_ids": [], "resolved": []}
+        return {"success": False, "message": "请输入 TapTap 游戏名、AppID 或链接", "app_ids": [], "resolved": []}
 
     app_ids: List[str] = []
     resolved: List[Dict[str, Any]] = []
@@ -244,6 +280,11 @@ def resolve_taptap_inputs(raw: Sequence[str] | str, *, max_games: int = 5) -> Di
     for token in tokens:
         if len(app_ids) >= max_games:
             errors.append(f"最多 {max_games} 款，已忽略：{token}")
+            continue
+        url_id = extract_taptap_app_id(token)
+        if url_id and url_id not in app_ids:
+            app_ids.append(url_id)
+            resolved.append({"input": token, "app_id": url_id, "via": "url"})
             continue
         bare = token.replace("taptap_", "", 1)
         if _TAPTAP_ID_RE.match(bare):
@@ -258,7 +299,7 @@ def resolve_taptap_inputs(raw: Sequence[str] | str, *, max_games: int = 5) -> Di
             continue
         hits = search_taptap_games(token, limit=5)
         if not hits:
-            errors.append(f"未找到 TapTap 游戏：{token}")
+            errors.append(f"未找到 TapTap 游戏：{token}（可粘贴 taptap.cn/app/数字 链接）")
             continue
         pick = hits[0]
         app_id = str(pick.get("app_id") or "")
@@ -293,7 +334,8 @@ def merge_into_mvp_dataset(taptap_dataset: Dict[str, Any], output_dir: str = DEF
         "games": list(existing.get("games") or []) + list(taptap_dataset.get("games") or []),
         "comments": list(existing.get("comments") or []) + list(taptap_dataset.get("comments") or []),
         "metrics": list(existing.get("metrics") or []) + list(taptap_dataset.get("metrics") or []),
-        "platforms": ["Steam", "TapTap"],
+        "platforms": sorted(set((existing.get("platforms") or []) + ["Steam", "TapTap"])),
+        "data_mode": taptap_dataset.get("data_mode", "live"),
     }
     analysis = analyze_actual_steam_data(merged["comments"], merged["metrics"])
     validation = validate_analysis(merged["comments"], merged["metrics"], analysis)
@@ -330,6 +372,7 @@ def run_taptap_pipeline(
     return {
         "success": merge_result.get("success"),
         "platform": "taptap",
+        "data_mode": dataset.get("data_mode"),
         "dataset": dataset,
         "artifacts": merge_result.get("artifacts"),
         "validation": merge_result.get("validation"),

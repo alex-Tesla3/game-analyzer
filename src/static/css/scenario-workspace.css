@@ -39,6 +39,50 @@
     margin-top: 16px;
 }
 
+.delivery-workflow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(6, 182, 212, 0.08);
+    border: 1px solid rgba(6, 182, 212, 0.25);
+}
+
+.delivery-step {
+    flex: 1 1 140px;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.delivery-step.done {
+    color: #86efac;
+    border-style: solid;
+    border-color: rgba(34, 197, 94, 0.35);
+    background: rgba(34, 197, 94, 0.08);
+}
+
+.delivery-step.active {
+    color: #67e8f9;
+    border-color: rgba(6, 182, 212, 0.5);
+    background: rgba(6, 182, 212, 0.12);
+}
+
+.delivery-share-box {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.25);
+    font-size: 0.8rem;
+    color: #94a3b8;
+    word-break: break-all;
+    display: none;
+}
+
 .sr-toolbar {
     display: flex;
     flex-wrap: wrap;

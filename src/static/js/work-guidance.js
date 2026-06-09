@@ -81,7 +81,8 @@
     }
 
     async function loadPage(token) {
-        const res = await fetch("/api/work/guidance?token=" + encodeURIComponent(token));
+        const fetchFn = typeof authFetch !== "undefined" ? authFetch : fetch;
+        const res = await fetchFn("/api/work/guidance");
         return res.json();
     }
 

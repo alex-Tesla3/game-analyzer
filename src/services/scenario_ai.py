@@ -26,7 +26,7 @@ from src.services.competitor_scores import (
 from src.services.game_intel import BREAKDOWN_SECTIONS, GameLibraryRepository, GameplayBreakdownRepository
 from src.services.llm_client import (
     clean_llm_report_text,
-    complete_prompt,
+    complete_prompt_with_retry,
     llm_is_configured,
     llm_is_reachable,
     parse_json_from_llm,
@@ -52,8 +52,25 @@ def _report_html(
     executive_summary: str,
     sections: List[Dict[str, str]],
     action_items: Optional[List[Dict[str, Any]]] = None,
+    dimension_scores: Optional[List[Dict[str, Any]]] = None,
+    score_dimensions: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
-    body = "".join(
+    dim_html = ""
+    rows = dimension_scores or []
+    dims = score_dimensions or COMPETITOR_DIMENSIONS
+    if rows and dims:
+        head = "".join(f"<th>{d.get('title', d.get('key', ''))}</th>" for d in dims)
+        body_rows = []
+        for row in rows:
+            scores = row.get("scores") or {}
+            cells = "".join(f"<td>{scores.get(d.get('key'), '—')}</td>" for d in dims)
+            custom = " ✎" if row.get("is_custom") else ""
+            body_rows.append(f"<tr><th>{row.get('name', '')}{custom}</th>{cells}</tr>")
+        dim_html = (
+            "<section><h3>六维评分</h3><table class=\"dim-scores\">"
+            f"<thead><tr><th>游戏</th>{head}</tr></thead><tbody>{''.join(body_rows)}</tbody></table></section>"
+        )
+    body = dim_html + "".join(
         f"<section><h3>{s.get('title', '')}</h3><p>{s.get('content', '').replace(chr(10), '<br>')}</p></section>"
         for s in sections
     )
@@ -130,6 +147,28 @@ def _extract_partial_llm_report(raw: str) -> Optional[Dict[str, Any]]:
     return {"executive_summary": summary, "sections": sections}
 
 
+_DIM_SECTION_MARKERS = ("六维", "维度评分", "dimension")
+
+
+def _is_dimension_section(section: Dict[str, str]) -> bool:
+    blob = f"{section.get('title', '')}{section.get('content', '')}"
+    return any(marker in blob for marker in _DIM_SECTION_MARKERS)
+
+
+def _preserve_dimension_section(
+    rule_sections: List[Dict[str, str]],
+    llm_sections: List[Dict[str, str]],
+) -> List[Dict[str, str]]:
+    """Keep rule-engine dimension scores when the LLM summary omits them."""
+    dim_section = next((s for s in rule_sections if _is_dimension_section(s)), None)
+    if not dim_section or any(_is_dimension_section(s) for s in llm_sections):
+        return llm_sections
+    merged = list(llm_sections)
+    insert_at = 1 if len(merged) else 0
+    merged.insert(insert_at, dim_section)
+    return merged
+
+
 def _merge_llm_into_report(base: Dict[str, Any], raw: str) -> tuple[Dict[str, Any], bool, Optional[str]]:
     """Apply LLM output to a rule-based report shell. Never inject raw JSON into fields."""
     parsed = parse_json_from_llm(raw)
@@ -142,22 +181,53 @@ def _merge_llm_into_report(base: Dict[str, Any], raw: str) -> tuple[Dict[str, An
         if summary:
             base["executive_summary"] = summary
         if sections:
-            base["sections"] = sections
+            base["sections"] = _preserve_dimension_section(base.get("sections") or [], sections)
         if summary or sections:
             return base, True, None
 
     return base, False, "LLM 返回内容无法解析为 JSON，已使用规则引擎总结"
 
 
+def _dimension_scores_markdown(
+    dimension_scores: Optional[List[Dict[str, Any]]],
+    score_dimensions: Optional[List[Dict[str, Any]]] = None,
+) -> str:
+    rows = dimension_scores or []
+    dims = score_dimensions or COMPETITOR_DIMENSIONS
+    if not rows or not dims:
+        return ""
+    lines = ["## 六维评分", ""]
+    header = "| 游戏 | " + " | ".join(d.get("title", d.get("key", "")) for d in dims) + " |"
+    sep = "| --- | " + " | ".join("---" for _ in dims) + " |"
+    lines.extend([header, sep])
+    for row in rows:
+        scores = row.get("scores") or {}
+        cells = [str(scores.get(d.get("key"), "—")) for d in dims]
+        custom = " ✎" if row.get("is_custom") else ""
+        lines.append(f"| {row.get('name', '')}{custom} | " + " | ".join(cells) + " |")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def _finalize_scenario_report(base: Dict[str, Any]) -> Dict[str, Any]:
     title = base.get("title") or "分析报告"
     summary = clean_llm_report_text(str(base.get("executive_summary") or ""))
     sections = _normalize_llm_sections(base.get("sections"))
+    facts = base.get("facts") or {}
+    dim_rows = base.get("dimension_scores") or facts.get("dimension_scores") or []
+    dim_defs = facts.get("score_dimensions") or COMPETITOR_DIMENSIONS
     base["title"] = title
     base["executive_summary"] = summary
     base["sections"] = sections
-    base["markdown"] = _to_markdown(title, summary, sections, base.get("action_items"))
-    base["html"] = _report_html(title, summary, sections, base.get("action_items"))
+    base["markdown"] = _to_markdown(
+        title,
+        summary,
+        sections,
+        base.get("action_items"),
+        dim_rows,
+        dim_defs,
+    )
+    base["html"] = _report_html(title, summary, sections, base.get("action_items"), dim_rows, dim_defs)
     return base
 
 
@@ -453,7 +523,7 @@ async def generate_competitor_scenario_report(
             f"{json.dumps(facts, ensure_ascii=False)}"
         )
         try:
-            raw = await complete_prompt(prompt, max_tokens=1400)
+            raw = await complete_prompt_with_retry(prompt, max_tokens=1400, retries=1)
             base, using_llm, llm_error = _merge_llm_into_report(base, raw)
         except Exception as exc:
             llm_error = str(exc)
@@ -571,7 +641,7 @@ async def generate_breakdown_scenario_report(
             f"{json.dumps(facts, ensure_ascii=False)}"
         )
         try:
-            raw = await complete_prompt(prompt, max_tokens=1400)
+            raw = await complete_prompt_with_retry(prompt, max_tokens=1400, retries=1)
             base, using_llm, llm_error = _merge_llm_into_report(base, raw)
         except Exception as exc:
             llm_error = str(exc)
@@ -696,7 +766,7 @@ async def generate_review_scenario_report(
             f"{json.dumps(facts, ensure_ascii=False)}"
         )
         try:
-            raw = await complete_prompt(prompt, max_tokens=1200)
+            raw = await complete_prompt_with_retry(prompt, max_tokens=1200, retries=1)
             base, using_llm, llm_error = _merge_llm_into_report(base, raw)
         except Exception as exc:
             llm_error = str(exc)
@@ -722,8 +792,13 @@ def _to_markdown(
     summary: str,
     sections: List[Dict[str, str]],
     action_items: Optional[List[Dict[str, Any]]] = None,
+    dimension_scores: Optional[List[Dict[str, Any]]] = None,
+    score_dimensions: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     lines = [f"# {title}", "", f"**摘要**：{summary}", ""]
+    dim_md = _dimension_scores_markdown(dimension_scores, score_dimensions)
+    if dim_md:
+        lines.append(dim_md)
     for s in sections:
         lines.append(f"## {s.get('title', '')}")
         lines.append("")

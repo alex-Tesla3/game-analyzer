@@ -11,6 +11,8 @@
     <script src="/static/js/data-provenance.js"></script>
     <script src="/static/js/analysis-guide.js"></script>
     <script src="/static/js/scenario-report.js"></script>
+    <link rel="stylesheet" href="/static/css/commercial-banner.css">
+    <script src="/static/js/commercial-banner.js"></script>
     <script src="/static/js/chart.js"></script>
     <style>
         :root {
@@ -55,6 +57,7 @@
         <a class="btn" id="link-back-guide" href="/guide" style="display:none;margin-left:8px;">← 分析向导</a>
     </header>
     <main class="layout">
+        <div id="commercial-banner-slot" style="display:none;margin-bottom:12px;"></div>
         <div id="module-guide-root"></div>
         <div id="provenance-banner"></div>
 
@@ -114,8 +117,15 @@
 
         <div id="panel-ai" class="scene-panel">
             <div class="sr-panel">
-                <p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px;">基于当前选中游戏的对比数据生成总结报告。已配置 LLM 时使用 AI；否则使用规则引擎。</p>
+                <div class="delivery-workflow" id="delivery-workflow">
+                    <div class="delivery-step active" id="step-generate">① 生成 AI 报告</div>
+                    <div class="delivery-step" id="step-archive">② 归档到案例库</div>
+                    <div class="delivery-step" id="step-share">③ 生成分享链接</div>
+                </div>
+                <p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px;">基于当前选中游戏的对比数据、六维评分生成总结。配置 LLM 时用 AI，否则规则引擎。</p>
                 <div class="sr-toolbar" id="ai-toolbar"></div>
+                <button type="button" class="btn btn-primary" id="btn-share-archive" style="display:none;margin:8px 0;" disabled>🔗 生成分享链接（需先归档）</button>
+                <div id="delivery-share-box" class="delivery-share-box"></div>
                 <div id="compare-actions-bar" style="display:none;margin:12px 0;gap:8px;flex-wrap:wrap;"></div>
                 <div id="ai-report-output" data-markdown=""></div>
             </div>
@@ -124,10 +134,25 @@
     <script>
         let lastCompareData = null;
         let lastReport = null;
+        let lastArchiveId = null;
         let scoreRadarChart = null;
         let scoreDimensions = [];
 
-        function token() { return getAuthToken(); }
+        function setDeliveryStep(step) {
+            const order = ['generate', 'archive', 'share'];
+            const idx = order.indexOf(step);
+            order.forEach((s, i) => {
+                const el = document.getElementById('step-' + s);
+                if (!el) return;
+                el.classList.toggle('done', i < idx);
+                el.classList.toggle('active', i === idx);
+            });
+        }
+
+        function token() { return typeof getAuthToken === 'function' ? getAuthToken() : ''; }
+        function apiFetch(url, options) {
+            return typeof authFetch === 'function' ? authFetch(url, options) : fetch(url, options);
+        }
         function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
         function selectedIds() {
@@ -150,7 +175,7 @@
 
         async function runCompare(ids) {
             ids = ids || selectedIds();
-            const res = await fetch('/api/games/compare?token=' + encodeURIComponent(token()) + '&ids=' + encodeURIComponent(ids.join(',')));
+            const res = await apiFetch('/api/games/compare?ids=' + encodeURIComponent(ids.join(',')));
             const data = await res.json();
             lastCompareData = data;
             if (!data.items?.length) {
@@ -241,7 +266,7 @@
             const ids = Object.keys(byGame);
             if (!ids.length) { alert('无评分可保存'); return; }
             for (const gid of ids) {
-                await fetch('/api/games/compare/scores?token=' + encodeURIComponent(token()), {
+                await apiFetch('/api/games/compare/scores', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ game_id: gid, scores: byGame[gid] }),
@@ -264,7 +289,7 @@
 
         async function loadBreakdownInline(ids) {
             ids = ids || selectedIds();
-            const res = await fetch('/api/scenarios/breakdowns?token=' + encodeURIComponent(token()) + '&ids=' + encodeURIComponent(ids.join(',')));
+            const res = await apiFetch('/api/scenarios/breakdowns?ids=' + encodeURIComponent(ids.join(',')));
             const data = await res.json();
             const el = document.getElementById('breakdown-inline');
             if (!data.items?.length) {
@@ -285,7 +310,7 @@
         }
 
         async function loadSnapshots() {
-            const res = await fetch('/api/mvp/snapshots?token=' + encodeURIComponent(token()));
+            const res = await apiFetch('/api/mvp/snapshots');
             const data = await res.json();
             const snaps = data.snapshots || [];
             const opts = snaps.length ? snaps.map(s => '<option value="' + esc(s.id) + '">' + esc(s.captured_at || s.id) + '</option>').join('')
@@ -298,7 +323,7 @@
             const a = document.getElementById('snap-a').value;
             const b = document.getElementById('snap-b').value;
             if (!a || !b) return;
-            const res = await fetch('/api/mvp/snapshots/compare?token=' + encodeURIComponent(token()) + '&a=' + encodeURIComponent(a) + '&b=' + encodeURIComponent(b));
+            const res = await apiFetch('/api/mvp/snapshots/compare?a=' + encodeURIComponent(a) + '&b=' + encodeURIComponent(b));
             const data = await res.json();
             const el = document.getElementById('timeline-result');
             if (!data.deltas?.length) { el.innerHTML = '<p class="empty">无重叠产品或快照不足</p>'; return; }
@@ -308,13 +333,15 @@
         }
 
         async function loadArchives() {
-            const res = await fetch('/api/games/archives?token=' + encodeURIComponent(token()));
+            const res = await apiFetch('/api/games/archives');
             const data = await res.json();
             const list = data.archives || [];
             document.getElementById('archives-list').innerHTML = list.length ? list.map(a =>
-                '<div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:0.85rem;"><strong>' +
-                esc(a.title) + '</strong><br><span style="color:var(--muted)">' + esc(a.report_type) + ' · ' +
-                esc(a.created_at || '') + '</span></div>').join('') : '<p class="empty">暂无归档</p>';
+                '<div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:0.85rem;display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">' +
+                '<div><strong>' + esc(a.title) + '</strong><br><span style="color:var(--muted)">' +
+                esc(a.report_type) + ' · ' + esc((a.created_at || '').slice(0, 19)) + '</span></div>' +
+                '<a class="btn" href="/games/review#archives" style="font-size:0.75rem;white-space:nowrap;">打开 →</a></div>'
+            ).join('') : '<p class="empty">暂无归档 · 在「AI 总结」标签生成并归档</p>';
         }
 
         async function generateAiReport() {
@@ -322,11 +349,20 @@
             if (!ids.length) { alert('请先选择游戏'); return; }
             const status = document.getElementById('ai-status');
             status.textContent = '生成中…';
+            lastArchiveId = null;
+            document.getElementById('delivery-share-box').style.display = 'none';
+            const shareBtn = document.getElementById('btn-share-archive');
+            if (shareBtn) { shareBtn.style.display = 'none'; shareBtn.disabled = true; }
+            setDeliveryStep('generate');
             const data = await ScenarioReport.generate('competitor', { ids }, token());
             lastReport = data;
             ScenarioReport.renderResult(document.getElementById('ai-report-output'), data);
             status.textContent = ScenarioReport.formatStatus(data);
             renderCompareActionBar(data);
+            if (data?.success) {
+                setDeliveryStep('archive');
+                if (shareBtn) shareBtn.style.display = 'inline-block';
+            }
         }
 
         function renderCompareActionBar(data) {
@@ -352,15 +388,46 @@
 
         async function archiveReport() {
             if (!lastReport?.success) { alert('请先生成报告'); return; }
+            const status = document.getElementById('ai-status');
+            status.textContent = '归档中…';
             const res = await ScenarioReport.archiveReport(lastReport, token());
             if (res.success) {
-                alert('已归档');
+                lastArchiveId = res.archive_id;
+                status.textContent = '已归档 #' + (res.archive_id || '').slice(0, 8);
+                setDeliveryStep('share');
+                const shareBtn = document.getElementById('btn-share-archive');
+                if (shareBtn) { shareBtn.disabled = false; shareBtn.style.display = 'inline-block'; }
                 loadArchives();
+            } else {
+                status.textContent = res.message || '归档失败';
             }
         }
 
+        async function shareArchiveLink() {
+            if (!lastArchiveId) { alert('请先归档报告'); return; }
+            const status = document.getElementById('ai-status');
+            const box = document.getElementById('delivery-share-box');
+            status.textContent = '生成分享链接…';
+            const res = await ScenarioReport.shareArchive(lastArchiveId, token(), 168);
+            if (!res.success) {
+                status.textContent = res.message || '分享失败';
+                return;
+            }
+            const url = res.share_url || (location.origin + '/shared/' + res.share_token);
+            box.style.display = 'block';
+            box.innerHTML = '✅ 分享链接（7 天有效）：<a href="' + esc(url) + '" target="_blank" rel="noopener" style="color:#67e8f9;">' +
+                esc(url) + '</a> <button type="button" class="btn" id="btn-copy-share" style="margin-left:8px;">复制</button>';
+            document.getElementById('btn-copy-share').onclick = () => {
+                navigator.clipboard?.writeText(url);
+                status.textContent = '链接已复制';
+            };
+            setDeliveryStep('share');
+            document.querySelectorAll('.delivery-step').forEach(el => el.classList.add('done'));
+            status.textContent = '分享链接已生成';
+        }
+
         async function loadGames() {
-            const res = await fetch('/api/games/library?token=' + encodeURIComponent(token()));
+            const res = await apiFetch('/api/games/library');
             const data = await res.json();
             const games = data.games || [];
             const genres = [...new Set(games.map(g => g.genre).filter(Boolean))].sort();
@@ -388,13 +455,18 @@
         }
 
         function onGenreChange() {
-            fetch('/api/games/library?token=' + encodeURIComponent(token())).then(r => r.json()).then(d => {
+            apiFetch('/api/games/library').then(r => r.json()).then(d => {
                 renderPicker(d.games || [], getUrlIds());
             });
         }
 
         async function init() {
-            if (!token()) { location.href = '/login'; return; }
+            if (!token()) {
+                const dest = '/login?redirect=' + encodeURIComponent('/games/compare');
+                if (typeof redirectToLogin === 'function') redirectToLogin('/games/compare');
+                else location.replace(dest);
+                return;
+            }
             if (new URLSearchParams(location.search).get('from') === 'guide') {
                 const back = document.getElementById('link-back-guide');
                 if (back) {
@@ -407,6 +479,7 @@
             }
             AnalysisGuide?.renderModuleGuide('module-guide-root', 'competitor');
             DataProvenance.renderBanner('provenance-banner', await DataProvenance.fetchProvenance(token()));
+            if (window.CommercialBanner) CommercialBanner.mount('commercial-banner-slot');
             ScenarioReport.mountToolbar({
                 toolbarId: 'ai-toolbar',
                 generateBtnId: 'btn-gen-ai',
@@ -420,6 +493,8 @@
                 document.getElementById('ai-status').textContent = '已复制';
             };
             document.getElementById('btn-archive-ai').onclick = archiveReport;
+            document.getElementById('btn-share-archive').onclick = shareArchiveLink;
+            setDeliveryStep('generate');
             await loadGames();
             await loadSnapshots();
             await loadArchives();

@@ -5,14 +5,25 @@
         global.dataProvenance = payload;
         const source = payload.source || "";
         const isMock = source === "mock";
-        const isReal = source === "mvp_steam" || source === "imported";
+        const isReal =
+            source === "imported" ||
+            source === "mvp_steam" ||
+            source === "mvp_multi" ||
+            source === "taptap_public" ||
+            source === "google_play_public" ||
+            (source && source.startsWith("mvp_"));
 
-        global.__gaSimulatedAnalytics = isMock || isReal || !!payload.collapse_demo_metrics;
+        global.__gaSimulatedAnalytics = isMock || !!payload.collapse_demo_metrics;
 
         const kpiGrid = document.getElementById("kpi-grid");
         if (kpiGrid) {
             kpiGrid.classList.toggle("demo-metrics", isMock);
             kpiGrid.classList.toggle("steam-trust-kpi", isReal);
+        }
+
+        const advBtn = document.querySelector('[onclick*="openAdvancedAnalysis"]');
+        if (advBtn && isMock) {
+            advBtn.setAttribute("title", "高级分析为演示曲线，请优先使用 Steam 口碑与竞品工作台");
         }
     }
 

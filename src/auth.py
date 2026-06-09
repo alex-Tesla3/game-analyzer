@@ -12,7 +12,14 @@ if APP_ENV == "production" and not SECRET_KEY:
     raise RuntimeError("SECRET_KEY must be set when APP_ENV=production")
 SECRET_KEY = SECRET_KEY or "dev-secret-key-change-me-before-production"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+def _default_token_minutes() -> int:
+    raw = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "").strip()
+    if raw.isdigit():
+        return max(30, int(raw))
+    return 120 if APP_ENV == "production" else 480
+
+
+ACCESS_TOKEN_EXPIRE_MINUTES = _default_token_minutes()
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
@@ -145,7 +152,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

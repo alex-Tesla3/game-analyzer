@@ -1,0 +1,42 @@
+{
+  "_comment": "Copy this file to config.json and fill in real values. Never commit config.json.",
+  "database": {
+    "type": "sqlite",
+    "host": "localhost",
+    "port": 5432,
+    "database": "game_analyzer",
+    "username": "admin",
+    "password": "",
+    "path": "data/game_analyzer.db",
+    "pool_size": 10,
+    "max_overflow": 20,
+    "connect_timeout": 30
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "socket_timeout": 5,
+    "socket_connect_timeout": 5
+  },
+  "security": {
+    "secret_key": "CHANGE_ME_use_SECRET_KEY_env_var_in_production",
+    "algorithm": "HS256",
+    "access_token_expire_minutes": 30,
+    "https_only": false,
+    "cors_allowed_origins": [
+      "http://localhost:8080"
+    ],
+    "rate_limit": {
+      "enabled": true,
+      "requests_per_minute": 60
+    }
+  },
+  "app": {
+    "debug": false,
+    "host": "0.0.0.0",
+    "port": 8080,
+    "workers": 1
+  }
+}

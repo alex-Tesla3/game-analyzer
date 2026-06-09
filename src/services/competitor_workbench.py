@@ -227,6 +227,11 @@ def _trust_label(source: str) -> Dict[str, str]:
         "imported": {"label": "用户导入", "level": "high", "hint": "来自您上传的数据集"},
         "cached": {"label": "缓存数据", "level": "medium", "hint": "24 小时内采集缓存"},
         "mock": {"label": "演示数据", "level": "low", "hint": "仅用于功能演示，不可作商业结论"},
+        "empty": {
+            "label": "暂无数据",
+            "level": "low",
+            "hint": "请先在分析向导或 MVP 页抓取竞品，或导入 CSV",
+        },
     }
     return labels.get(source, {"label": source, "level": "medium", "hint": ""})
 
@@ -236,7 +241,7 @@ def data_provenance_payload(username: str) -> Dict[str, Any]:
 
     source = resolve_user_data_source(username)
     trust = _trust_label(source)
-    show_mock_warning = source == "mock"
+    show_mock_warning = source in ("mock", "empty")
     return {
         "success": True,
         "source": source,

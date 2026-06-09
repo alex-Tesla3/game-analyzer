@@ -51,7 +51,7 @@ def _filter_metrics_by_products(metrics_data: list, products: List[str]) -> list
 
 
 def _advanced_data_basis(username: str) -> str:
-    source = resolve_user_data_source(username) or "mock"
+    source = resolve_user_data_source(username) or "empty"
     if source == "mvp_steam":
         return "mvp_steam"
     if source == "imported":
@@ -239,7 +239,7 @@ async def get_ai_analysis(
         "success": True,
         "source": source,
         "analysis_mode": "legacy_template",
-        "simulated": source == "mock",
+        "simulated": source in ("mock", "empty"),
         "data": ai_report,
     }
 

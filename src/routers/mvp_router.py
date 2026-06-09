@@ -10,7 +10,9 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
 from src.mvp_data import load_mvp_artifact
-from src.mvp_pipeline import DEFAULT_STEAM_APP_IDS, run_mvp_pipeline
+from src.mvp_pipeline import DEFAULT_STEAM_APP_IDS, run_mvp_pipeline, steam_app_catalog
+from src.services.google_play_pipeline import run_google_play_pipeline
+from src.services.taptap_pipeline import run_taptap_pipeline
 
 router = APIRouter(tags=["mvp"])
 
@@ -24,6 +26,76 @@ async def mvp_page():
         with open(template_path, "r", encoding="utf-8") as handle:
             return handle.read()
     raise HTTPException(status_code=404, detail="MVP dashboard template not found")
+
+
+@router.get("/api/mvp/catalog")
+async def get_mvp_catalog():
+    """Product + channel options for the MVP page filters."""
+    products = steam_app_catalog()
+    seen = {p["id"] for p in products}
+    dataset = load_mvp_artifact("dataset")
+    if dataset:
+        for game in dataset.get("games") or []:
+            app_id = str(game.get("app_id") or "").strip()
+            if not app_id or app_id in seen:
+                continue
+            genres = game.get("genres") or []
+            products.append(
+                {
+                    "id": app_id,
+                    "name": game.get("name") or f"Steam App {app_id}",
+                    "genre": genres[0] if genres else "",
+                }
+            )
+            seen.add(app_id)
+    if dataset:
+        for game in dataset.get("games") or []:
+            platform = str(game.get("platform") or "").lower()
+            gid = str(game.get("app_id") or game.get("package_id") or "").strip()
+            name = game.get("name") or gid
+            if platform == "taptap" and gid and gid not in seen:
+                products.append({"id": gid, "name": name, "genre": "", "platform": "taptap"})
+                seen.add(gid)
+            elif platform == "google play" and gid and gid not in seen:
+                products.append({"id": gid, "name": name, "genre": "", "platform": "google_play"})
+                seen.add(gid)
+    preset_platform = [
+        {"id": "168332", "name": "原神", "genre": "RPG", "platform": "taptap"},
+        {"id": "23167", "name": "王者荣耀", "genre": "MOBA", "platform": "taptap"},
+        {
+            "id": "com.miHoYo.GenshinImpact",
+            "name": "原神",
+            "genre": "RPG",
+            "platform": "google_play",
+        },
+        {
+            "id": "com.tencent.tmgp.sgame",
+            "name": "王者荣耀",
+            "genre": "MOBA",
+            "platform": "google_play",
+        },
+    ]
+    for item in preset_platform:
+        if item["id"] not in seen:
+            products.append(item)
+            seen.add(item["id"])
+    channels = [
+        {"id": "steam", "label": "Steam", "crawl_supported": True},
+        {"id": "taptap", "label": "TapTap", "crawl_supported": True},
+        {"id": "google_play", "label": "Google Play", "crawl_supported": True},
+        {"id": "app_store", "label": "App Store", "crawl_supported": False},
+    ]
+    return {
+        "success": True,
+        "products": products,
+        "channels": channels,
+        "default_product_ids": list(DEFAULT_STEAM_APP_IDS),
+        "default_by_channel": {
+            "steam": list(DEFAULT_STEAM_APP_IDS),
+            "taptap": ["168332"],
+            "google_play": ["com.miHoYo.GenshinImpact"],
+        },
+    }
 
 
 @router.get("/api/mvp/latest")
@@ -68,4 +140,61 @@ async def run_steam_mvp(
         "validation": result["validation"],
         "artifacts": result["artifacts"],
         "crawl_errors": result["dataset"].get("errors", []),
+        "data_mode": result["dataset"].get("data_mode", "live"),
+    }
+
+
+@router.get("/api/mvp/taptap")
+async def run_taptap_mvp(
+    app_ids: str = Query(..., description="Comma-separated TapTap app ids"),
+    max_reviews: int = Query(25, ge=1, le=100),
+):
+    selected = [item.strip() for item in app_ids.split(",") if item.strip()]
+    if not selected:
+        raise HTTPException(status_code=400, detail="至少需要提供一个 TapTap AppID")
+    try:
+        result = await asyncio.to_thread(
+            run_taptap_pipeline,
+            app_ids=selected,
+            max_reviews_per_app=max_reviews,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"TapTap pipeline failed: {exc}") from exc
+    analysis = load_mvp_artifact("analysis") or {}
+    return {
+        "success": result["success"],
+        "platform": "taptap",
+        "data_mode": result.get("data_mode"),
+        "summary": (analysis.get("summary") if analysis else None),
+        "validation": result.get("validation"),
+        "artifacts": result.get("artifacts"),
+        "crawl_errors": (result.get("dataset") or {}).get("errors", []),
+    }
+
+
+@router.get("/api/mvp/google-play")
+async def run_google_play_mvp(
+    app_ids: str = Query(..., description="Comma-separated package names"),
+    max_reviews: int = Query(25, ge=1, le=100),
+):
+    selected = [item.strip() for item in app_ids.split(",") if item.strip()]
+    if not selected:
+        raise HTTPException(status_code=400, detail="至少需要提供一个 Google Play 包名")
+    try:
+        result = await asyncio.to_thread(
+            run_google_play_pipeline,
+            app_ids=selected,
+            max_reviews_per_app=max_reviews,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Google Play pipeline failed: {exc}") from exc
+    analysis = load_mvp_artifact("analysis") or {}
+    return {
+        "success": result["success"],
+        "platform": "google_play",
+        "data_mode": result.get("data_mode"),
+        "summary": (analysis.get("summary") if analysis else None),
+        "validation": result.get("validation"),
+        "artifacts": result.get("artifacts"),
+        "crawl_errors": (result.get("dataset") or {}).get("errors", []),
     }

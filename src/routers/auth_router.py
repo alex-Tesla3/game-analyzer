@@ -184,10 +184,8 @@ async def register_user(request: Request):
         raise HTTPException(status_code=500, detail="Failed to create user")
 
 @router.get("/api/user")
-async def read_users_me(token: Optional[str] = Query(None)):
-    if not token:
-        raise HTTPException(status_code=401, detail="Token required")
-    current_user = await get_current_user(token)
+async def read_users_me(request: Request, token: Optional[str] = Query(None)):
+    current_user = await get_current_user(request, token)
     row = UserRepository.get_by_username(current_user.username) or {}
     quota = effective_api_quota(row) if row else int(current_user.api_quota or 1000)
     used = get_api_usage(current_user.username)

@@ -37,21 +37,48 @@
         return escapeHtml(s).replace(/"/g, '&quot;');
     }
 
+    function importCtaHtml() {
+        return (
+            '<a href="/import" class="data-trust-import-cta" ' +
+            'style="margin-left:auto;font-size:0.8rem;color:#67e8f9;text-decoration:none;' +
+            'padding:4px 10px;border-radius:8px;border:1px solid rgba(103,232,249,0.35);">' +
+            '📥 导入真实数据</a>'
+        );
+    }
+
     function renderBanner(containerId, payload) {
         const el = document.getElementById(containerId);
         if (!el || !payload) return;
         const trust = payload.trust || {};
+        const level = trust.level || 'medium';
         const badge = renderBadge(trust, payload.source);
         let extra = '';
-        if (payload.show_mock_warning) {
+        if (payload.source === 'empty' || payload.needs_crawl) {
             extra =
-                '<span style="margin-left:8px;font-size:0.8rem;color:#fca5a5;">演示 KPI 已弱化显示，请优先参考 Steam 口碑指标</span>';
+                '<span style="font-size:0.8rem;color:#fca5a5;">看板暂无数据，请先完成抓取后再查看指标</span>';
+        } else if (payload.show_mock_warning) {
+            extra =
+                '<span style="font-size:0.8rem;color:#fca5a5;">演示 KPI 已弱化显示，请优先参考 Steam 口碑指标</span>';
+        } else if (level === 'low') {
+            extra =
+                '<span style="font-size:0.8rem;color:#fde047;">可信度较低，结论仅供流程演示</span>';
+        }
+        let cta = '';
+        if (payload.source === 'empty' || payload.needs_crawl) {
+            cta =
+                '<a href="/guide" style="margin-left:auto;font-size:0.8rem;color:#67e8f9;text-decoration:none;' +
+                'padding:4px 10px;border-radius:8px;border:1px solid rgba(103,232,249,0.35);">🚀 先抓取</a>' +
+                '<a href="/mvp" style="font-size:0.8rem;color:#a5b4fc;text-decoration:none;' +
+                'padding:4px 10px;border-radius:8px;border:1px solid rgba(165,180,252,0.35);">MVP 抓取</a>';
+        } else if (payload.show_mock_warning || level === 'low' || payload.source === 'mock') {
+            cta = importCtaHtml();
         }
         el.innerHTML =
             '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);">' +
             '<span style="font-size:0.8rem;color:#94a3b8;">当前数据：</span>' +
             badge +
             extra +
+            cta +
             '</div>';
         el.style.display = 'block';
         global.dataProvenance = payload;
@@ -60,7 +87,8 @@
     async function fetchProvenance(token) {
         const t = token || (global.getAuthToken && global.getAuthToken()) || localStorage.getItem('access_token');
         if (!t) return null;
-        const res = await fetch('/api/data/provenance?token=' + encodeURIComponent(t));
+        const fetchFn = (typeof authFetch !== 'undefined' ? authFetch : fetch);
+        const res = await fetchFn('/api/data/provenance');
         if (!res.ok) return null;
         return res.json();
     }
@@ -73,6 +101,7 @@
         google_play_public: { label: 'Google Play 真数据', level: 'high' },
         cached: { label: '缓存数据', level: 'medium' },
         mock: { label: '演示 Mock', level: 'low' },
+        empty: { label: '暂无数据', level: 'low' },
     };
 
     function renderDataSourceBadge(source) {

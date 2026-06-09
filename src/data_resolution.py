@@ -116,17 +116,16 @@ def cached_metrics_usable(records: List[Dict[str, Any]]) -> bool:
 def resolve_user_data_source(username: str) -> str:
     if ImportedDataRepository.get_comments(username) or ImportedDataRepository.get_metrics(username):
         return "imported"
-    if mvp_validation_passed():
-        _, _, mvp_source = get_mvp_comments_and_metrics()
-        if mvp_source:
-            return mvp_source
+    _, _, mvp_source = get_mvp_comments_and_metrics()
+    if mvp_source:
+        return mvp_source
     cached_metrics = ImportedDataRepository.get_cached_metrics(max_age_hours=24)
     cached_comments = ImportedDataRepository.get_cached_comments(max_age_hours=24)
     if (cached_comments and comments_dataset_usable(cached_comments)) or (
         cached_metrics and cached_metrics_usable(cached_metrics)
     ):
         return "cached"
-    return "mock"
+    return "empty"
 
 
 def get_user_comments_data(username: str) -> List[Dict]:
@@ -142,7 +141,7 @@ def get_user_comments_data(username: str) -> List[Dict]:
     if cached and comments_dataset_usable(cached):
         return _strip_repo_fields(cached, ("id", "cached_at"))
 
-    return get_comments_data()
+    return []
 
 
 def get_user_metrics_data(username: str) -> List[Dict]:
@@ -158,4 +157,4 @@ def get_user_metrics_data(username: str) -> List[Dict]:
     if cached and cached_metrics_usable(cached):
         return _strip_repo_fields(cached, ("id", "cached_at"))
 
-    return get_metrics_data()
+    return []

@@ -181,6 +181,7 @@
         let cachedSnapshots = [];
         let currentArchiveId = null;
         let archiveCategories = [];
+        let currentArchiveSnapshot = null;
 
         function esc(s) {
             const d = document.createElement('div');
@@ -284,7 +285,7 @@
         async function loadSnapshots() {
             const token = requireAuth();
             if (!token) return;
-            const res = await fetch('/api/mvp/snapshots?token=' + encodeURIComponent(token));
+            const res = await (typeof authFetch === 'function' ? authFetch : fetch)('/api/mvp/snapshots');
             if (res.status === 401) {
                 location.href = '/login';
                 return;
@@ -372,6 +373,7 @@
             const data = await res.json();
             if (!data.success || !data.archive) return;
             const a = data.archive;
+            currentArchiveSnapshot = a.snapshot_json || {};
             document.getElementById('archive-editor').classList.add('open');
             document.getElementById('editor-title').textContent = '编辑 · ' + (a.title || '');
             document.getElementById('edit-archive-title').value = a.title || '';
@@ -540,8 +542,31 @@
             const ta = document.getElementById('edit-archive-body');
             const prev = document.getElementById('edit-archive-preview');
             if (!ta || !prev) return;
-            if (showPreview && window.MarkdownPreview) {
-                prev.innerHTML = MarkdownPreview.render(ta.value);
+            if (showPreview) {
+                let html = '';
+                const snap = currentArchiveSnapshot || {};
+                if (window.ScenarioReport && (snap.dimension_scores || snap.executive_summary || snap.sections?.length)) {
+                    const wrap = document.createElement('div');
+                    ScenarioReport.renderResult(wrap, {
+                        success: true,
+                        title: document.getElementById('edit-archive-title').value || '归档预览',
+                        executive_summary: snap.executive_summary || '',
+                        sections: snap.sections || [],
+                        dimension_scores: snap.dimension_scores,
+                        facts: {
+                            score_dimensions: snap.score_dimensions,
+                            dimension_scores: snap.dimension_scores,
+                        },
+                        action_items: snap.action_items,
+                        data_source: snap.data_source,
+                        generated_at: snap.generated_at,
+                    });
+                    html += wrap.innerHTML;
+                }
+                if (window.MarkdownPreview && ta.value.trim()) {
+                    html += MarkdownPreview.render(ta.value);
+                }
+                prev.innerHTML = html || (window.MarkdownPreview ? MarkdownPreview.render('（空）') : '');
                 prev.style.display = 'block';
                 ta.style.display = 'none';
             } else {
@@ -552,6 +577,7 @@
 
         function closeArchiveEditor() {
             currentArchiveId = null;
+            currentArchiveSnapshot = null;
             document.getElementById('archive-editor').classList.remove('open');
             loadArchives();
         }

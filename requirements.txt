@@ -14,3 +14,4 @@ pytest-asyncio>=1.0,<2
 pytest-playwright>=0.5.2,<1
 playwright>=1.49.0,<2
 aiohttp>=3.9.0,<4
+google-play-scraper>=1.2.7,<2

@@ -218,12 +218,23 @@
     }
 
     async function archiveReport(report, token) {
-        const res = await fetch(
-            "/api/scenarios/archive?token=" + encodeURIComponent(token),
+        const fetchFn = typeof authFetch !== "undefined" ? authFetch : fetch;
+        const res = await fetchFn("/api/scenarios/archive", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ report }),
+        });
+        return res.json();
+    }
+
+    async function shareArchive(archiveId, token, expiresHours) {
+        const fetchFn = typeof authFetch !== "undefined" ? authFetch : fetch;
+        const res = await fetchFn(
+            "/api/games/archives/" + encodeURIComponent(archiveId) + "/share",
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ report }),
+                body: JSON.stringify({ expires_hours: expiresHours || 168 }),
             }
         );
         return res.json();
@@ -268,6 +279,7 @@
         exportActions,
         generate,
         archiveReport,
+        shareArchive,
         copyMarkdown,
         mountToolbar,
     };
