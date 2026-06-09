@@ -107,7 +107,7 @@ async def test_review_page(api_client):
 async def test_framework_redirects_home(api_client):
     response = await api_client.get("/framework", follow_redirects=False)
     assert response.status_code == 200
-    assert "analysis-guide" in response.text or "分析指引" in response.text
+    assert "sitemap" in response.text or "帮助" in response.text
 
 
 @pytest.mark.asyncio
