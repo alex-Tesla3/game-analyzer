@@ -19,10 +19,10 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated Steam app ids. Defaults to CS2, Dota 2, and Apex Legends.",
     )
     parser.add_argument(
-        "--max-reviews",
+        "--review-days",
         type=int,
-        default=50,
-        help="Maximum recent Steam reviews to crawl per app.",
+        default=14,
+        help="Only keep reviews from the last N days (allowed: 7, 14, 30).",
     )
     parser.add_argument(
         "--output-dir",
@@ -37,8 +37,8 @@ def main() -> int:
     app_ids = [item.strip() for item in args.app_ids.split(",") if item.strip()]
     result = run_mvp_pipeline(
         app_ids=app_ids,
-        max_reviews_per_app=args.max_reviews,
         output_dir=args.output_dir,
+        review_days=args.review_days,
     )
     summary = {
         "success": result["success"],

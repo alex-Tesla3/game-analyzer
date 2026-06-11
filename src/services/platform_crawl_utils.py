@@ -60,10 +60,18 @@ def parse_taptap_review_row(row: Dict[str, Any]) -> Dict[str, Any]:
     text = text or review.get("content") or review.get("text") or ""
     score = review.get("score") or review.get("rating") or moment.get("score") or 0
     voted_up = review.get("voted_up") if "voted_up" in review else int(score or 0) >= 4
+    created_time = (
+        moment.get("created_time")
+        or moment.get("updated_time")
+        or review.get("created_time")
+        or review.get("updated_time")
+        or row.get("created_time")
+    )
     return {
         "score": score,
         "content": text,
         "text": text,
         "voted_up": voted_up,
         "contents": {"text": text},
+        "created_time": created_time,
     }

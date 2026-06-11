@@ -317,8 +317,15 @@
         <select id="product-select" multiple></select>
       </div>
       <div>
-        <label for="max-reviews">每款评论数</label>
-        <input id="max-reviews" type="number" min="5" max="200" value="20">
+        <label for="review-days">评论时间范围</label>
+        <select id="review-days" class="filter-select">
+          <option value="7">近 7 天</option>
+          <option value="14">近 14 天（半个月）</option>
+          <option value="30" selected>近 30 天</option>
+        </select>
+        <p class="filter-hint" style="margin:6px 0 0;">
+          按评论<strong>发布日期</strong>筛选，不是「最新 1000 条」。冷门游戏在短窗口内样本可能较少，可改选近 30 天。
+        </p>
       </div>
       <div style="grid-column: 1 / -1; border-top: 1px dashed var(--line); padding-top: 12px;">
         <label for="new-product-name">新增游戏产品（与上方列表独立的新游戏）</label>
@@ -378,10 +385,17 @@
       const reports = (analysis.product_reports || []).filter((r) =>
         ids.has(String(r.product || ''))
       );
+      const totalComments = reports.reduce((sum, row) => sum + Number(row.sample_size || 0), 0);
+      const totalPositive = reports.reduce((sum, row) => sum + Number(row.positive_reviews || 0), 0);
+      const overallRate = totalComments
+        ? Math.round((totalPositive / totalComments) * 10000) / 100
+        : 0;
       const filteredAnalysis = Object.assign({}, analysis, {
         product_reports: reports,
         summary: Object.assign({}, analysis.summary || {}, {
           total_products: reports.length,
+          total_comments: totalComments,
+          overall_positive_rate: overallRate,
         }),
       });
       if (analysis.ai_strategy && analysis.ai_strategy.peer_comparison) {
@@ -508,6 +522,13 @@
         </section>
       `;
 
+      const windowDays = payload.dataset && payload.dataset.review_days
+        ? payload.dataset.review_days
+        : (document.getElementById('review-days')?.value || '30');
+      const perProductHtml = reports.map((report) =>
+        `<li>${escapeHtml(report.product_name)}：${escapeHtml(report.sample_size)} 条（近 ${escapeHtml(windowDays)} 天）</li>`
+      ).join('');
+
       contentEl.innerHTML = `
         <section class="metrics">
           <div class="metric"><div class="label">产品数</div><div class="value">${escapeHtml(summary.total_products)}</div></div>
@@ -515,6 +536,7 @@
           <div class="metric"><div class="label">整体好评率</div><div class="value">${escapeHtml(summary.overall_positive_rate)}%</div></div>
           <div class="metric"><div class="label">验证状态</div><div class="value">${validation.passed ? '通过' : '失败'}</div></div>
         </section>
+        <p class="filter-hint" style="margin:0 0 14px;">各产品样本：<ul style="margin:6px 0 0 18px;">${perProductHtml}</ul>数量变少通常是因为启用了<strong>日历时间窗口</strong>（只统计该时段内新发布的评论），不是漏抓。之前显示的「1000+」往往是未按日期过滤时的「最新一批评论」。</p>
         ${strategyHtml}
         <section class="grid">
           <div class="games">${gameHtml}</div>
@@ -656,7 +678,8 @@
     }
 
     async function loadLatest() {
-      const response = await fetch('/api/mvp/latest');
+      const channel = selectedChannel();
+      const response = await fetch('/api/mvp/latest?channel=' + encodeURIComponent(channel));
       if (!response.ok) throw new Error(await response.text());
       render(await response.json());
     }
@@ -679,23 +702,29 @@
         return;
       }
       const labels = { steam: 'Steam', taptap: 'TapTap', google_play: 'Google Play' };
-      const maxReviews = Math.min(200, Math.max(5, parseInt(document.getElementById('max-reviews').value, 10) || 20));
+      const reviewDays = parseInt(document.getElementById('review-days')?.value || '14', 10) || 14;
+      const dayLabels = { 7: '近 7 天', 14: '近 14 天', 30: '近 30 天' };
+      const dayLabel = dayLabels[reviewDays] || `近 ${reviewDays} 天`;
       refreshButton.disabled = true;
-      statusEl.textContent = `正在从 ${labels[channel] || channel} 抓取（每款最多 ${maxReviews} 条评论）…`;
+      statusEl.textContent =
+        `正在从 ${labels[channel] || channel} 抓取（${dayLabel} 内的全部评论，逐款顺序抓取）…`;
       try {
         const params = new URLSearchParams();
         params.set('app_ids', ids.join(','));
-        params.set('max_reviews', String(maxReviews));
+        params.set('review_days', String(reviewDays));
         const response = await fetch(route + '?' + params.toString());
         if (!response.ok) throw new Error(await response.text());
         const payload = await response.json();
         const mode = payload.data_mode === 'live' ? '真实数据' : '演示回退';
+        const countBits = payload.review_counts
+          ? Object.entries(payload.review_counts).map(([id, n]) => `${id.split('.').pop()}: ${n}`).join(' · ')
+          : '';
         const dashParams = new URLSearchParams();
         const crawledIds = (payload.crawled_app_ids || ids).join(',');
         if (crawledIds) dashParams.set('product_ids', crawledIds);
         if (channel && channel !== 'steam') dashParams.set('data_source', channel);
         statusEl.innerHTML =
-          `${labels[channel]} 抓取完成（${mode}）· 数据已写入看板数据集，` +
+          `${labels[channel]} 抓取完成（${mode}${countBits ? ` · ${countBits}` : ''}）· 数据已写入看板数据集，` +
           `<a href="/dashboard?${dashParams.toString()}" style="color:var(--accent);margin-left:6px;">前往看板查看 →</a>`;
         await loadLatest();
       } catch (error) {

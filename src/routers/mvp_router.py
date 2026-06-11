@@ -18,6 +18,7 @@ from src.product_registry import (
     resolve_mvp_crawl_targets,
 )
 from src.services.google_play_pipeline import run_google_play_pipeline
+from src.services.review_window import DEFAULT_REVIEW_DAYS, normalize_review_days
 from src.services.taptap_pipeline import run_taptap_pipeline
 
 router = APIRouter(tags=["mvp"])
@@ -94,7 +95,9 @@ async def get_mvp_catalog():
 
 
 @router.get("/api/mvp/latest")
-async def get_latest_mvp():
+async def get_latest_mvp(
+    channel: str = Query("", description="Optional: steam | taptap | google_play"),
+):
     dataset = load_mvp_artifact("dataset")
     analysis = load_mvp_artifact("analysis")
     validation = load_mvp_artifact("validation")
@@ -103,6 +106,19 @@ async def get_latest_mvp():
             status_code=404,
             detail="MVP artifact not found. Run /api/mvp/steam first.",
         )
+    channel_key = (channel or "").strip().lower()
+    platform_artifacts = {
+        "google_play": "google_play_dataset",
+        "taptap": "taptap_dataset",
+    }
+    if channel_key in platform_artifacts:
+        platform_blob = load_mvp_artifact(platform_artifacts[channel_key])
+        if platform_blob:
+            if platform_blob.get("analysis"):
+                analysis = platform_blob["analysis"]
+            if platform_blob.get("validation"):
+                validation = platform_blob["validation"]
+            dataset = platform_blob
     return {
         "success": True,
         "dataset": dataset,
@@ -162,7 +178,9 @@ async def resolve_mvp_inputs(
 @router.get("/api/mvp/steam")
 async def run_steam_mvp(
     app_ids: str = Query(",".join(DEFAULT_STEAM_APP_IDS)),
-    max_reviews: int = Query(25, ge=1, le=200),
+    review_days: int = Query(
+        DEFAULT_REVIEW_DAYS, ge=7, le=30, description="近 N 天评论（7/14/30，按发布日期）"
+    ),
     product_names: str = Query("", description="Custom display names: product_id:名称"),
 ):
     selected_app_ids, name_overrides, resolve_errors = resolve_mvp_crawl_targets(
@@ -175,13 +193,14 @@ async def run_steam_mvp(
         result = await asyncio.to_thread(
             run_mvp_pipeline,
             app_ids=selected_app_ids,
-            max_reviews_per_app=max_reviews,
             product_name_overrides=name_overrides or None,
+            review_days=normalize_review_days(review_days),
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Steam MVP pipeline failed: {exc}") from exc
     return {
         "success": result["success"],
+        "review_days": normalize_review_days(review_days),
         "summary": result["analysis"]["summary"],
         "product_reports": result["analysis"]["product_reports"],
         "ai_strategy": result["analysis"].get("ai_strategy"),
@@ -197,7 +216,9 @@ async def run_steam_mvp(
 @router.get("/api/mvp/taptap")
 async def run_taptap_mvp(
     app_ids: str = Query("", description="Comma-separated TapTap app ids or game names"),
-    max_reviews: int = Query(25, ge=1, le=200),
+    review_days: int = Query(
+        DEFAULT_REVIEW_DAYS, ge=7, le=30, description="近 N 天评论（7/14/30）"
+    ),
     product_names: str = Query("", description="Custom display names: app_id:名称"),
 ):
     selected, name_overrides, resolve_errors = resolve_mvp_crawl_targets(
@@ -210,14 +231,15 @@ async def run_taptap_mvp(
         result = await asyncio.to_thread(
             run_taptap_pipeline,
             app_ids=selected,
-            max_reviews_per_app=max_reviews,
             product_name_overrides=name_overrides or None,
+            review_days=normalize_review_days(review_days),
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"TapTap pipeline failed: {exc}") from exc
     analysis = load_mvp_artifact("analysis") or {}
     return {
         "success": result["success"],
+        "review_days": normalize_review_days(review_days),
         "platform": "taptap",
         "data_mode": result.get("data_mode"),
         "summary": (analysis.get("summary") if analysis else None),
@@ -232,7 +254,9 @@ async def run_taptap_mvp(
 @router.get("/api/mvp/google-play")
 async def run_google_play_mvp(
     app_ids: str = Query("", description="Comma-separated package names or game names"),
-    max_reviews: int = Query(25, ge=1, le=200),
+    review_days: int = Query(
+        DEFAULT_REVIEW_DAYS, ge=7, le=30, description="近 N 天评论（7/14/30）"
+    ),
     product_names: str = Query("", description="Custom display names: package:名称"),
 ):
     selected, name_overrides, resolve_errors = resolve_mvp_crawl_targets(
@@ -245,14 +269,15 @@ async def run_google_play_mvp(
         result = await asyncio.to_thread(
             run_google_play_pipeline,
             app_ids=selected,
-            max_reviews_per_app=max_reviews,
             product_name_overrides=name_overrides or None,
+            review_days=normalize_review_days(review_days),
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Google Play pipeline failed: {exc}") from exc
     analysis = load_mvp_artifact("analysis") or {}
     return {
         "success": result["success"],
+        "review_days": normalize_review_days(review_days),
         "platform": "google_play",
         "data_mode": result.get("data_mode"),
         "summary": (analysis.get("summary") if analysis else None),
@@ -261,4 +286,6 @@ async def run_google_play_mvp(
         "crawl_errors": (result.get("dataset") or {}).get("errors", []),
         "crawled_app_ids": selected,
         "display_names": name_overrides,
+        "review_counts": (result.get("dataset") or {}).get("review_counts"),
+        "review_locale": (result.get("dataset") or {}).get("review_locale"),
     }

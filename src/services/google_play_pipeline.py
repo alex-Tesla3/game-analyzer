@@ -21,12 +21,14 @@ from src.product_registry import (
 from src.services.platform_crawl_utils import allow_demo_fallback
 
 try:
+    from google_play_scraper import Sort as GPlaySort
     from google_play_scraper import app as gplay_app
     from google_play_scraper import reviews as gplay_reviews
     from google_play_scraper import search as gplay_search
 
     _GPLAY_AVAILABLE = True
 except ImportError:
+    GPlaySort = None  # type: ignore
     gplay_app = None  # type: ignore
     gplay_reviews = None  # type: ignore
     gplay_search = None  # type: ignore
@@ -70,11 +72,25 @@ class GooglePlayCrawlerError(RuntimeError):
     pass
 
 
-def _gplay_locale() -> tuple[str, str]:
+def _gplay_search_locale() -> tuple[str, str]:
     return (
-        os.getenv("GOOGLE_PLAY_LANG", "zh").strip() or "zh",
-        os.getenv("GOOGLE_PLAY_COUNTRY", "cn").strip() or "cn",
+        os.getenv("GOOGLE_PLAY_SEARCH_LANG", os.getenv("GOOGLE_PLAY_LANG", "zh")).strip() or "zh",
+        os.getenv("GOOGLE_PLAY_SEARCH_COUNTRY", os.getenv("GOOGLE_PLAY_COUNTRY", "cn")).strip()
+        or "cn",
     )
+
+
+def _gplay_review_locale() -> tuple[str, str]:
+    """Global GP games expose far more reviews under en/us than zh/cn."""
+    return (
+        os.getenv("GOOGLE_PLAY_REVIEW_LANG", os.getenv("GOOGLE_PLAY_LANG", "en")).strip() or "en",
+        os.getenv("GOOGLE_PLAY_REVIEW_COUNTRY", os.getenv("GOOGLE_PLAY_COUNTRY", "us")).strip()
+        or "us",
+    )
+
+
+def _gplay_locale() -> tuple[str, str]:
+    return _gplay_search_locale()
 
 
 class GooglePlayPublicCrawler:
@@ -106,7 +122,7 @@ class GooglePlayPublicCrawler:
         if not _GPLAY_AVAILABLE:
             return self._offline_search(query, limit=limit)
 
-        lang, country = _gplay_locale()
+        lang, country = _gplay_search_locale()
         try:
             hits = gplay_search(query, lang=lang, country=country, n_hits=min(limit, 10))
             out: List[Dict[str, Any]] = []
@@ -140,22 +156,36 @@ class GooglePlayPublicCrawler:
         package_ids: Sequence[str] | None = None,
         *,
         app_ids: Sequence[str] | None = None,
-        max_reviews_per_app: int = 30,
+        max_reviews_per_app: int | None = None,
         product_name_overrides: Optional[Dict[str, str]] = None,
+        review_days: int | None = None,
     ) -> Dict[str, Any]:
-        ids = list(package_ids or app_ids or [])
+        from src.services.crawl_runner import throttle_between_products
+        from src.services.review_window import normalize_review_days
+
+        window_days = normalize_review_days(review_days)
+        ids = [
+            str(pkg).strip().replace("google_play_", "", 1)
+            for pkg in (package_ids or app_ids or [])
+            if str(pkg).strip()
+        ]
+
         comments: List[Dict[str, Any]] = []
         metrics: List[Dict[str, Any]] = []
         games: List[Dict[str, Any]] = []
         errors: List[Dict[str, str]] = []
         used_demo = False
 
-        for pkg in ids:
-            pkg = str(pkg).strip().replace("google_play_", "", 1)
-            if not pkg:
-                continue
+        # Google Play throttles parallel review pagination — crawl products sequentially.
+        for index, pkg in enumerate(ids):
+            if index > 0:
+                throttle_between_products()
             try:
-                game, reviews, demo = self._fetch_package(pkg, max_reviews_per_app)
+                game, reviews, demo = self._fetch_package(
+                    pkg,
+                    review_days=window_days,
+                    max_reviews=max_reviews_per_app,
+                )
                 used_demo = used_demo or demo
                 games.append(game)
                 comments.extend(self._normalize_reviews(pkg, game["name"], reviews))
@@ -166,10 +196,16 @@ class GooglePlayPublicCrawler:
         if not comments and not metrics:
             raise GooglePlayCrawlerError(f"No usable Google Play data. Errors: {errors}")
 
+        review_counts = {
+            pkg: sum(1 for comment in comments if str(comment.get("product")) == pkg) for pkg in ids
+        }
         payload = {
             "source": "google_play_public",
             "data_mode": "demo_fallback" if used_demo else "live",
             "crawled_at": datetime.now(timezone.utc).isoformat(),
+            "review_days": window_days,
+            "review_locale": list(_gplay_review_locale()),
+            "review_counts": review_counts,
             "platform": "Google Play",
             "games": games,
             "comments": comments,
@@ -178,25 +214,90 @@ class GooglePlayPublicCrawler:
         }
         return apply_product_display_names(payload, product_name_overrides)
 
-    def _fetch_package(
-        self, package_id: str, max_reviews: int
-    ) -> tuple[Dict[str, Any], List[Dict[str, Any]], bool]:
-        if _GPLAY_AVAILABLE:
-            lang, country = _gplay_locale()
-            try:
-                info = gplay_app(package_id, lang=lang, country=country)
-                name = info.get("title") or _merged_gplay_demo().get(package_id) or package_id.split(".")[-1]
-                count = min(max(max_reviews, 3), 200)
-                rows, _ = gplay_reviews(package_id, lang=lang, country=country, count=count)
+    def _fetch_reviews_in_window(
+        self,
+        package_id: str,
+        *,
+        lang: str,
+        country: str,
+        window_days: int,
+        max_reviews: int | None = None,
+    ) -> List[Dict[str, Any]]:
+        from src.services.crawl_runner import throttle_page_fetch
+        from src.services.review_window import (
+            collect_recent_reviews_within_days,
+            gplay_review_datetime,
+        )
+
+        continuation_token = None
+        page_size = 200
+
+        def _iter_batches():
+            nonlocal continuation_token
+            while True:
+                throttle_page_fetch()
+                kwargs: Dict[str, Any] = {
+                    "lang": lang,
+                    "country": country,
+                    "count": page_size,
+                    "sort": GPlaySort.NEWEST,
+                }
+                if continuation_token is not None:
+                    kwargs["continuation_token"] = continuation_token
+                rows, next_token = gplay_reviews(package_id, **kwargs)
+                continuation_token = next_token
                 parsed = [
                     {
                         "score": row.get("score"),
                         "text": row.get("content") or "",
                         "thumbsUp": (row.get("score") or 0) >= 4,
+                        "at": row.get("at"),
+                        "reviewId": row.get("reviewId"),
                     }
                     for row in (rows or [])
                     if row.get("content")
                 ]
+                yield parsed
+                if continuation_token is None or continuation_token.token is None:
+                    break
+                if not rows:
+                    break
+
+        return collect_recent_reviews_within_days(
+            _iter_batches(),
+            days=window_days,
+            max_count=max_reviews,
+            date_fn=gplay_review_datetime,
+        )
+
+    def _fetch_package(
+        self,
+        package_id: str,
+        *,
+        review_days: int | None = None,
+        max_reviews: int | None = None,
+    ) -> tuple[Dict[str, Any], List[Dict[str, Any]], bool]:
+        from src.services.review_window import normalize_review_days
+
+        if _GPLAY_AVAILABLE:
+            lang, country = _gplay_review_locale()
+            try:
+                info = gplay_app(package_id, lang=lang, country=country)
+                name = info.get("title") or _merged_gplay_demo().get(package_id) or package_id.split(".")[-1]
+                window_days = normalize_review_days(review_days)
+                cap = int(max_reviews) if max_reviews and max_reviews > 0 else None
+
+                parsed = self._fetch_reviews_in_window(
+                    package_id,
+                    lang=lang,
+                    country=country,
+                    window_days=window_days,
+                    max_reviews=cap,
+                )
+                if not parsed:
+                    raise GooglePlayCrawlerError(
+                        f"Google Play {package_id} 在近 {window_days} 天内没有可用评论，请扩大时间范围。"
+                    )
                 if parsed:
                     return (
                         {
@@ -215,7 +316,7 @@ class GooglePlayPublicCrawler:
 
         if allow_demo_fallback() or package_id in _merged_gplay_demo():
             name = _merged_gplay_demo().get(package_id, package_id.split(".")[-1])
-            reviews = self._demo_reviews(package_id, name)[: max(3, min(max_reviews, 50))]
+            reviews = self._demo_reviews(package_id, name)
             return (
                 {"package_id": package_id, "name": name, "platform": "Google Play"},
                 reviews,
@@ -236,17 +337,24 @@ class GooglePlayPublicCrawler:
     def _normalize_reviews(
         self, package_id: str, game_name: str, reviews: Sequence[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
+        from src.services.review_window import gplay_review_datetime, iso_date_from_datetime
+
         out: List[Dict[str, Any]] = []
         for review in reviews:
             text = review.get("text") or review.get("content") or ""
             score = int(review.get("score") or review.get("rating") or 0)
             positive = bool(review.get("thumbsUp")) if "thumbsUp" in review else score >= 4
+            review_date = iso_date_from_datetime(gplay_review_datetime(review))
+            if not review_date:
+                review_date = datetime.now(timezone.utc).date().isoformat()
             out.append(
                 {
                     "product": package_id,
                     "product_name": game_name,
                     "platform": "Google Play",
                     "channel": "Google Play",
+                    "日期": review_date,
+                    "date": review_date,
                     "情绪": "positive" if positive else "negative",
                     "sentiment": "positive" if positive else "negative",
                     "内容": text,
@@ -381,62 +489,32 @@ def resolve_google_play_inputs(raw: Sequence[str] | str, *, max_games: int = 5) 
 
 
 def merge_into_mvp_dataset(gplay_dataset: Dict[str, Any], output_dir: str = DEFAULT_OUTPUT_DIR) -> Dict[str, Any]:
-    out_dir = os.path.abspath(output_dir)
-    os.makedirs(out_dir, exist_ok=True)
-    steam_path = os.path.join(out_dir, "steam_dataset.json")
-    existing: Dict[str, Any] = {"comments": [], "metrics": [], "games": []}
-    if os.path.exists(steam_path):
-        with open(steam_path, "r", encoding="utf-8") as handle:
-            existing = json.load(handle)
+    from src.services.mvp_dataset_merge import merge_platform_dataset
 
-    platforms = set(existing.get("platforms") or [])
-    platforms.update(["Steam", "TapTap", "Google Play"])
-
-    merged = {
-        "source": "mvp_multi",
-        "crawled_at": datetime.now(timezone.utc).isoformat(),
-        "games": list(existing.get("games") or []) + list(gplay_dataset.get("games") or []),
-        "comments": list(existing.get("comments") or []) + list(gplay_dataset.get("comments") or []),
-        "metrics": list(existing.get("metrics") or []) + list(gplay_dataset.get("metrics") or []),
-        "platforms": sorted(platforms),
-        "data_mode": gplay_dataset.get("data_mode", "live"),
-    }
-    analysis = analyze_actual_steam_data(merged["comments"], merged["metrics"])
-    validation = validate_analysis(merged["comments"], merged["metrics"], analysis)
-
-    with open(steam_path, "w", encoding="utf-8") as handle:
-        json.dump(merged, handle, ensure_ascii=False, indent=2)
-    with open(os.path.join(out_dir, "google_play_dataset.json"), "w", encoding="utf-8") as handle:
-        json.dump(gplay_dataset, handle, ensure_ascii=False, indent=2)
-    with open(os.path.join(out_dir, "analysis.json"), "w", encoding="utf-8") as handle:
-        json.dump(analysis, handle, ensure_ascii=False, indent=2)
-    with open(os.path.join(out_dir, "validation.json"), "w", encoding="utf-8") as handle:
-        json.dump(validation, handle, ensure_ascii=False, indent=2)
-
-    return {
-        "success": bool(validation.get("passed")),
-        "validation": validation,
-        "artifacts": {
-            "dataset": steam_path,
-            "analysis": os.path.join(out_dir, "analysis.json"),
-            "validation": os.path.join(out_dir, "validation.json"),
-        },
-    }
+    return merge_platform_dataset(
+        gplay_dataset,
+        platform="Google Play",
+        output_dir=output_dir,
+        platform_artifact_name="google_play_dataset.json",
+        extra_platforms=["Steam", "TapTap"],
+    )
 
 
 def run_google_play_pipeline(
     app_ids: Sequence[str],
-    max_reviews_per_app: int = 30,
+    max_reviews_per_app: int | None = None,
     output_dir: str = DEFAULT_OUTPUT_DIR,
     crawler: Optional[GooglePlayPublicCrawler] = None,
     *,
     product_name_overrides: Optional[Dict[str, str]] = None,
+    review_days: int | None = None,
 ) -> Dict[str, Any]:
     crawler = crawler or GooglePlayPublicCrawler()
     dataset = crawler.crawl(
         app_ids=app_ids,
         max_reviews_per_app=max_reviews_per_app,
         product_name_overrides=product_name_overrides,
+        review_days=review_days,
     )
     merge_result = merge_into_mvp_dataset(dataset, output_dir)
     return {

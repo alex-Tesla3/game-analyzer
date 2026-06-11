@@ -69,35 +69,51 @@ class SteamPublicCrawler:
             }
         )
 
-    def crawl(self, app_ids: Sequence[str], max_reviews_per_app: int = 50) -> Dict[str, Any]:
+    def crawl(
+        self,
+        app_ids: Sequence[str],
+        max_reviews_per_app: int | None = None,
+        *,
+        review_days: int | None = None,
+    ) -> Dict[str, Any]:
+        from src.services.crawl_runner import crawl_products_parallel
+        from src.services.review_window import normalize_review_days
+
         if not app_ids:
             raise ValueError("app_ids must contain at least one Steam app id")
-        if max_reviews_per_app <= 0:
-            raise ValueError("max_reviews_per_app must be greater than 0")
+        window_days = normalize_review_days(review_days)
+        valid_ids = [str(raw).strip() for raw in app_ids if str(raw).strip()]
+
+        def _crawl_one(app_id: str) -> Dict[str, Any]:
+            worker = SteamPublicCrawler(timeout=self.timeout)
+            try:
+                return {
+                    "app_id": app_id,
+                    "ok": True,
+                    **worker._crawl_single_app(
+                        app_id,
+                        window_days,
+                        max_reviews=max_reviews_per_app,
+                    ),
+                }
+            except Exception as exc:
+                return {"app_id": app_id, "ok": False, "error": str(exc)}
+
+        results = crawl_products_parallel(valid_ids, _crawl_one)
 
         games: List[Dict[str, Any]] = []
         comments: List[Dict[str, Any]] = []
         metrics: List[Dict[str, Any]] = []
         errors: List[Dict[str, str]] = []
 
-        for raw_app_id in app_ids:
-            app_id = str(raw_app_id).strip()
-            if not app_id:
-                continue
-
-            try:
-                details = self.fetch_app_details(app_id)
-                reviews_payload = self.fetch_reviews(app_id, max_reviews_per_app)
-                reviews = reviews_payload.get("reviews", [])
-                query_summary = reviews_payload.get("query_summary", {})
-                game = self._normalize_game(app_id, details)
-                games.append(game)
-                comments.extend(self._normalize_reviews(app_id, game["name"], reviews))
-                metrics.extend(
-                    self._build_metrics(app_id, game, reviews, query_summary, max_reviews_per_app)
-                )
-            except Exception as exc:
-                errors.append({"app_id": app_id, "error": str(exc)})
+        for app_id in valid_ids:
+            row = results.get(app_id) or {"ok": False, "error": "missing crawl result"}
+            if row.get("ok"):
+                games.append(row["game"])
+                comments.extend(row["comments"])
+                metrics.extend(row["metrics"])
+            else:
+                errors.append({"app_id": app_id, "error": str(row.get("error") or "unknown error")})
 
         if not comments and not metrics:
             raise SteamCrawlerError(f"No usable Steam data was crawled. Errors: {errors}")
@@ -105,11 +121,32 @@ class SteamPublicCrawler:
         return {
             "source": "steam_public",
             "crawled_at": datetime.now(timezone.utc).isoformat(),
+            "review_days": window_days,
             "app_ids": list(app_ids),
             "games": games,
             "comments": comments,
             "metrics": metrics,
             "errors": errors,
+        }
+
+    def _crawl_single_app(
+        self,
+        app_id: str,
+        window_days: int,
+        *,
+        max_reviews: int | None = None,
+    ) -> Dict[str, Any]:
+        details = self.fetch_app_details(app_id)
+        reviews_payload = self.fetch_reviews(
+            app_id, review_days=window_days, max_reviews=max_reviews
+        )
+        reviews = reviews_payload.get("reviews", [])
+        query_summary = reviews_payload.get("query_summary", {})
+        game = self._normalize_game(app_id, details)
+        return {
+            "game": game,
+            "comments": self._normalize_reviews(app_id, game["name"], reviews),
+            "metrics": self._build_metrics(app_id, game, reviews, query_summary, window_days),
         }
 
     def fetch_app_details(self, app_id: str) -> Dict[str, Any]:
@@ -125,38 +162,68 @@ class SteamPublicCrawler:
             raise SteamCrawlerError(f"Steam appdetails returned no data for app_id={app_id}")
         return app_payload.get("data", {})
 
-    def fetch_reviews(self, app_id: str, max_reviews: int) -> Dict[str, Any]:
-        target = max(1, min(int(max_reviews), 200))
-        collected: List[Dict[str, Any]] = []
+    def fetch_reviews(
+        self,
+        app_id: str,
+        *,
+        review_days: int | None = None,
+        max_reviews: int | None = None,
+    ) -> Dict[str, Any]:
+        from src.services.crawl_runner import throttle_page_fetch
+        from src.services.review_window import (
+            collect_recent_reviews_within_days,
+            normalize_review_days,
+            steam_review_datetime,
+        )
+
+        window_days = normalize_review_days(review_days)
+        cap = int(max_reviews) if max_reviews and max_reviews > 0 else None
         query_summary: Dict[str, Any] = {}
         cursor = "*"
-        while len(collected) < target:
-            page_size = min(100, target - len(collected))
-            response = self.session.get(
-                self.APP_REVIEWS_URL.format(app_id=app_id),
-                params={
-                    "json": 1,
-                    "filter": "recent",
-                    "language": "english",
-                    "num_per_page": page_size,
-                    "purchase_type": "all",
-                    "cursor": cursor,
-                },
-                timeout=self.timeout,
+
+        def _iter_batches():
+            nonlocal cursor, query_summary
+            while True:
+                throttle_page_fetch()
+                response = self.session.get(
+                    self.APP_REVIEWS_URL.format(app_id=app_id),
+                    params={
+                        "json": 1,
+                        "filter": "recent",
+                        "language": "english",
+                        "num_per_page": 100,
+                        "purchase_type": "all",
+                        "cursor": cursor,
+                    },
+                    timeout=self.timeout,
+                )
+                response.raise_for_status()
+                payload = response.json()
+                if int(payload.get("success", 0)) != 1:
+                    raise SteamCrawlerError(
+                        f"Steam appreviews returned success=0 for app_id={app_id}"
+                    )
+                batch = payload.get("reviews") or []
+                query_summary = payload.get("query_summary") or query_summary
+                yield batch
+                cursor = payload.get("cursor")
+                if not batch or not cursor:
+                    break
+
+        collected = collect_recent_reviews_within_days(
+            _iter_batches(),
+            days=window_days,
+            max_count=cap,
+            date_fn=steam_review_datetime,
+        )
+
+        if not collected:
+            raise SteamCrawlerError(
+                f"Steam app_id={app_id} 在近 {window_days} 天内没有可用评论，请扩大时间范围。"
             )
-            response.raise_for_status()
-            payload = response.json()
-            if int(payload.get("success", 0)) != 1:
-                raise SteamCrawlerError(f"Steam appreviews returned success=0 for app_id={app_id}")
-            batch = payload.get("reviews") or []
-            if batch:
-                collected.extend(batch)
-            query_summary = payload.get("query_summary") or query_summary
-            cursor = payload.get("cursor")
-            if not batch or not cursor:
-                break
+
         return {
-            "reviews": collected[:target],
+            "reviews": collected,
             "query_summary": query_summary,
             "success": 1,
         }
@@ -244,7 +311,7 @@ class SteamPublicCrawler:
         game: Dict[str, Any],
         reviews: Sequence[Dict[str, Any]],
         query_summary: Dict[str, Any],
-        requested_reviews: int,
+        window_days: int,
     ) -> List[Dict[str, Any]]:
         positive = sum(1 for review in reviews if review.get("voted_up"))
         negative = len(reviews) - positive
@@ -276,7 +343,7 @@ class SteamPublicCrawler:
             "source": "steam_public",
         }
         values = [
-            ("抓取评论数", len(reviews), f"requested={requested_reviews}"),
+            ("抓取评论数", len(reviews), f"window_days={window_days}"),
             ("样本好评率", review_score, f"positive={positive}; negative={negative}"),
             ("Steam汇总评论数", total_reviews, "query_summary.total_reviews"),
             ("Steam汇总好评率", total_score, f"total_positive={total_positive}; total_negative={total_negative}"),
@@ -531,16 +598,21 @@ def search_steam_games(term: str, *, limit: int = 8, crawler: Optional[SteamPubl
 
 def run_mvp_pipeline(
     app_ids: Sequence[str] = DEFAULT_STEAM_APP_IDS,
-    max_reviews_per_app: int = 50,
+    max_reviews_per_app: int | None = None,
     output_dir: str = DEFAULT_OUTPUT_DIR,
     crawler: Optional[SteamPublicCrawler] = None,
     *,
     product_name_overrides: Optional[Dict[str, str]] = None,
+    review_days: int | None = None,
 ) -> Dict[str, Any]:
     """Crawl real Steam data, analyze it, validate results, and persist artifacts."""
 
     crawler = crawler or SteamPublicCrawler()
-    dataset = crawler.crawl(app_ids=app_ids, max_reviews_per_app=max_reviews_per_app)
+    dataset = crawler.crawl(
+        app_ids=app_ids,
+        max_reviews_per_app=max_reviews_per_app,
+        review_days=review_days,
+    )
     if product_name_overrides:
         from src.product_registry import apply_product_display_names
 

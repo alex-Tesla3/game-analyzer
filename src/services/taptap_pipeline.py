@@ -138,39 +138,70 @@ class TapTapPublicCrawler:
     def crawl(
         self,
         app_ids: Sequence[str],
-        max_reviews_per_app: int = 30,
+        max_reviews_per_app: int | None = None,
         *,
         product_name_overrides: Optional[Dict[str, str]] = None,
+        review_days: int | None = None,
     ) -> Dict[str, Any]:
+        from src.services.crawl_runner import crawl_products_parallel
+        from src.services.review_window import normalize_review_days
+
+        window_days = normalize_review_days(review_days)
+        valid_ids = [str(raw).strip().replace("taptap_", "") for raw in app_ids if str(raw).strip()]
+
+        def _crawl_one(raw_id: str) -> Dict[str, Any]:
+            worker = TapTapPublicCrawler(timeout=self.timeout)
+            app_id = str(raw_id).strip().replace("taptap_", "")
+            try:
+                game = worker._fetch_game(app_id)
+                reviews, demo = worker._fetch_reviews(
+                    app_id,
+                    review_days=window_days,
+                    max_reviews=max_reviews_per_app,
+                )
+                return {
+                    "app_id": app_id,
+                    "ok": True,
+                    "demo": demo,
+                    "game": game,
+                    "reviews": reviews,
+                }
+            except Exception as exc:
+                if app_id in _merged_taptap_demo():
+                    demo_name = _merged_taptap_demo()[app_id]
+                    game = {"app_id": app_id, "name": demo_name, "platform": "TapTap"}
+                    reviews = worker._demo_reviews(app_id)
+                    return {
+                        "app_id": app_id,
+                        "ok": True,
+                        "demo": True,
+                        "game": game,
+                        "reviews": reviews,
+                        "error": f"live_fetch_failed: {exc}",
+                    }
+                return {"app_id": app_id, "ok": False, "error": str(exc)}
+
+        results = crawl_products_parallel(valid_ids, _crawl_one)
+
         comments: List[Dict[str, Any]] = []
         metrics: List[Dict[str, Any]] = []
         games: List[Dict[str, Any]] = []
         errors: List[Dict[str, str]] = []
         used_demo = False
 
-        for raw_id in app_ids:
-            app_id = str(raw_id).strip().replace("taptap_", "")
-            if not app_id:
-                continue
-            try:
-                game = self._fetch_game(app_id)
-                reviews, demo = self._fetch_reviews(app_id, max_reviews_per_app)
-                used_demo = used_demo or demo
+        for app_id in valid_ids:
+            row = results.get(app_id) or {"ok": False, "error": "missing crawl result"}
+            if row.get("ok"):
+                used_demo = used_demo or bool(row.get("demo"))
+                game = row["game"]
+                reviews = row["reviews"]
                 games.append(game)
                 comments.extend(self._normalize_reviews(app_id, game["name"], reviews))
                 metrics.extend(self._build_metrics(app_id, game, reviews))
-            except Exception as exc:
-                if app_id in _merged_taptap_demo():
-                    demo_name = _merged_taptap_demo()[app_id]
-                    game = {"app_id": app_id, "name": demo_name, "platform": "TapTap"}
-                    reviews = self._demo_reviews(app_id)
-                    used_demo = True
-                    games.append(game)
-                    comments.extend(self._normalize_reviews(app_id, demo_name, reviews))
-                    metrics.extend(self._build_metrics(app_id, game, reviews))
-                    errors.append({"app_id": app_id, "error": f"live_fetch_failed: {exc}"})
-                else:
-                    errors.append({"app_id": app_id, "error": str(exc)})
+                if row.get("error"):
+                    errors.append({"app_id": app_id, "error": str(row["error"])})
+            else:
+                errors.append({"app_id": app_id, "error": str(row.get("error") or "unknown error")})
 
         if not comments and not metrics:
             raise TapTapCrawlerError(f"No usable TapTap data. Errors: {errors}")
@@ -179,6 +210,7 @@ class TapTapPublicCrawler:
             "source": "taptap_public",
             "data_mode": "demo_fallback" if used_demo else "live",
             "crawled_at": datetime.now(timezone.utc).isoformat(),
+            "review_days": window_days,
             "app_ids": list(app_ids),
             "games": games,
             "comments": comments,
@@ -193,34 +225,60 @@ class TapTapPublicCrawler:
         title = (app.get("title") or app.get("name") or f"TapTap {app_id}").strip()
         return {"app_id": app_id, "name": title, "platform": "TapTap"}
 
-    def _fetch_reviews(self, app_id: str, limit: int) -> tuple[List[Dict[str, Any]], bool]:
+    def _fetch_reviews(
+        self,
+        app_id: str,
+        *,
+        review_days: int | None = None,
+        max_reviews: int | None = None,
+    ) -> tuple[List[Dict[str, Any]], bool]:
+        from src.services.crawl_runner import throttle_page_fetch
+        from src.services.review_window import (
+            collect_recent_reviews_within_days,
+            normalize_review_days,
+            taptap_review_datetime,
+        )
+
         try:
-            target = min(max(limit, 3), 200)
-            collected: List[Dict[str, Any]] = []
+            window_days = normalize_review_days(review_days)
+            cap = int(max_reviews) if max_reviews and max_reviews > 0 else None
             offset = 0
             page_size = 30
-            while len(collected) < target:
-                batch_limit = min(page_size, target - len(collected))
-                payload = self._get_json(
-                    "review/v2/list-by-app",
-                    {
-                        "app_id": app_id,
-                        "limit": batch_limit,
-                        "from": offset,
-                        "sort": "new",
-                    },
-                )
-                rows = (payload.get("data") or {}).get("list") or []
-                parsed = [parse_taptap_review_row(row) for row in rows if row]
-                parsed = [r for r in parsed if r.get("content")]
-                if not parsed:
-                    break
-                collected.extend(parsed)
-                if len(parsed) < batch_limit:
-                    break
-                offset += len(parsed)
+
+            def _iter_batches():
+                nonlocal offset
+                while True:
+                    throttle_page_fetch()
+                    batch_limit = page_size
+                    payload = self._get_json(
+                        "review/v2/list-by-app",
+                        {
+                            "app_id": app_id,
+                            "limit": batch_limit,
+                            "from": offset,
+                            "sort": "new",
+                        },
+                    )
+                    rows = (payload.get("data") or {}).get("list") or []
+                    parsed = [parse_taptap_review_row(row) for row in rows if row]
+                    parsed = [r for r in parsed if r.get("content")]
+                    yield parsed
+                    if not parsed or len(parsed) < batch_limit:
+                        break
+                    offset += len(parsed)
+
+            collected = collect_recent_reviews_within_days(
+                _iter_batches(),
+                days=window_days,
+                max_count=cap,
+                date_fn=taptap_review_datetime,
+            )
+
             if collected:
-                return collected[:target], False
+                return collected, False
+            raise TapTapCrawlerError(
+                f"TapTap app_id={app_id} 在近 {window_days} 天内没有可用评论，请扩大时间范围。"
+            )
         except TapTapCrawlerError:
             if not allow_demo_fallback() and app_id not in _merged_taptap_demo():
                 raise
@@ -234,15 +292,33 @@ class TapTapPublicCrawler:
 
     def _demo_reviews(self, app_id: str) -> List[Dict[str, Any]]:
         name = _merged_taptap_demo().get(app_id, f"App {app_id}")
+        created_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
         return [
-            {"score": 5, "contents": {"text": f"{name} 玩法不错，画面精美，值得推荐。"}, "voted_up": True},
-            {"score": 2, "contents": {"text": f"{name} 抽卡概率太低，肝度偏高。"}, "voted_up": False},
-            {"score": 3, "contents": {"text": f"{name} 最近版本更新后优化变好了。"}, "voted_up": True},
+            {
+                "score": 5,
+                "contents": {"text": f"{name} 玩法不错，画面精美，值得推荐。"},
+                "voted_up": True,
+                "created_time": created_ms,
+            },
+            {
+                "score": 2,
+                "contents": {"text": f"{name} 抽卡概率太低，肝度偏高。"},
+                "voted_up": False,
+                "created_time": created_ms,
+            },
+            {
+                "score": 3,
+                "contents": {"text": f"{name} 最近版本更新后优化变好了。"},
+                "voted_up": True,
+                "created_time": created_ms,
+            },
         ]
 
     def _normalize_reviews(
         self, app_id: str, game_name: str, reviews: Sequence[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
+        from src.services.review_window import iso_date_from_datetime, taptap_review_datetime
+
         out: List[Dict[str, Any]] = []
         for review in reviews:
             text = review.get("content") or review.get("text") or ""
@@ -250,12 +326,15 @@ class TapTapPublicCrawler:
                 text = review["contents"].get("text") or ""
             score = review.get("score") or review.get("rating") or 0
             positive = bool(review.get("voted_up")) if "voted_up" in review else int(score) >= 4
+            review_date = iso_date_from_datetime(taptap_review_datetime(review))
             out.append(
                 {
                     "product": app_id,
                     "product_name": game_name,
                     "platform": "TapTap",
                     "channel": "TapTap",
+                    "日期": review_date,
+                    "date": review_date,
                     "情绪": "positive" if positive else "negative",
                     "sentiment": "positive" if positive else "negative",
                     "内容": text,
@@ -369,60 +448,32 @@ def resolve_taptap_inputs(raw: Sequence[str] | str, *, max_games: int = 5) -> Di
 
 
 def merge_into_mvp_dataset(taptap_dataset: Dict[str, Any], output_dir: str = DEFAULT_OUTPUT_DIR) -> Dict[str, Any]:
-    """Merge TapTap crawl into existing steam_dataset.json and re-validate."""
-    out_dir = os.path.abspath(output_dir)
-    os.makedirs(out_dir, exist_ok=True)
-    steam_path = os.path.join(out_dir, "steam_dataset.json")
-    existing: Dict[str, Any] = {"comments": [], "metrics": [], "games": []}
-    if os.path.exists(steam_path):
-        with open(steam_path, "r", encoding="utf-8") as handle:
-            existing = json.load(handle)
+    from src.services.mvp_dataset_merge import merge_platform_dataset
 
-    merged = {
-        "source": "mvp_multi",
-        "crawled_at": datetime.now(timezone.utc).isoformat(),
-        "games": list(existing.get("games") or []) + list(taptap_dataset.get("games") or []),
-        "comments": list(existing.get("comments") or []) + list(taptap_dataset.get("comments") or []),
-        "metrics": list(existing.get("metrics") or []) + list(taptap_dataset.get("metrics") or []),
-        "platforms": sorted(set((existing.get("platforms") or []) + ["Steam", "TapTap"])),
-        "data_mode": taptap_dataset.get("data_mode", "live"),
-    }
-    analysis = analyze_actual_steam_data(merged["comments"], merged["metrics"])
-    validation = validate_analysis(merged["comments"], merged["metrics"], analysis)
-
-    with open(steam_path, "w", encoding="utf-8") as handle:
-        json.dump(merged, handle, ensure_ascii=False, indent=2)
-    with open(os.path.join(out_dir, "taptap_dataset.json"), "w", encoding="utf-8") as handle:
-        json.dump(taptap_dataset, handle, ensure_ascii=False, indent=2)
-    with open(os.path.join(out_dir, "analysis.json"), "w", encoding="utf-8") as handle:
-        json.dump(analysis, handle, ensure_ascii=False, indent=2)
-    with open(os.path.join(out_dir, "validation.json"), "w", encoding="utf-8") as handle:
-        json.dump(validation, handle, ensure_ascii=False, indent=2)
-
-    return {
-        "success": bool(validation.get("passed")),
-        "validation": validation,
-        "artifacts": {
-            "dataset": steam_path,
-            "analysis": os.path.join(out_dir, "analysis.json"),
-            "validation": os.path.join(out_dir, "validation.json"),
-        },
-    }
+    return merge_platform_dataset(
+        taptap_dataset,
+        platform="TapTap",
+        output_dir=output_dir,
+        platform_artifact_name="taptap_dataset.json",
+        extra_platforms=["Steam"],
+    )
 
 
 def run_taptap_pipeline(
     app_ids: Sequence[str],
-    max_reviews_per_app: int = 30,
+    max_reviews_per_app: int | None = None,
     output_dir: str = DEFAULT_OUTPUT_DIR,
     crawler: Optional[TapTapPublicCrawler] = None,
     *,
     product_name_overrides: Optional[Dict[str, str]] = None,
+    review_days: int | None = None,
 ) -> Dict[str, Any]:
     crawler = crawler or TapTapPublicCrawler()
     dataset = crawler.crawl(
         app_ids=app_ids,
         max_reviews_per_app=max_reviews_per_app,
         product_name_overrides=product_name_overrides,
+        review_days=review_days,
     )
     merge_result = merge_into_mvp_dataset(dataset, output_dir)
     return {

@@ -13,7 +13,7 @@ Multi-platform crawl pipeline: public reviews → normalized schema → analysis
 ## CLI (Steam batch)
 
 ```bash
-python3 run_mvp.py --app-ids 730,570,117247 --max-reviews 50
+python3 run_mvp.py --app-ids 730,570,117247 --review-days 14
 ```
 
 ## Artifacts (`data/mvp/`)
@@ -25,14 +25,25 @@ python3 run_mvp.py --app-ids 730,570,117247 --max-reviews 50
 ## FastAPI endpoints
 
 ```text
-GET /api/mvp/steam?app_ids=730,570&max_reviews=25
-GET /api/mvp/taptap?app_ids=168332&max_reviews=25
-GET /api/mvp/google-play?app_ids=com.miHoYo.GenshinImpact&max_reviews=25
+GET /api/mvp/steam?app_ids=730,570&review_days=14
+GET /api/mvp/taptap?app_ids=168332&review_days=7
+GET /api/mvp/google-play?app_ids=com.miHoYo.GenshinImpact&review_days=14
 GET /api/mvp/latest
 GET /mvp
 ```
 
 UI: `/mvp` — per-channel re-crawl buttons + link to `/dashboard`.
+
+Crawl pacing (optional env):
+
+- `GA_CRAWL_DELAY_SECONDS` — pause between review pages (default `0.4`)
+- `GA_CRAWL_MAX_WORKERS` — parallel products per channel (default `3`, max `8`)
+
+Google Play review locale (important for global games):
+
+- Reviews default to `en` / `us` (`GOOGLE_PLAY_REVIEW_LANG` / `GOOGLE_PLAY_REVIEW_COUNTRY`)
+- Search still defaults to `zh` / `cn` (`GOOGLE_PLAY_SEARCH_LANG` / `GOOGLE_PLAY_SEARCH_COUNTRY`)
+- Using `zh/cn` for reviews often returns far fewer comments for international package IDs
 
 ## Dashboard sync
 

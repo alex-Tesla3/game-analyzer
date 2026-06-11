@@ -12,6 +12,8 @@ ARTIFACT_FILES = {
     "dataset": "steam_dataset.json",
     "analysis": "analysis.json",
     "validation": "validation.json",
+    "google_play_dataset": "google_play_dataset.json",
+    "taptap_dataset": "taptap_dataset.json",
 }
 
 

@@ -7,7 +7,7 @@ from src.mvp_pipeline import analyze_actual_steam_data, run_mvp_pipeline, valida
 
 
 class FakeSteamCrawler:
-    def crawl(self, app_ids, max_reviews_per_app):
+    def crawl(self, app_ids, max_reviews_per_app, review_days=0):
         return {
             "source": "steam_public",
             "app_ids": list(app_ids),
