@@ -130,7 +130,6 @@
     }
 
     function formatDashboardProductSelection() {
-        syncFiltersFromDom();
         const ids = getSelectedProductIds();
         if (!ids.length) return "全部产品";
         return ids
@@ -139,13 +138,24 @@
     }
 
     function updateLinkedProductSummaries() {
+        const ids = getSelectedProductIds();
         const text = formatDashboardProductSelection();
-        const count = getSelectedProductIds().length;
+        const hint =
+            '<span class="dashboard-product-summary-hint">如需更改，请关闭本窗口并在看板筛选区调整，各报告/分析将自动同步。</span>';
+        const emptyHint =
+            '<span class="dashboard-product-summary-hint">请在看板顶部筛选区勾选产品。</span>';
         document.querySelectorAll("[data-dashboard-product-summary]").forEach((el) => {
-            el.textContent = count ? text : "全部产品（请在看板顶部筛选区勾选）";
+            if (ids.length) {
+                el.innerHTML = text + (el.id === "report-product-summary" ? hint : "");
+            } else {
+                el.innerHTML = "全部产品（请在看板顶部筛选区勾选）" + emptyHint;
+            }
         });
-        if (typeof global.updateReportProductSummary === "function") {
-            global.updateReportProductSummary();
+        const reportEl = document.getElementById("report-product-summary");
+        if (reportEl && !reportEl.dataset.dashboardProductSummary) {
+            reportEl.innerHTML = ids.length
+                ? text + hint
+                : "沿用看板顶部筛选" + emptyHint;
         }
     }
 
@@ -166,7 +176,6 @@
         if (sourceSelect) global.currentDataSource = sourceSelect.value;
         if (genreSelect) global.currentGenre = genreSelect.value;
         persistProductSelection();
-        updateLinkedProductSummaries();
     }
 
     function productsMatchingGenre(products, genre) {
@@ -369,6 +378,7 @@
             global.syncReportProductOptions(list);
         }
         if (typeof global.renderProductList === "function") global.renderProductList();
+        updateLinkedProductSummaries();
     }
 
     function getSelectedProductIds() {
@@ -436,7 +446,12 @@
     async function ensureMetricsLoaded(forceRefresh) {
         const checkAuth = global.checkAuth || (() => !!global.getToken?.());
         if (!checkAuth()) return null;
-        if (!forceRefresh && global.allMetricsData !== null) return global.allMetricsData;
+        const hasCachedRows = Array.isArray(global.allMetricsData) && global.allMetricsData.length > 0;
+        const datasetReady = Number(global.dashboardMetricsTotal || 0) > 0;
+        if (!forceRefresh && hasCachedRows) return global.allMetricsData;
+        if (!forceRefresh && !hasCachedRows && !datasetReady && global.allMetricsData !== null) {
+            return global.allMetricsData;
+        }
         if (!forceRefresh && global.metricsLoadPromise) return global.metricsLoadPromise;
 
         setDashboardLoading(true);
@@ -586,6 +601,7 @@
             }
             syncFiltersFromDom();
             if (typeof global.renderProductList === "function") global.renderProductList();
+            updateLinkedProductSummaries();
             return true;
         } catch (e) {
             console.error("加载筛选选项失败", e);
@@ -597,8 +613,13 @@
         const checkAuth = global.checkAuth || (() => !!global.getToken?.());
         if (!checkAuth()) return;
         try {
-            await ensureMetricsLoaded(!!forceRefresh);
+            const shouldForce =
+                !!forceRefresh ||
+                (Number(global.dashboardMetricsTotal || 0) > 0 &&
+                    (!Array.isArray(global.allMetricsData) || global.allMetricsData.length === 0));
+            await ensureMetricsLoaded(shouldForce);
             renderDashboard();
+            updateLinkedProductSummaries();
         } catch (e) {
             console.error("加载失败", e);
         }
@@ -614,6 +635,7 @@
 
     function applyFilters() {
         syncFiltersFromDom();
+        updateLinkedProductSummaries();
         loadData(true);
     }
 

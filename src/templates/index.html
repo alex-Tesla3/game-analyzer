@@ -2002,7 +2002,7 @@
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
                         <div>
                             <label style="color:#86868b;font-size:0.875rem;margin-bottom:4px;display:block;font-weight:600;">产品范围</label>
-                            <div id="report-product-summary" class="dashboard-product-summary" data-dashboard-product-summary>
+                            <div id="report-product-summary" class="dashboard-product-summary" data-dashboard-product-summary="1">
                                 沿用看板顶部筛选
                                 <span class="dashboard-product-summary-hint">如需更改，请关闭本窗口并在看板筛选区调整，各报告/分析将自动同步。</span>
                             </div>
@@ -2460,15 +2460,7 @@
         function updateReportProductSummary() {
             if (typeof updateLinkedProductSummaries === 'function') {
                 updateLinkedProductSummaries();
-                return;
             }
-            const el = document.getElementById('report-product-summary');
-            if (!el) return;
-            const text = typeof formatDashboardProductSelection === 'function'
-                ? formatDashboardProductSelection()
-                : '沿用看板顶部筛选';
-            el.innerHTML = escapeHtml(text) +
-                '<span class="dashboard-product-summary-hint">如需更改，请关闭本窗口并在看板筛选区调整，各报告/分析将自动同步。</span>';
         }
         window.updateReportProductSummary = updateReportProductSummary;
         window.syncReportProductOptions = function () {
@@ -2574,6 +2566,7 @@
             }
             return true;
         }
+        window.checkAuth = checkAuth;
         
         // =========================================
         // 性能优化: 数据缓存与请求管理
@@ -6080,6 +6073,11 @@ ${data.summary || ''}
             ['product-select', 'time-period-select', 'data-source-select', 'genre-select'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.addEventListener('change', onFilterChange);
+            });
+            window.addEventListener('pageshow', (event) => {
+                if (event.persisted || document.visibilityState === 'visible') {
+                    loadData(true);
+                }
             });
             } catch (err) {
                 console.error('Dashboard init failed:', err);
