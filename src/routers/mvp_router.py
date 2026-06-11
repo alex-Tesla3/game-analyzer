@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse
 
 from src.mvp_data import load_mvp_artifact
 from src.mvp_pipeline import DEFAULT_STEAM_APP_IDS, run_mvp_pipeline, steam_app_catalog
-from src.product_registry import get_mvp_presets, parse_product_name_overrides
+from src.product_registry import get_mvp_presets, resolve_mvp_crawl_targets
 from src.services.google_play_pipeline import run_google_play_pipeline
 from src.services.taptap_pipeline import run_taptap_pipeline
 
@@ -102,16 +102,33 @@ async def get_latest_mvp():
     }
 
 
+@router.get("/api/mvp/resolve")
+async def resolve_mvp_inputs(
+    platform: str = Query("steam"),
+    q: str = Query("", description="Game names, package names, or app ids"),
+):
+    app_ids, overrides, errors = resolve_mvp_crawl_targets(platform, q, "")
+    return {
+        "success": bool(app_ids),
+        "platform": platform,
+        "app_ids": app_ids,
+        "display_names": overrides,
+        "errors": errors,
+    }
+
+
 @router.get("/api/mvp/steam")
 async def run_steam_mvp(
     app_ids: str = Query(",".join(DEFAULT_STEAM_APP_IDS)),
     max_reviews: int = Query(25, ge=1, le=100),
     product_names: str = Query("", description="Custom display names: product_id:名称"),
 ):
-    selected_app_ids = [item.strip() for item in app_ids.split(",") if item.strip()]
+    selected_app_ids, name_overrides, resolve_errors = resolve_mvp_crawl_targets(
+        "steam", app_ids, product_names
+    )
     if not selected_app_ids:
-        raise HTTPException(status_code=400, detail="至少需要提供一个 Steam app_id")
-    name_overrides = parse_product_name_overrides(product_names)
+        detail = "；".join(resolve_errors) if resolve_errors else "至少需要提供一个 Steam app_id"
+        raise HTTPException(status_code=400, detail=detail)
     try:
         result = await asyncio.to_thread(
             run_mvp_pipeline,
@@ -130,19 +147,23 @@ async def run_steam_mvp(
         "artifacts": result["artifacts"],
         "crawl_errors": result["dataset"].get("errors", []),
         "data_mode": result["dataset"].get("data_mode", "live"),
+        "crawled_app_ids": selected_app_ids,
+        "display_names": name_overrides,
     }
 
 
 @router.get("/api/mvp/taptap")
 async def run_taptap_mvp(
-    app_ids: str = Query(..., description="Comma-separated TapTap app ids"),
+    app_ids: str = Query("", description="Comma-separated TapTap app ids or game names"),
     max_reviews: int = Query(25, ge=1, le=100),
     product_names: str = Query("", description="Custom display names: app_id:名称"),
 ):
-    selected = [item.strip() for item in app_ids.split(",") if item.strip()]
+    selected, name_overrides, resolve_errors = resolve_mvp_crawl_targets(
+        "taptap", app_ids, product_names
+    )
     if not selected:
-        raise HTTPException(status_code=400, detail="至少需要提供一个 TapTap AppID")
-    name_overrides = parse_product_name_overrides(product_names)
+        detail = "；".join(resolve_errors) if resolve_errors else "至少需要提供一个 TapTap AppID"
+        raise HTTPException(status_code=400, detail=detail)
     try:
         result = await asyncio.to_thread(
             run_taptap_pipeline,
@@ -161,19 +182,23 @@ async def run_taptap_mvp(
         "validation": result.get("validation"),
         "artifacts": result.get("artifacts"),
         "crawl_errors": (result.get("dataset") or {}).get("errors", []),
+        "crawled_app_ids": selected,
+        "display_names": name_overrides,
     }
 
 
 @router.get("/api/mvp/google-play")
 async def run_google_play_mvp(
-    app_ids: str = Query(..., description="Comma-separated package names"),
+    app_ids: str = Query("", description="Comma-separated package names or game names"),
     max_reviews: int = Query(25, ge=1, le=100),
     product_names: str = Query("", description="Custom display names: package:名称"),
 ):
-    selected = [item.strip() for item in app_ids.split(",") if item.strip()]
+    selected, name_overrides, resolve_errors = resolve_mvp_crawl_targets(
+        "google_play", app_ids, product_names
+    )
     if not selected:
-        raise HTTPException(status_code=400, detail="至少需要提供一个 Google Play 包名")
-    name_overrides = parse_product_name_overrides(product_names)
+        detail = "；".join(resolve_errors) if resolve_errors else "至少需要提供一个 Google Play 包名"
+        raise HTTPException(status_code=400, detail=detail)
     try:
         result = await asyncio.to_thread(
             run_google_play_pipeline,
@@ -192,4 +217,6 @@ async def run_google_play_mvp(
         "validation": result.get("validation"),
         "artifacts": result.get("artifacts"),
         "crawl_errors": (result.get("dataset") or {}).get("errors", []),
+        "crawled_app_ids": selected,
+        "display_names": name_overrides,
     }

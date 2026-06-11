@@ -321,7 +321,8 @@
       </div>
       <div style="grid-column: 1 / -1;">
         <label for="product-names">自定义产品名（可选）</label>
-        <input id="product-names" type="text" placeholder="产品ID:显示名，如 com.fun.lastwar.gp:Last War生存, 33569155:Last War" style="width:100%;min-height:38px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;">
+        <input id="product-names" type="text" placeholder="勾选产品后填显示名（如 Last Beacon）；或填 包名:显示名；也可直接填游戏名抓取" style="width:100%;min-height:38px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;">
+        <p id="product-names-hint" class="filter-hint" style="margin:6px 0 0;">先勾选上方产品，再填想显示的名称；不勾选时可直接填游戏名（如 Last War）触发抓取。</p>
       </div>
       <div class="filter-actions">
         <button id="apply-filter" type="button">应用筛选</button>
@@ -363,6 +364,18 @@
 
     function selectedChannel() {
       return (channelSelect && channelSelect.value) || 'steam';
+    }
+
+    function hasMappingSyntax(text) {
+      return /[:@|]/.test(String(text || ''));
+    }
+
+    function buildProductNamesParam(customText, ids) {
+      const text = (customText || '').trim();
+      if (!text) return '';
+      if (hasMappingSyntax(text)) return text;
+      if (!ids.length) return text;
+      return ids.map((id) => id + ':' + text).join(',');
     }
 
     function filterPayload(payload) {
@@ -594,26 +607,31 @@
         return;
       }
       const ids = selectedProductIds();
-      if (!ids.length) {
-        statusEl.textContent = '请至少选择一款产品';
+      const customNames = (document.getElementById('product-names')?.value || '').trim();
+      const appIdsParam = ids.length
+        ? ids.join(',')
+        : (customNames && !hasMappingSyntax(customNames) ? customNames : '');
+      if (!appIdsParam && !customNames) {
+        statusEl.textContent = '请至少选择一款产品，或在自定义产品名中填写游戏名/包名';
         return;
       }
       const labels = { steam: 'Steam', taptap: 'TapTap', google_play: 'Google Play' };
       const maxReviews = Math.min(100, Math.max(5, parseInt(document.getElementById('max-reviews').value, 10) || 20));
       refreshButton.disabled = true;
-      statusEl.textContent = `正在从 ${labels[channel] || channel} 抓取 ${ids.length} 款产品（每款最多 ${maxReviews} 条评论）…`;
+      statusEl.textContent = `正在从 ${labels[channel] || channel} 抓取（每款最多 ${maxReviews} 条评论）…`;
       try {
         const params = new URLSearchParams();
-        params.set('app_ids', ids.join(','));
+        params.set('app_ids', appIdsParam);
         params.set('max_reviews', String(maxReviews));
-        const customNames = (document.getElementById('product-names')?.value || '').trim();
-        if (customNames) params.set('product_names', customNames);
+        const namesParam = buildProductNamesParam(customNames, ids);
+        if (namesParam) params.set('product_names', namesParam);
         const response = await fetch(route + '?' + params.toString());
         if (!response.ok) throw new Error(await response.text());
         const payload = await response.json();
         const mode = payload.data_mode === 'live' ? '真实数据' : '演示回退';
         const dashParams = new URLSearchParams();
-        dashParams.set('product_ids', ids.join(','));
+        const crawledIds = (payload.crawled_app_ids || ids).join(',');
+        if (crawledIds) dashParams.set('product_ids', crawledIds);
         if (channel && channel !== 'steam') dashParams.set('data_source', channel);
         statusEl.innerHTML =
           `${labels[channel]} 抓取完成（${mode}）· 数据已写入看板数据集，` +

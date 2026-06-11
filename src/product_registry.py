@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 # Each entry: custom display_name + per-platform IDs + search aliases.
 PRODUCT_ENTRIES: List[Dict[str, Any]] = [
@@ -226,6 +226,10 @@ def _looks_like_product_id(token: str) -> bool:
     return bool(re.match(r"^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$", raw))
 
 
+def has_mapping_syntax(raw: str) -> bool:
+    return bool(re.search(r"[:@|]", (raw or "").strip()))
+
+
 def parse_product_name_overrides(raw: str) -> Dict[str, str]:
     """
     Parse custom display names for crawled products.
@@ -261,6 +265,65 @@ def parse_product_name_overrides(raw: str) -> Dict[str, str]:
                     overrides[right] = left
                 break
     return overrides
+
+
+def coerce_product_name_overrides(raw: str, app_ids: Sequence[str]) -> Dict[str, str]:
+    """Map a plain display label onto selected product IDs (no id:name syntax)."""
+    text = (raw or "").strip()
+    overrides = parse_product_name_overrides(text)
+    if overrides or not text or has_mapping_syntax(text):
+        return overrides
+    for pid in app_ids:
+        key = str(pid).strip()
+        if key:
+            overrides[key] = text
+    return overrides
+
+
+def resolve_mvp_crawl_targets(
+    platform: str,
+    app_ids_raw: str,
+    product_names_raw: str = "",
+) -> tuple[List[str], Dict[str, str], List[str]]:
+    """Resolve crawl IDs + display-name overrides for MVP refresh."""
+    from src.services.analysis_wizard import resolve_game_inputs
+    from src.services.google_play_pipeline import resolve_google_play_inputs
+    from src.services.taptap_pipeline import resolve_taptap_inputs
+
+    plat = (platform or "steam").strip().lower()
+    id_text = (app_ids_raw or "").strip()
+    name_text = (product_names_raw or "").strip()
+    errors: List[str] = []
+
+    overrides = parse_product_name_overrides(name_text)
+    crawl_input = id_text
+    if not crawl_input:
+        if overrides:
+            crawl_input = ",".join(overrides.keys())
+        elif name_text and not has_mapping_syntax(name_text):
+            crawl_input = name_text
+
+    if not crawl_input:
+        return [], {}, ["请至少选择一款产品，或在自定义产品名中填写游戏名/包名"]
+
+    if plat == "taptap":
+        resolved = resolve_taptap_inputs(crawl_input)
+    elif plat == "google_play":
+        resolved = resolve_google_play_inputs(crawl_input)
+    else:
+        resolved = resolve_game_inputs(crawl_input)
+
+    app_ids = list(resolved.get("app_ids") or [])
+    errors.extend(resolved.get("errors") or [])
+    if not app_ids:
+        msg = resolved.get("message") or "未能解析游戏 ID"
+        errors.append(str(msg))
+        return [], overrides, errors
+
+    if not overrides and name_text:
+        overrides = coerce_product_name_overrides(name_text, app_ids)
+
+    return app_ids, overrides, errors
 
 
 def apply_product_display_names(
