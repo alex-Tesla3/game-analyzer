@@ -238,7 +238,7 @@ async def run_analysis_wizard(
             result = await asyncio.to_thread(
                 pipeline,
                 app_ids=normalized,
-                max_reviews_per_app=max(10, min(max_reviews, 100)),
+                max_reviews_per_app=max(10, min(max_reviews, 200)),
             )
             crawl_ok = bool(result.get("success"))
             steps.append(

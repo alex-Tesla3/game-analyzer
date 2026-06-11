@@ -158,7 +158,7 @@ async def resolve_mvp_inputs(
 @router.get("/api/mvp/steam")
 async def run_steam_mvp(
     app_ids: str = Query(",".join(DEFAULT_STEAM_APP_IDS)),
-    max_reviews: int = Query(25, ge=1, le=100),
+    max_reviews: int = Query(25, ge=1, le=200),
     product_names: str = Query("", description="Custom display names: product_id:名称"),
 ):
     selected_app_ids, name_overrides, resolve_errors = resolve_mvp_crawl_targets(
@@ -193,7 +193,7 @@ async def run_steam_mvp(
 @router.get("/api/mvp/taptap")
 async def run_taptap_mvp(
     app_ids: str = Query("", description="Comma-separated TapTap app ids or game names"),
-    max_reviews: int = Query(25, ge=1, le=100),
+    max_reviews: int = Query(25, ge=1, le=200),
     product_names: str = Query("", description="Custom display names: app_id:名称"),
 ):
     selected, name_overrides, resolve_errors = resolve_mvp_crawl_targets(
@@ -228,7 +228,7 @@ async def run_taptap_mvp(
 @router.get("/api/mvp/google-play")
 async def run_google_play_mvp(
     app_ids: str = Query("", description="Comma-separated package names or game names"),
-    max_reviews: int = Query(25, ge=1, le=100),
+    max_reviews: int = Query(25, ge=1, le=200),
     product_names: str = Query("", description="Custom display names: package:名称"),
 ):
     selected, name_overrides, resolve_errors = resolve_mvp_crawl_targets(

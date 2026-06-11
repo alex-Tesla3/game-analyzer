@@ -126,22 +126,40 @@ class SteamPublicCrawler:
         return app_payload.get("data", {})
 
     def fetch_reviews(self, app_id: str, max_reviews: int) -> Dict[str, Any]:
-        response = self.session.get(
-            self.APP_REVIEWS_URL.format(app_id=app_id),
-            params={
-                "json": 1,
-                "filter": "recent",
-                "language": "english",
-                "num_per_page": min(max_reviews, 100),
-                "purchase_type": "all",
-            },
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
-        payload = response.json()
-        if int(payload.get("success", 0)) != 1:
-            raise SteamCrawlerError(f"Steam appreviews returned success=0 for app_id={app_id}")
-        return payload
+        target = max(1, min(int(max_reviews), 200))
+        collected: List[Dict[str, Any]] = []
+        query_summary: Dict[str, Any] = {}
+        cursor = "*"
+        while len(collected) < target:
+            page_size = min(100, target - len(collected))
+            response = self.session.get(
+                self.APP_REVIEWS_URL.format(app_id=app_id),
+                params={
+                    "json": 1,
+                    "filter": "recent",
+                    "language": "english",
+                    "num_per_page": page_size,
+                    "purchase_type": "all",
+                    "cursor": cursor,
+                },
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            if int(payload.get("success", 0)) != 1:
+                raise SteamCrawlerError(f"Steam appreviews returned success=0 for app_id={app_id}")
+            batch = payload.get("reviews") or []
+            if batch:
+                collected.extend(batch)
+            query_summary = payload.get("query_summary") or query_summary
+            cursor = payload.get("cursor")
+            if not batch or not cursor:
+                break
+        return {
+            "reviews": collected[:target],
+            "query_summary": query_summary,
+            "success": 1,
+        }
 
     def search_store(self, term: str, *, limit: int = 8) -> List[Dict[str, Any]]:
         """Search Steam store by game name (no API key)."""

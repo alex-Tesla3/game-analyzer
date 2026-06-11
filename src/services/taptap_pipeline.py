@@ -195,19 +195,32 @@ class TapTapPublicCrawler:
 
     def _fetch_reviews(self, app_id: str, limit: int) -> tuple[List[Dict[str, Any]], bool]:
         try:
-            payload = self._get_json(
-                "review/v2/list-by-app",
-                {
-                    "app_id": app_id,
-                    "limit": min(max(limit, 3), 30),
-                    "sort": "new",
-                },
-            )
-            rows = (payload.get("data") or {}).get("list") or []
-            parsed = [parse_taptap_review_row(row) for row in rows if row]
-            parsed = [r for r in parsed if r.get("content")]
-            if parsed:
-                return parsed, False
+            target = min(max(limit, 3), 200)
+            collected: List[Dict[str, Any]] = []
+            offset = 0
+            page_size = 30
+            while len(collected) < target:
+                batch_limit = min(page_size, target - len(collected))
+                payload = self._get_json(
+                    "review/v2/list-by-app",
+                    {
+                        "app_id": app_id,
+                        "limit": batch_limit,
+                        "from": offset,
+                        "sort": "new",
+                    },
+                )
+                rows = (payload.get("data") or {}).get("list") or []
+                parsed = [parse_taptap_review_row(row) for row in rows if row]
+                parsed = [r for r in parsed if r.get("content")]
+                if not parsed:
+                    break
+                collected.extend(parsed)
+                if len(parsed) < batch_limit:
+                    break
+                offset += len(parsed)
+            if collected:
+                return collected[:target], False
         except TapTapCrawlerError:
             if not allow_demo_fallback() and app_id not in _merged_taptap_demo():
                 raise

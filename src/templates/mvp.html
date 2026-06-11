@@ -317,7 +317,7 @@
       </div>
       <div>
         <label for="max-reviews">每款评论数</label>
-        <input id="max-reviews" type="number" min="5" max="100" value="20">
+        <input id="max-reviews" type="number" min="5" max="200" value="20">
       </div>
       <div style="grid-column: 1 / -1; border-top: 1px dashed var(--line); padding-top: 12px;">
         <label for="new-product-name">新增游戏产品（与上方列表独立的新游戏）</label>
@@ -644,7 +644,7 @@
         return;
       }
       const labels = { steam: 'Steam', taptap: 'TapTap', google_play: 'Google Play' };
-      const maxReviews = Math.min(100, Math.max(5, parseInt(document.getElementById('max-reviews').value, 10) || 20));
+      const maxReviews = Math.min(200, Math.max(5, parseInt(document.getElementById('max-reviews').value, 10) || 20));
       refreshButton.disabled = true;
       statusEl.textContent = `正在从 ${labels[channel] || channel} 抓取（每款最多 ${maxReviews} 条评论）…`;
       try {

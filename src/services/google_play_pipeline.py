@@ -186,7 +186,7 @@ class GooglePlayPublicCrawler:
             try:
                 info = gplay_app(package_id, lang=lang, country=country)
                 name = info.get("title") or _merged_gplay_demo().get(package_id) or package_id.split(".")[-1]
-                count = min(max(max_reviews, 3), 100)
+                count = min(max(max_reviews, 3), 200)
                 rows, _ = gplay_reviews(package_id, lang=lang, country=country, count=count)
                 parsed = [
                     {
