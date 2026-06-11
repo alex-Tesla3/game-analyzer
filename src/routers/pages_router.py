@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from auth import PLANS
-from src.data_catalog import derive_data_catalog, enrich_catalog_from_context
+from src.data_catalog import derive_data_catalog, enrich_catalog_from_context, restrict_catalog_to_dataset
 from src.data_resolution import get_user_comments_data, get_user_metrics_data, load_data
 from src.services.competitor_workbench import data_provenance_payload
 from src.web_constants import (
@@ -82,6 +82,40 @@ async def metrics_page():
     with open(metrics_file, 'r', encoding='utf-8') as f:
         return f.read()
 
+def _suggest_data_source(metrics: list) -> str:
+    platforms: set[str] = set()
+    for row in metrics or []:
+        plat = str(row.get("platform") or row.get("channel") or row.get("平台") or "").strip().lower()
+        if plat:
+            platforms.add(plat)
+    if not platforms:
+        return "all"
+    if len(platforms) == 1:
+        only = next(iter(platforms))
+        if only == "google play":
+            return "google_play"
+        if only == "steam":
+            return "steam"
+        if only == "taptap":
+            return "taptap"
+    return "all"
+
+
+def _time_periods_for_catalog(catalog: dict, *, data_source: str, metrics: list) -> list:
+    derived = list(catalog.get("time_periods") or [])
+    if derived:
+        if any(str(p.get("id", "")).startswith("week_") for p in derived):
+            return derived
+        if len(derived) == 1 and derived[0].get("id") == "all":
+            return derived
+        return [{"id": "all", "name": "全部（抓取快照）"}, *derived]
+    if data_source in ("imported", "mock", "cached"):
+        return AVAILABLE_TIME_PERIODS
+    if metrics:
+        return [{"id": "all", "name": "全部（抓取快照）"}]
+    return [{"id": "all", "name": "全部（抓取快照）"}]
+
+
 @router.get("/api/options")
 async def get_options(request: Request, token: Optional[str] = Query(None)):
     current_user = await get_current_user(request, token)
@@ -89,16 +123,13 @@ async def get_options(request: Request, token: Optional[str] = Query(None)):
     metrics = get_user_metrics_data(current_user.username)
     catalog = derive_data_catalog(comments or [], metrics or [])
     catalog = enrich_catalog_from_context(catalog, username=current_user.username)
+    catalog = restrict_catalog_to_dataset(catalog, comments or [], metrics or [])
     products = catalog["products"] or []
     provenance = data_provenance_payload(current_user.username)
     data_source = provenance.get("source") or ""
-    if catalog.get("time_periods"):
-        time_periods = catalog["time_periods"]
-    elif data_source in ("imported", "mock", "cached"):
-        time_periods = AVAILABLE_TIME_PERIODS
-    else:
-        time_periods = [{"id": "all", "name": "全部（抓取快照）"}]
+    time_periods = _time_periods_for_catalog(catalog, data_source=data_source, metrics=metrics or [])
     genres = catalog.get("genres") or []
+    dataset_product_ids = [str(p.get("id")) for p in products if p.get("id")]
     return {
         "success": True,
         "products": products,
@@ -107,6 +138,9 @@ async def get_options(request: Request, token: Optional[str] = Query(None)):
         "data_sources": AVAILABLE_DATA_SOURCES,
         "data_source": provenance.get("source"),
         "data_trust": provenance.get("trust"),
+        "metrics_total": len(metrics or []),
+        "dataset_product_ids": dataset_product_ids,
+        "suggested_data_source": _suggest_data_source(metrics or []),
         "user_plan": PLANS[current_user.plan].model_dump(),
     }
 

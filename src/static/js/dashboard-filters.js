@@ -110,14 +110,20 @@
         }
     }
 
-    function restoreStoredProductSelection() {
+    function restoreStoredProductSelection(catalogIds) {
         if (readProductIdsFromUrl().length) return null;
         if (!global.CatalogFilters) return null;
         try {
             const raw = sessionStorage.getItem(global.CatalogFilters.STORAGE_PRODUCTS_MULTI);
             if (!raw) return null;
             const ids = JSON.parse(raw);
-            return Array.isArray(ids) && ids.length ? ids : null;
+            if (!Array.isArray(ids) || !ids.length) return null;
+            if (Array.isArray(catalogIds) && catalogIds.length) {
+                const allowed = new Set(catalogIds);
+                const matched = ids.filter((id) => allowed.has(id));
+                return matched.length ? matched : null;
+            }
+            return ids;
         } catch (_e) {
             return null;
         }
@@ -201,12 +207,45 @@
             const matched = fromUrl.filter((id) => list.some((p) => p.id === id));
             if (matched.length) return matched;
         }
-        // Small catalogs (typical right after a crawl) — show every product by default.
-        if (list.length <= 6) return list.map((p) => p.id);
+        if (Array.isArray(global.dashboardDatasetProductIds) && global.dashboardDatasetProductIds.length) {
+            const matched = global.dashboardDatasetProductIds.filter((id) =>
+                list.some((p) => p.id === id)
+            );
+            if (matched.length) return matched;
+        }
+        // Crawl/import catalogs are small — select every product that has data.
+        if (list.length <= 12) return list.map((p) => p.id);
         const demo = DEMO_DEFAULT_PRODUCT_IDS.filter((id) => list.some((p) => p.id === id));
         const extras = list.filter((p) => !DEMO_DEFAULT_PRODUCT_IDS.includes(p.id)).map((p) => p.id);
         if (demo.length) return [...demo, ...extras];
         return list.slice(0, Math.min(3, list.length)).map((p) => p.id);
+    }
+
+    function resolveDataSourceForDataset(result, prevSource) {
+        const urlSource = readDataSourceFromUrl();
+        if (urlSource) return urlSource;
+        const hasCrawl = Number(result.metrics_total || 0) > 0;
+        if (!hasCrawl) return prevSource || "all";
+        const suggested = result.suggested_data_source || "all";
+        if (!prevSource || prevSource === "all") return suggested;
+        return prevSource;
+    }
+
+    function resolveTimePeriodForDataset(periods, prevPeriod) {
+        const list = Array.isArray(periods) ? periods : [];
+        if (!list.length) return "all";
+        const ids = list.map((p) => p.id);
+        const crawlSnapshot =
+            list.length === 1 && list[0].id === "all" ||
+            list.some((p) => /^\d{4}-\d{2}-\d{2}$/.test(String(p.id || "")));
+        if (crawlSnapshot) {
+            if (prevPeriod && ids.includes(prevPeriod) && !String(prevPeriod).startsWith("week_")) {
+                return prevPeriod;
+            }
+            return ids.includes("all") ? "all" : list[0].id;
+        }
+        if (prevPeriod && ids.includes(prevPeriod)) return prevPeriod;
+        return list[list.length - 1]?.id || "all";
     }
 
     function renderEmptyProductSelect(selectEl) {
@@ -312,13 +351,15 @@
 
         const list = filtered.length ? filtered : global.allProductsCatalog;
         const selectAllInGenre = genre !== "all";
-        const storedIds = restoreStoredProductSelection();
-        const preferredIds =
+        const catalogIds = list.map((p) => p.id);
+        const storedIds = restoreStoredProductSelection(catalogIds);
+        let preferredIds =
             global.selectedProducts.length
-                ? global.selectedProducts
+                ? global.selectedProducts.filter((id) => catalogIds.includes(id))
                 : storedIds && storedIds.length
                   ? storedIds
                   : defaultProductIdsForList(list);
+        if (!preferredIds.length) preferredIds = defaultProductIdsForList(list);
         renderProductPickers(list, {
             selectedIds: selectAllInGenre ? new Set(list.map((p) => p.id)) : new Set(preferredIds),
             defaultCount: selectAllInGenre ? list.length : 2,
@@ -378,6 +419,17 @@
         }
         global.allMetricsData = result.data || [];
         global.currentMetricsData = global.allMetricsData;
+        global.dashboardMetricsTotal = Number(result.total ?? global.dashboardMetricsTotal ?? 0);
+        global.dashboardMetricsFiltered = Number(result.filtered_count ?? global.currentMetricsData.length);
+        if (typeof global.showDashboardFilterHint === "function") {
+            if (global.dashboardMetricsTotal > 0 && global.dashboardMetricsFiltered === 0) {
+                global.showDashboardFilterHint(
+                    "当前筛选条件下没有数据。请尝试：数据来源选「全部来源」、时间周期选「全部（抓取快照）」、并勾选已抓取的产品。"
+                );
+            } else if (global.dashboardMetricsFiltered > 0) {
+                global.showDashboardFilterHint("");
+            }
+        }
         return global.currentMetricsData;
     }
 
@@ -448,6 +500,11 @@
             const productSelect = document.getElementById("product-select");
             const periodSelect = document.getElementById("time-period-select");
 
+            global.dashboardMetricsTotal = Number(result.metrics_total || 0);
+            global.dashboardDatasetProductIds = Array.isArray(result.dataset_product_ids)
+                ? result.dataset_product_ids
+                : [];
+
             if (productSelect) {
                 global.allProductsCatalog = Array.isArray(result.products) ? result.products : [];
                 global.productGenreMap = {};
@@ -458,12 +515,7 @@
 
             const sourceSelect = document.getElementById("data-source-select");
             if (sourceSelect && Array.isArray(result.data_sources) && result.data_sources.length) {
-                const urlSource = readDataSourceFromUrl();
-                const prevSource =
-                    urlSource ||
-                    sourceSelect.value ||
-                    global.currentDataSource ||
-                    "all";
+                const prevSource = sourceSelect.value || global.currentDataSource || "all";
                 sourceSelect.innerHTML = "";
                 result.data_sources.forEach((item) => {
                     const opt = document.createElement("option");
@@ -471,8 +523,9 @@
                     opt.textContent = item.name || item.id;
                     sourceSelect.appendChild(opt);
                 });
-                sourceSelect.value = [...sourceSelect.options].some((o) => o.value === prevSource)
-                    ? prevSource
+                const nextSource = resolveDataSourceForDataset(result, prevSource);
+                sourceSelect.value = [...sourceSelect.options].some((o) => o.value === nextSource)
+                    ? nextSource
                     : "all";
                 global.currentDataSource = sourceSelect.value;
             }
@@ -506,18 +559,22 @@
             }
 
             if (periodSelect && Array.isArray(result.time_periods) && result.time_periods.length) {
+                const prevPeriod = periodSelect.value || global.currentTimePeriod || "all";
                 periodSelect.innerHTML = "";
-                const crawlSnapshot = result.time_periods.length === 1 && result.time_periods[0].id === "all";
-                result.time_periods.forEach((item, index) => {
+                const nextPeriod = resolveTimePeriodForDataset(result.time_periods, prevPeriod);
+                result.time_periods.forEach((item) => {
                     global.timePeriodLabels[item.id] = item.name || item.id;
                     const option = document.createElement("option");
                     option.value = item.id;
                     option.textContent = item.name || item.id;
-                    option.selected = crawlSnapshot ? true : index === result.time_periods.length - 1;
+                    option.selected = item.id === nextPeriod;
                     periodSelect.appendChild(option);
                 });
+                global.currentTimePeriod = periodSelect.value || nextPeriod;
+                const crawlSnapshot =
+                    result.time_periods.length === 1 && result.time_periods[0].id === "all" ||
+                    result.time_periods.some((p) => /^\d{4}-\d{2}-\d{2}$/.test(String(p.id || "")));
                 if (crawlSnapshot) {
-                    global.currentTimePeriod = "all";
                     periodSelect.closest(".filter-group")?.classList.add("filter-group-dim");
                 } else {
                     periodSelect.closest(".filter-group")?.classList.remove("filter-group-dim");
@@ -561,6 +618,9 @@
     }
 
     function resetFilters() {
+        if (typeof global.showDashboardFilterHint === "function") {
+            global.showDashboardFilterHint("");
+        }
         const productSelect = document.getElementById("product-select");
         if (productSelect) {
             Array.from(productSelect.options).forEach((o) => {
@@ -572,7 +632,8 @@
         }
         const periodSelect = document.getElementById("time-period-select");
         if (periodSelect && periodSelect.options.length) {
-            periodSelect.selectedIndex = periodSelect.options.length - 1;
+            const allOpt = [...periodSelect.options].find((o) => o.value === "all");
+            periodSelect.value = allOpt ? "all" : periodSelect.options[0].value;
         }
         const sourceSelect = document.getElementById("data-source-select");
         if (sourceSelect) sourceSelect.value = "all";
