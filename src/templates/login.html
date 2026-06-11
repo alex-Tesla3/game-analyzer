@@ -400,6 +400,18 @@
             document.getElementById('info-message').classList.remove('show');
         }
 
+        function connectionErrorMessage() {
+            const host = window.location.hostname;
+            const isLocal = host === '127.0.0.1' || host === 'localhost';
+            if (isLocal) {
+                return '无法连接服务器，请确认已在项目目录运行 ./scripts/dev.sh 并访问 http://127.0.0.1:8080/login';
+            }
+            if (host.endsWith('.onrender.com')) {
+                return '无法连接服务器：Render 服务可能已暂停或正在冷启动。请到 Render Dashboard 恢复服务并等待 1–2 分钟后再试。';
+            }
+            return '无法连接服务器，请稍后重试或联系管理员。';
+        }
+
         async function login(event) {
             if (event) event.preventDefault();
             hideMessages();
@@ -464,7 +476,7 @@
                     document.getElementById('success-message').classList.remove('show');
                 }
             } catch (error) {
-                showError('无法连接服务器，请确认已在项目目录运行 ./scripts/dev.sh 并访问 http://127.0.0.1:8080/login');
+                showError(connectionErrorMessage());
                 console.error('Login failed', error);
             } finally {
                 if (submitBtn) {
