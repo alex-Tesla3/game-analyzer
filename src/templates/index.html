@@ -20,6 +20,7 @@
     <script src="/static/js/account-display.js" defer></script>
     <script src="/static/js/admin-menu.js" defer></script>
     <script src="/static/js/app-nav.js" defer></script>
+    <script src="/static/js/catalog-filters.js"></script>
     <script src="/static/js/product-picker.js"></script>
     <script src="/static/js/dashboard-filters.js"></script>
     <script src="/static/js/dashboard-filter-views.js"></script>
@@ -865,6 +866,21 @@
             color: #86868b;
             margin: 0;
         }
+        .dashboard-product-summary {
+            font-size: 0.875rem;
+            color: #1d1d1f;
+            line-height: 1.5;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: #f5f5f7;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        .dashboard-product-summary-hint {
+            display: block;
+            font-size: 0.75rem;
+            color: #86868b;
+            margin-top: 4px;
+        }
         .kpi-grid.kpi-grid-crawl {
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         }
@@ -1243,7 +1259,7 @@
 
         <div class="filter-bar">
             <div class="filter-group" style="min-width: 320px; flex: 1.4;">
-                <label class="filter-label">产品选择（单击勾选，可多选）</label>
+                <label class="filter-label">产品选择（单击勾选，可多选 · 全局筛选，报告/AI 分析均沿用此项）</label>
                 <div id="product-picker"></div>
                 <select id="product-select" class="filter-select" multiple size="3" aria-hidden="true">
                     <option value="" disabled selected>加载产品列表…</option>
@@ -1988,9 +2004,10 @@
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
                         <div>
                             <label style="color:#86868b;font-size:0.875rem;margin-bottom:4px;display:block;font-weight:600;">产品范围</label>
-                            <select id="report-product-select" class="filter-select" multiple size="4">
-                                <option value="" disabled>加载产品列表…</option>
-                            </select>
+                            <div id="report-product-summary" class="dashboard-product-summary" data-dashboard-product-summary>
+                                沿用看板顶部筛选
+                                <span class="dashboard-product-summary-hint">如需更改，请关闭本窗口并在看板筛选区调整，各报告/分析将自动同步。</span>
+                            </div>
                         </div>
                         <div>
                             <label style="color:#86868b;font-size:0.875rem;margin-bottom:4px;display:block;font-weight:600;">发送邮箱（可选）</label>
@@ -2442,47 +2459,23 @@
             });
         }
 
-        function syncReportProductOptions(products) {
-            const reportSelect = document.getElementById('report-product-select');
-            if (!reportSelect) return;
-            const dashSelect = document.getElementById('product-select');
-            const selectedIds = dashSelect
-                ? Array.from(dashSelect.selectedOptions).map(o => o.value)
-                : getSelectedProductIds();
-            if (Array.isArray(products) && products.length) {
-                fillProductSelect(reportSelect, products, {
-                    selectedIds: new Set(selectedIds),
-                    defaultCount: Math.min(3, products.length),
-                });
+        function updateReportProductSummary() {
+            if (typeof updateLinkedProductSummaries === 'function') {
+                updateLinkedProductSummaries();
                 return;
             }
-            const fallback = Object.keys(productNamesMap).map(id => ({
-                id,
-                name: productNamesMap[id],
-            }));
-            if (fallback.length) {
-                fillProductSelect(reportSelect, fallback, {
-                    selectedIds: new Set(selectedIds),
-                    defaultCount: Math.min(3, fallback.length),
-                });
-            }
+            const el = document.getElementById('report-product-summary');
+            if (!el) return;
+            const text = typeof formatDashboardProductSelection === 'function'
+                ? formatDashboardProductSelection()
+                : '沿用看板顶部筛选';
+            el.innerHTML = escapeHtml(text) +
+                '<span class="dashboard-product-summary-hint">如需更改，请关闭本窗口并在看板筛选区调整，各报告/分析将自动同步。</span>';
         }
-        window.syncReportProductOptions = syncReportProductOptions;
-
-        async function loadReportProductOptions() {
-            const token = getToken();
-            if (!token) return;
-            try {
-                const response = await authFetch(`/api/options`);
-                if (!response.ok) return;
-                const result = await response.json();
-                if (result.success) {
-                    syncReportProductOptions(result.products);
-                }
-            } catch (e) {
-                console.error('加载报告产品列表失败', e);
-            }
-        }
+        window.updateReportProductSummary = updateReportProductSummary;
+        window.syncReportProductOptions = function () {
+            updateReportProductSummary();
+        };
         
         function getCurrentTimePeriodLabel() {
             const labels = window.timePeriodLabels || {};
@@ -4269,10 +4262,11 @@
         // =========================================
 
         function showReportGenerator() {
+            syncFiltersFromDom();
             document.getElementById('report-generator-modal').classList.add('active');
             document.getElementById('report-preview-section').style.display = 'none';
             document.getElementById('send-report-btn').style.display = 'none';
-            loadReportProductOptions();
+            updateReportProductSummary();
         }
 
         function closeReportGenerator() {
@@ -4280,8 +4274,8 @@
         }
 
         async function generateReport(type) {
-            const productSelect = document.getElementById('report-product-select');
-            const products = Array.from(productSelect.selectedOptions).map(o => o.value);
+            syncFiltersFromDom();
+            const products = getSelectedProductIds();
             const productIds = products.join(',');
             
             const token = getToken();
@@ -4306,8 +4300,8 @@
                 return;
             }
             
-            const productSelect = document.getElementById('report-product-select');
-            const products = Array.from(productSelect.selectedOptions).map(o => o.value);
+            syncFiltersFromDom();
+            const products = getSelectedProductIds();
             const productIds = products.join(',');
             
             const token = getToken();
@@ -5081,11 +5075,8 @@
             modal.classList.add('active');
             
             try {
-                const productSelect = document.getElementById('product-select');
-                const currentProducts = Array.from(productSelect.selectedOptions).map(o => o.value);
-                const effectiveProducts = currentProducts.length > 0
-                    ? currentProducts
-                    : (selectedProducts && selectedProducts.length ? selectedProducts : []);
+                syncFiltersFromDom();
+                const effectiveProducts = getSelectedProductIds();
                 
                 const params = new URLSearchParams();
                 params.set('token', token);
@@ -5203,11 +5194,18 @@
                 `;
             }
 
+            const scopeLabel = typeof formatDashboardProductSelection === 'function'
+                ? formatDashboardProductSelection()
+                : '看板当前筛选';
             content.innerHTML = `
                 <div style="padding: 20px; background: #ffffff; border-radius: 12px;">
                     <h3 style="font-size: 1.375rem; font-weight: 700; color: #1d1d1f; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <span>🤖</span> AI 深度分析报告 ${llmBadge}
                     </h3>
+                    <div class="dashboard-product-summary" data-dashboard-product-summary style="margin-bottom:16px;">
+                        分析范围：${escapeHtml(scopeLabel)}
+                        <span class="dashboard-product-summary-hint">与看板顶部产品筛选保持一致；如需更改请关闭后调整筛选区。</span>
+                    </div>
                     ${llmWarn}
                     <div style="background: rgba(139, 92, 246, 0.12); border-radius: 16px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #8b5cf6;">
                         <h4 style="color: #8b5cf6; font-size: 0.9375rem; font-weight: 600; margin-bottom: 8px;">📌 核心摘要</h4>
@@ -5913,16 +5911,11 @@ ${data.summary || ''}
         let chatConversationId = 'default';
         
         function openChatModal() {
-            const productSelect = document.getElementById('product-select');
-            const currentProducts = Array.from(productSelect.selectedOptions).map(o => o.value);
-            const effectiveProducts = currentProducts.length > 0 ? currentProducts : [];
-            
-            const productNames = {
-                'game_a': '游戏A - 战神传说',
-                'game_b': '游戏B - 星际争霸',
-                'game_c': '游戏C - 魔法大陆'
-            };
-            const selectedNames = effectiveProducts.map(p => productNames[p] || p).join(', ');
+            syncFiltersFromDom();
+            const effectiveProducts = getSelectedProductIds();
+            const selectedNames = effectiveProducts.length
+                ? effectiveProducts.map(p => productNamesMap[p] || p).join(', ')
+                : '全部产品';
             
             document.getElementById('chat-context').textContent = `当前分析: ${selectedNames} | ${getCurrentTimePeriodLabel()}`;
             document.getElementById('chat-modal').style.display = 'flex';
@@ -5970,9 +5963,8 @@ ${data.summary || ''}
             if (!message) return;
             
             const token = getToken();
-            const productSelect = document.getElementById('product-select');
-            const currentProducts = Array.from(productSelect.selectedOptions).map(o => o.value);
-            const effectiveProducts = currentProducts.length > 0 ? currentProducts : [];
+            syncFiltersFromDom();
+            const effectiveProducts = getSelectedProductIds();
             
             const userMsg = message;
             input.value = '';

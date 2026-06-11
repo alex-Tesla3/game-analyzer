@@ -103,6 +103,46 @@
         );
     }
 
+    function persistProductSelection() {
+        const productSelect = document.getElementById("product-select");
+        if (global.CatalogFilters && productSelect) {
+            global.CatalogFilters.writeStoredProduct(productSelect);
+        }
+    }
+
+    function restoreStoredProductSelection() {
+        if (readProductIdsFromUrl().length) return null;
+        if (!global.CatalogFilters) return null;
+        try {
+            const raw = sessionStorage.getItem(global.CatalogFilters.STORAGE_PRODUCTS_MULTI);
+            if (!raw) return null;
+            const ids = JSON.parse(raw);
+            return Array.isArray(ids) && ids.length ? ids : null;
+        } catch (_e) {
+            return null;
+        }
+    }
+
+    function formatDashboardProductSelection() {
+        syncFiltersFromDom();
+        const ids = getSelectedProductIds();
+        if (!ids.length) return "全部产品";
+        return ids
+            .map((id) => global.productNamesMap[id] || global.productNamesMap[normalizeCatalogProductId(id)] || id)
+            .join("、");
+    }
+
+    function updateLinkedProductSummaries() {
+        const text = formatDashboardProductSelection();
+        const count = getSelectedProductIds().length;
+        document.querySelectorAll("[data-dashboard-product-summary]").forEach((el) => {
+            el.textContent = count ? text : "全部产品（请在看板顶部筛选区勾选）";
+        });
+        if (typeof global.updateReportProductSummary === "function") {
+            global.updateReportProductSummary();
+        }
+    }
+
     function syncFiltersFromDom() {
         const productSelect = document.getElementById("product-select");
         const periodSelect = document.getElementById("time-period-select");
@@ -119,6 +159,8 @@
         if (periodSelect) global.currentTimePeriod = periodSelect.value;
         if (sourceSelect) global.currentDataSource = sourceSelect.value;
         if (genreSelect) global.currentGenre = genreSelect.value;
+        persistProductSelection();
+        updateLinkedProductSummaries();
     }
 
     function productsMatchingGenre(products, genre) {
@@ -270,14 +312,15 @@
 
         const list = filtered.length ? filtered : global.allProductsCatalog;
         const selectAllInGenre = genre !== "all";
+        const storedIds = restoreStoredProductSelection();
+        const preferredIds =
+            global.selectedProducts.length
+                ? global.selectedProducts
+                : storedIds && storedIds.length
+                  ? storedIds
+                  : defaultProductIdsForList(list);
         renderProductPickers(list, {
-            selectedIds: selectAllInGenre
-                ? new Set(list.map((p) => p.id))
-                : new Set(
-                      global.selectedProducts.length
-                          ? global.selectedProducts
-                          : defaultProductIdsForList(list)
-                  ),
+            selectedIds: selectAllInGenre ? new Set(list.map((p) => p.id)) : new Set(preferredIds),
             defaultCount: selectAllInGenre ? list.length : 2,
         });
         global.selectedProducts = Array.from(productSelect.selectedOptions).map((o) => o.value);
@@ -601,6 +644,9 @@
     global.metricMatchesPeriod = metricMatchesPeriod;
     global.productRecordMatches = productRecordMatches;
     global.syncFiltersFromDom = syncFiltersFromDom;
+    global.getDashboardProductIds = getSelectedProductIds;
+    global.formatDashboardProductSelection = formatDashboardProductSelection;
+    global.updateLinkedProductSummaries = updateLinkedProductSummaries;
     global.applyGenreToProductSelect = applyGenreToProductSelect;
     global.getSelectedProductIds = getSelectedProductIds;
     global.fillProductSelect = fillProductSelect;

@@ -5,30 +5,49 @@ from __future__ import annotations
 from typing import Dict, List
 
 
+def _neutral_trend_for_product(pid: str, name: str) -> Dict[str, object]:
+    """Template trend row for real catalog products (non mock game_a/b/c)."""
+    bucket = abs(hash(pid)) % 3
+    rating = ("良好", "中等", "优秀")[bucket]
+    trend = ("稳定", "上升", "波动")[bucket]
+    change = ("+3%", "+8%", "-2%")[bucket]
+    return {
+        "product": name,
+        "rating": rating,
+        "trend": trend,
+        "change": change,
+        "strengths": ["核心玩法反馈积极", "社区讨论活跃", "版本更新受关注"],
+    }
+
+
 def generate_product_trends(product_ids: List[str], product_names: Dict[str, str]):
     trends = []
     has_valid_products = False
+    explicit_ids = [pid for pid in product_ids if pid and pid != "all"]
 
-    for pid in product_ids:
-        if pid == "all" or pid not in product_names:
+    for pid in explicit_ids:
+        name = product_names.get(pid)
+        if not name:
             continue
         has_valid_products = True
-        name = product_names[pid]
-        trends.append(
-            {
-                "product": name,
-                "rating": "优秀" if pid == "game_c" else "良好" if pid == "game_b" else "中等",
-                "trend": "上升" if pid == "game_c" else "稳定" if pid == "game_b" else "下降",
-                "change": "+12%" if pid == "game_c" else "+3%" if pid == "game_b" else "-8%",
-                "strengths": ["留存率高", "用户粘性强"]
-                if pid == "game_c"
-                else ["玩法新颖", "画面精美"]
-                if pid == "game_b"
-                else ["战斗系统优秀"],
-            }
-        )
+        if pid in MOCK_PRODUCT_NAMES:
+            trends.append(
+                {
+                    "product": name,
+                    "rating": "优秀" if pid == "game_c" else "良好" if pid == "game_b" else "中等",
+                    "trend": "上升" if pid == "game_c" else "稳定" if pid == "game_b" else "下降",
+                    "change": "+12%" if pid == "game_c" else "+3%" if pid == "game_b" else "-8%",
+                    "strengths": ["留存率高", "用户粘性强"]
+                    if pid == "game_c"
+                    else ["玩法新颖", "画面精美"]
+                    if pid == "game_b"
+                    else ["战斗系统优秀"],
+                }
+            )
+        else:
+            trends.append(_neutral_trend_for_product(pid, name))
 
-    if not has_valid_products:
+    if not has_valid_products and not explicit_ids:
         trends = [
             {
                 "product": "游戏C - 魔法大陆",
@@ -75,7 +94,9 @@ def generate_new_product_trends():
 
 def generate_issues_diagnosis(product_ids, product_names):
     issues = []
-    all_products = "all" in product_ids or len([p for p in product_ids if p in product_names]) == 0
+    explicit_ids = [p for p in product_ids if p and p != "all"]
+    mock_hits = [p for p in explicit_ids if p in MOCK_PRODUCT_NAMES]
+    all_products = "all" in product_ids or (not mock_hits and not explicit_ids)
 
     if all_products or "game_a" in product_ids:
         issues.append(
@@ -102,6 +123,18 @@ def generate_issues_diagnosis(product_ids, product_names):
                 "severity": "low",
                 "issues": ["内容消耗过快", "新手难度略高"],
                 "impact": "长期留存需关注",
+            }
+        )
+    for pid in explicit_ids:
+        if pid in MOCK_PRODUCT_NAMES:
+            continue
+        name = product_names.get(pid, pid)
+        issues.append(
+            {
+                "product": name,
+                "severity": "medium",
+                "issues": ["付费与留存需结合评论样本持续观察", "新手引导与版本节奏可进一步优化"],
+                "impact": "建议结合 MVP 抓取评论做定向验证",
             }
         )
     return issues

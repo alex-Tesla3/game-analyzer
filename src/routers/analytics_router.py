@@ -16,13 +16,13 @@ from src.api_meta import with_simulated
 from src.data_resolution import get_metrics_data, get_user_metrics_data, resolve_user_data_source
 from src.mvp_data import get_mvp_analysis, mvp_validation_passed, product_matches
 from src.services.legacy_ai_report import (
-    MOCK_PRODUCT_NAMES,
     generate_action_plan,
     generate_issues_diagnosis,
     generate_new_product_trends,
     generate_optimization_suggestions,
     generate_product_trends,
 )
+from src.services.product_name_resolver import build_product_name_map, label_for_products
 from src.services.llm_client import llm_is_configured, parse_json_from_llm, complete_prompt
 from src.services.llm_mvp_summary import summarize_mvp_with_llm
 from src.web_common import get_current_user
@@ -158,15 +158,48 @@ async def get_ai_analysis(
     current_user = await get_current_user(token)
     source = resolve_user_data_source(current_user.username)
 
+    products = _parse_product_ids(product_ids)
+
     if source == "mvp_steam" and mvp_validation_passed():
         analysis = get_mvp_analysis() or {}
         strategy = analysis.get("ai_strategy") or {}
         rule_summary = strategy.get("opportunity_summary") or analysis.get("summary") or ""
+        product_reports = list(analysis.get("product_reports") or [])
+        if products != ["all"]:
+            product_reports = [
+                report
+                for report in product_reports
+                if any(product_matches(report, product) for product in products)
+            ]
+            peer = strategy.get("peer_comparison") or []
+            strategy = {
+                **strategy,
+                "peer_comparison": [
+                    row
+                    for row in peer
+                    if any(
+                        product_matches(
+                            {
+                                "product": row.get("product")
+                                or row.get("product_id")
+                                or row.get("product_name")
+                            },
+                            product,
+                        )
+                        for product in products
+                    )
+                ],
+            }
+            if product_reports:
+                names = label_for_products(
+                    products, build_product_name_map(products, username=current_user.username)
+                )
+                rule_summary = f"本次分析覆盖 {names}，共 {len(product_reports)} 款产品（基于 MVP 抓取评论）。"
         data = {
             "format": "mvp_steam",
             "summary": rule_summary,
             "rule_based_summary": rule_summary,
-            "product_reports": analysis.get("product_reports", []),
+            "product_reports": product_reports,
             "ai_strategy": strategy,
             "peer_comparison": strategy.get("peer_comparison", []),
             "user_needs": strategy.get("user_needs", []),
@@ -198,19 +231,16 @@ async def get_ai_analysis(
             "data": data,
         }
 
-    products = _parse_product_ids(product_ids)
-    
-    product_names = MOCK_PRODUCT_NAMES
-    
+    product_names = build_product_name_map(products, username=current_user.username)
+
     time_label = {
         'week_20': '第20周',
         'week_21': '第21周', 
         'week_22': '第22周',
         'quarter_2': 'Q2季度'
     }.get(time_period, time_period or '全时段')
-    
-    selected_product_names = [product_names[p] for p in products if p in product_names]
-    product_label = ', '.join(selected_product_names) if selected_product_names else '全部产品'
+
+    product_label = label_for_products(products, product_names)
     
     if LLM_CONFIG.get("api_key") or LLM_CONFIG.get("provider") == "ollama":
         llm_report = await generate_ai_report_with_llm(products, product_names, time_label)
