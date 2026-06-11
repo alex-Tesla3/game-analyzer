@@ -187,6 +187,38 @@
         });
     }
 
+    function normalizeProductPlatform(platform) {
+        return String(platform || "")
+            .trim()
+            .toLowerCase()
+            .replace(/_/g, " ");
+    }
+
+    function dataSourcePlatformToken(dataSource) {
+        const map = {
+            steam: "steam",
+            google_play: "google play",
+            taptap: "taptap",
+            app_store: "app store",
+        };
+        return map[String(dataSource || "").trim().toLowerCase()] || "";
+    }
+
+    function productsMatchingDataSource(products, dataSource) {
+        if (!Array.isArray(products)) return [];
+        if (!dataSource || dataSource === "all") return products;
+        const target = dataSourcePlatformToken(dataSource);
+        if (!target) return products;
+        return products.filter((p) => {
+            const plat = normalizeProductPlatform(p.platform);
+            if (plat) {
+                return plat === target;
+            }
+            // Numeric Steam app ids without an explicit platform tag
+            return dataSource === "steam" && /^\d+$/.test(String(p.id || ""));
+        });
+    }
+
     const DEMO_DEFAULT_PRODUCT_IDS = ["730", "570"];
 
     function readProductIdsFromUrl() {
@@ -340,38 +372,76 @@
         });
     }
 
-    function applyGenreToProductSelect() {
+    function applyFiltersToProductSelect() {
         const productSelect = document.getElementById("product-select");
         if (!productSelect || !global.allProductsCatalog.length) return;
 
         const genre = document.getElementById("genre-select")?.value || global.currentGenre || "all";
+        const dataSource =
+            document.getElementById("data-source-select")?.value || global.currentDataSource || "all";
         global.currentGenre = genre;
-        const filtered = productsMatchingGenre(global.allProductsCatalog, genre);
+        global.currentDataSource = dataSource;
 
-        if (genre !== "all" && !filtered.length) {
+        let list = productsMatchingGenre(global.allProductsCatalog, genre);
+        if (genre !== "all" && !list.length) {
             productSelect.innerHTML = '<option disabled selected>该品类暂无产品数据</option>';
             global.selectedProducts = [];
-            if (typeof global.syncReportProductOptions === "function") {
-                global.syncReportProductOptions(global.allProductsCatalog);
+            if (global.ProductPicker) {
+                ["product-picker", "advanced-product-picker"].forEach((mountId) => {
+                    const root = document.getElementById(mountId);
+                    if (root) {
+                        root.innerHTML = '<p class="product-picker-empty">该品类暂无产品数据</p>';
+                    }
+                });
             }
             if (typeof global.renderProductList === "function") global.renderProductList();
+            updateLinkedProductSummaries();
             return;
         }
 
-        const list = filtered.length ? filtered : global.allProductsCatalog;
-        const selectAllInGenre = genre !== "all";
+        list = productsMatchingDataSource(list, dataSource);
+        if (dataSource !== "all" && !list.length) {
+            const sourceLabel =
+                dataSourcePlatformToken(dataSource) === "google play"
+                    ? "Google Play"
+                    : dataSourcePlatformToken(dataSource) === "app store"
+                      ? "App Store"
+                      : dataSource.charAt(0).toUpperCase() + dataSource.slice(1).replace(/_/g, " ");
+            productSelect.innerHTML = `<option disabled selected>该来源暂无产品 — 请先在 MVP 抓取 ${sourceLabel} 数据</option>`;
+            global.selectedProducts = [];
+            if (global.ProductPicker) {
+                const hint = `当前来源（${sourceLabel}）暂无产品，请切换来源或先到 /mvp 抓取`;
+                ["product-picker", "advanced-product-picker"].forEach((mountId) => {
+                    const root = document.getElementById(mountId);
+                    if (root) root.innerHTML = `<p class="product-picker-empty">${hint}</p>`;
+                });
+            }
+            if (typeof global.renderProductList === "function") global.renderProductList();
+            updateLinkedProductSummaries();
+            return;
+        }
+
+        const selectAllInScope = genre !== "all" || dataSource !== "all";
         const catalogIds = list.map((p) => p.id);
         const storedIds = restoreStoredProductSelection(catalogIds);
         let preferredIds =
             global.selectedProducts.length
                 ? global.selectedProducts.filter((id) => catalogIds.includes(id))
                 : storedIds && storedIds.length
-                  ? storedIds
+                  ? storedIds.filter((id) => catalogIds.includes(id))
                   : defaultProductIdsForList(list);
         if (!preferredIds.length) preferredIds = defaultProductIdsForList(list);
+        if (selectAllInScope && preferredIds.length < list.length) {
+            preferredIds = list.map((p) => p.id);
+        }
+        const sourceHint =
+            dataSource !== "all"
+                ? `当前来源：${dataSourcePlatformToken(dataSource) || dataSource}（${list.length} 款）`
+                : "";
         renderProductPickers(list, {
-            selectedIds: selectAllInGenre ? new Set(list.map((p) => p.id)) : new Set(preferredIds),
-            defaultCount: selectAllInGenre ? list.length : 2,
+            selectedIds: selectAllInScope ? new Set(list.map((p) => p.id)) : new Set(preferredIds),
+            defaultCount: selectAllInScope ? list.length : 2,
+            emptyHint: sourceHint || "暂无产品 — 请先到 /mvp 抓取竞品数据",
         });
         global.selectedProducts = Array.from(productSelect.selectedOptions).map((o) => o.value);
         if (typeof global.syncReportProductOptions === "function") {
@@ -379,6 +449,10 @@
         }
         if (typeof global.renderProductList === "function") global.renderProductList();
         updateLinkedProductSummaries();
+    }
+
+    function applyGenreToProductSelect() {
+        applyFiltersToProductSelect();
     }
 
     function getSelectedProductIds() {
@@ -626,9 +700,8 @@
     }
 
     function onFilterChange() {
-        const genreSelect = document.getElementById("genre-select");
-        if (genreSelect && global.allProductsCatalog.length) {
-            applyGenreToProductSelect();
+        if (global.allProductsCatalog.length) {
+            applyFiltersToProductSelect();
         }
         global.debouncedApplyFilters();
     }
@@ -731,6 +804,8 @@
     global.formatDashboardProductSelection = formatDashboardProductSelection;
     global.updateLinkedProductSummaries = updateLinkedProductSummaries;
     global.applyGenreToProductSelect = applyGenreToProductSelect;
+    global.applyFiltersToProductSelect = applyFiltersToProductSelect;
+    global.productsMatchingDataSource = productsMatchingDataSource;
     global.getSelectedProductIds = getSelectedProductIds;
     global.fillProductSelect = fillProductSelect;
     global.renderProductPickers = renderProductPickers;
