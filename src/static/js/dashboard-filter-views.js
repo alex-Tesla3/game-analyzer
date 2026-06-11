@@ -63,6 +63,9 @@
                     o.selected = set.size === 0;
                 });
             }
+            if (global.ProductPicker) {
+                global.ProductPicker.syncAllMountsFromHiddenSelect("product-select");
+            }
         }
         if (periodSelect && view.time_period) periodSelect.value = view.time_period;
         if (sourceSelect && view.data_source) sourceSelect.value = view.data_source;

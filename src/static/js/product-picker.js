@@ -13,12 +13,17 @@
         return d.innerHTML;
     }
 
-    function getHiddenSelect() {
-        return document.getElementById(HIDDEN_SELECT_ID);
-    }
-
     function getMountId(mountId) {
         return mountId || DEFAULT_MOUNT;
+    }
+
+    function hiddenSelectIdForMount(mountId) {
+        const root = document.getElementById(getMountId(mountId));
+        return (root && root.dataset.pickerHiddenSelect) || HIDDEN_SELECT_ID;
+    }
+
+    function getHiddenSelect(mountId) {
+        return document.getElementById(hiddenSelectIdForMount(mountId));
     }
 
     function readCheckedIds(mountId) {
@@ -30,7 +35,7 @@
     }
 
     function syncHiddenSelectFromCheckboxes(mountId) {
-        const select = getHiddenSelect();
+        const select = getHiddenSelect(mountId);
         const ids = new Set(readCheckedIds(mountId));
         if (!select) return ids;
         Array.from(select.options).forEach((opt) => {
@@ -39,11 +44,28 @@
         return ids;
     }
 
+    function syncAllMountsFromHiddenSelect(hiddenSelectId) {
+        const selectId = hiddenSelectId || HIDDEN_SELECT_ID;
+        const selected = new Set(
+            Array.from(document.getElementById(selectId)?.selectedOptions || []).map((o) => o.value)
+        );
+        document.querySelectorAll("[data-product-picker-mount]").forEach((root) => {
+            if ((root.dataset.pickerHiddenSelect || HIDDEN_SELECT_ID) !== selectId) return;
+            root.querySelectorAll('input[type="checkbox"][data-product-id]').forEach((input) => {
+                input.checked = selected.has(input.getAttribute("data-product-id") || "");
+            });
+        });
+    }
+
     function render(mountId, products, options) {
         options = options || {};
         const root = document.getElementById(getMountId(mountId));
-        const select = getHiddenSelect();
+        const hiddenId = options.hiddenSelectId || HIDDEN_SELECT_ID;
+        const select = document.getElementById(hiddenId);
         if (!root || !Array.isArray(products)) return;
+
+        root.dataset.productPickerMount = "1";
+        root.dataset.pickerHiddenSelect = hiddenId;
 
         const selectedIds =
             options.selectedIds instanceof Set
@@ -52,17 +74,21 @@
         const defaultCount = options.defaultCount ?? 2;
         const emptyHint = options.emptyHint || "暂无产品，请先在「一键采集」或 MVP 页导入数据";
 
-        select.innerHTML = "";
+        if (!select) return;
+
         if (!products.length) {
-            root.innerHTML =
-                '<p class="product-picker-empty">' + esc(emptyHint) + "</p>";
+            select.innerHTML = '<option value="" disabled selected>暂无产品</option>';
+            root.innerHTML = '<p class="product-picker-empty">' + esc(emptyHint) + "</p>";
             return;
         }
 
         let html = "";
         products.forEach((item, index) => {
             const id = String(item.id || "");
-            const name = (item.name || id) + (item.user_added ? " · 自定义" : "");
+            let name = item.name || id;
+            if (name.length > 32) name = name.slice(0, 30) + "…";
+            if (item.platform) name += " · " + item.platform;
+            if (item.user_added) name += " · 自定义";
             const checked = selectedIds.size
                 ? selectedIds.has(id)
                 : index < Math.min(defaultCount, products.length);
@@ -73,25 +99,42 @@
                 '"' +
                 (checked ? " checked" : "") +
                 ">" +
-                '<span class="product-picker-name">' +
+                '<span class="product-picker-name" title="' +
+                esc(item.name || id) +
+                '">' +
                 esc(name) +
                 "</span>" +
                 (item.genre
                     ? '<span class="product-picker-genre">' + esc(item.genre) + "</span>"
                     : "") +
                 "</label>";
-
-            const opt = document.createElement("option");
-            opt.value = id;
-            opt.textContent = name;
-            opt.selected = checked;
-            select.appendChild(opt);
         });
         root.innerHTML = html;
+
+        if (!select.options.length || select.options[0]?.value !== String(products[0]?.id || "")) {
+            select.innerHTML = "";
+            products.forEach((item, index) => {
+                const id = String(item.id || "");
+                let name = item.name || id;
+                if (item.platform) name += " · " + item.platform;
+                const opt = document.createElement("option");
+                opt.value = id;
+                opt.textContent = name;
+                opt.selected = selectedIds.size
+                    ? selectedIds.has(id)
+                    : index < Math.min(defaultCount, products.length);
+                select.appendChild(opt);
+            });
+        } else {
+            Array.from(select.options).forEach((opt) => {
+                opt.selected = selectedIds.size ? selectedIds.has(opt.value) : opt.selected;
+            });
+        }
 
         root.querySelectorAll('input[type="checkbox"][data-product-id]').forEach((input) => {
             input.addEventListener("change", () => {
                 syncHiddenSelectFromCheckboxes(mountId);
+                syncAllMountsFromHiddenSelect(hiddenId);
                 if (typeof options.onChange === "function") options.onChange(readCheckedIds(mountId));
             });
         });
@@ -103,7 +146,7 @@
         syncHiddenSelectFromCheckboxes(mountId);
         const ids = readCheckedIds(mountId);
         if (ids.length) return ids;
-        const select = getHiddenSelect();
+        const select = getHiddenSelect(mountId);
         if (!select) return [];
         return Array.from(select.selectedOptions).map((o) => o.value);
     }
@@ -111,12 +154,14 @@
     function restoreStoredSelection(mountId, ids) {
         if (!Array.isArray(ids) || !ids.length) return;
         const idSet = new Set(ids);
-        const root = document.getElementById(getMountId(mountId));
-        if (!root) return;
-        root.querySelectorAll('input[type="checkbox"][data-product-id]').forEach((input) => {
-            input.checked = idSet.has(input.getAttribute("data-product-id") || "");
-        });
-        syncHiddenSelectFromCheckboxes(mountId);
+        const hiddenId = hiddenSelectIdForMount(mountId);
+        const select = document.getElementById(hiddenId);
+        if (select) {
+            Array.from(select.options).forEach((opt) => {
+                opt.selected = idSet.has(opt.value);
+            });
+        }
+        syncAllMountsFromHiddenSelect(hiddenId);
     }
 
     global.ProductPicker = {
@@ -126,6 +171,7 @@
         getSelectedIds,
         readCheckedIds,
         syncHiddenSelectFromCheckboxes,
+        syncAllMountsFromHiddenSelect,
         restoreStoredSelection,
     };
 })(typeof window !== "undefined" ? window : globalThis);

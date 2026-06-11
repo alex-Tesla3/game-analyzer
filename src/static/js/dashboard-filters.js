@@ -108,7 +108,9 @@
         const periodSelect = document.getElementById("time-period-select");
         const sourceSelect = document.getElementById("data-source-select");
         const genreSelect = document.getElementById("genre-select");
-        if (productSelect) {
+        if (global.ProductPicker && document.getElementById("product-picker")) {
+            global.selectedProducts = global.ProductPicker.getSelectedIds("product-picker");
+        } else if (productSelect) {
             global.selectedProducts = Array.from(productSelect.selectedOptions).map((o) => o.value);
             if (global.selectedProducts.length === 0) {
                 global.selectedProducts = Array.from(productSelect.options).map((o) => o.value);
@@ -170,6 +172,51 @@
         selectEl.innerHTML =
             '<option value="" disabled selected>暂无产品 — 请先抓取竞品数据</option>';
         global.selectedProducts = [];
+        if (global.ProductPicker) {
+            ["product-picker", "advanced-product-picker"].forEach((mountId) => {
+                const root = document.getElementById(mountId);
+                if (root) {
+                    root.innerHTML =
+                        '<p class="product-picker-empty">暂无产品 — 请先到 /mvp 抓取竞品数据</p>';
+                }
+            });
+        }
+    }
+
+    function pickerOnChange() {
+        syncFiltersFromDom();
+        if (typeof global.debouncedApplyFilters === "function") {
+            global.debouncedApplyFilters();
+        }
+    }
+
+    function renderProductPickers(products, options) {
+        options = options || {};
+        const selectEl = document.getElementById("product-select");
+        if (!selectEl) return;
+        if (!Array.isArray(products) || !products.length) {
+            renderEmptyProductSelect(selectEl);
+            return;
+        }
+        products.forEach((item) => {
+            global.productNamesMap[item.id] = item.name || item.id;
+        });
+        const pickerOptions = {
+            selectedIds: options.selectedIds,
+            defaultCount: options.defaultCount ?? 2,
+            emptyHint: options.emptyHint || "暂无产品 — 请先到 /mvp 抓取竞品数据",
+            hiddenSelectId: "product-select",
+            onChange: pickerOnChange,
+        };
+        if (global.ProductPicker && document.getElementById("product-picker")) {
+            global.ProductPicker.render("product-picker", products, pickerOptions);
+            if (document.getElementById("advanced-product-picker")) {
+                global.ProductPicker.render("advanced-product-picker", products, pickerOptions);
+            }
+            global.selectedProducts = global.ProductPicker.getSelectedIds("product-picker");
+            return;
+        }
+        fillProductSelect(selectEl, products, options);
     }
 
     function fillProductSelect(selectEl, products, options) {
@@ -177,6 +224,10 @@
         if (!selectEl) return;
         if (!Array.isArray(products) || !products.length) {
             renderEmptyProductSelect(selectEl);
+            return;
+        }
+        if (global.ProductPicker && document.getElementById("product-picker")) {
+            renderProductPickers(products, options);
             return;
         }
         const selectedIds =
@@ -219,7 +270,7 @@
 
         const list = filtered.length ? filtered : global.allProductsCatalog;
         const selectAllInGenre = genre !== "all";
-        fillProductSelect(productSelect, list, {
+        renderProductPickers(list, {
             selectedIds: selectAllInGenre
                 ? new Set(list.map((p) => p.id))
                 : new Set(
@@ -237,6 +288,10 @@
     }
 
     function getSelectedProductIds() {
+        if (global.ProductPicker && document.getElementById("product-picker")) {
+            const picked = global.ProductPicker.getSelectedIds("product-picker");
+            if (picked.length) return picked;
+        }
         const productSelect = document.getElementById("product-select");
         if (!productSelect) return global.selectedProducts.slice();
         const picked = Array.from(productSelect.selectedOptions).map((o) => o.value);
@@ -468,6 +523,9 @@
             Array.from(productSelect.options).forEach((o) => {
                 o.selected = true;
             });
+            if (global.ProductPicker) {
+                global.ProductPicker.syncAllMountsFromHiddenSelect("product-select");
+            }
         }
         const periodSelect = document.getElementById("time-period-select");
         if (periodSelect && periodSelect.options.length) {
@@ -546,6 +604,7 @@
     global.applyGenreToProductSelect = applyGenreToProductSelect;
     global.getSelectedProductIds = getSelectedProductIds;
     global.fillProductSelect = fillProductSelect;
+    global.renderProductPickers = renderProductPickers;
     global.loadFilterOptions = loadFilterOptions;
     global.fetchMetricsWithFilters = fetchMetricsWithFilters;
     global.ensureMetricsLoaded = ensureMetricsLoaded;
