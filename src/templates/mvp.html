@@ -221,7 +221,7 @@
       padding: 16px 18px;
       margin-bottom: 16px;
       display: grid;
-      grid-template-columns: 1fr 200px 120px auto;
+      grid-template-columns: 1fr 1fr auto;
       gap: 14px 16px;
       align-items: end;
     }
@@ -232,6 +232,20 @@
       margin-bottom: 6px;
       font-weight: 500;
     }
+    .filter-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .filter-toggle input {
+      width: auto;
+      min-height: auto;
+      margin: 0;
+    }
     .filter-panel select,
     .filter-panel input[type="number"] {
       width: 100%;
@@ -241,6 +255,12 @@
       border-radius: 6px;
       font-size: 14px;
       background: #fff;
+    }
+    .filter-panel select:disabled,
+    .filter-panel input[type="number"]:disabled {
+      opacity: 0.55;
+      background: #f3f4f6;
+      cursor: not-allowed;
     }
     #product-picker {
       display: grid;
@@ -311,20 +331,40 @@
         </select>
         <p id="channel-product-hint" class="filter-hint" style="margin:6px 0 0;"></p>
       </div>
+      <div>
+        <label for="market-country">国家 / 地区</label>
+        <select id="market-country" class="filter-select"></select>
+        <p class="filter-hint" style="margin:6px 0 0; grid-column:auto;">
+          决定渠道商店与评论的区域版本（Google Play 区服、TapTap 站点、Steam 评论语言）。
+        </p>
+      </div>
       <div style="grid-column: 1 / -1;">
         <label>产品选择（单击勾选，可多选）</label>
         <div id="product-picker"></div>
         <select id="product-select" multiple></select>
       </div>
       <div>
-        <label for="review-days">评论时间范围</label>
+        <label class="filter-toggle" for="use-review-days">
+          <input type="checkbox" id="use-review-days" checked>
+          按时间范围筛选
+        </label>
         <select id="review-days" class="filter-select">
           <option value="7">近 7 天</option>
           <option value="14">近 14 天（半个月）</option>
           <option value="30" selected>近 30 天</option>
         </select>
-        <p class="filter-hint" style="margin:6px 0 0;">
-          按评论<strong>发布日期</strong>筛选，不是「最新 1000 条」。冷门游戏在短窗口内样本可能较少，可改选近 30 天。
+        <p class="filter-hint" style="margin:6px 0 0; grid-column:auto;">
+          按评论<strong>发布日期</strong>过滤；可与条数限制组合使用。
+        </p>
+      </div>
+      <div>
+        <label class="filter-toggle" for="use-max-reviews">
+          <input type="checkbox" id="use-max-reviews">
+          限制评价数量
+        </label>
+        <input id="max-reviews" type="number" min="1" step="1" value="1000" disabled>
+        <p class="filter-hint" style="margin:6px 0 0; grid-column:auto;">
+          无系统上限，按你填写的条数抓取；可只勾此项（不按日期），恢复「最新 N 条」模式。
         </p>
       </div>
       <div style="grid-column: 1 / -1; border-top: 1px dashed var(--line); padding-top: 12px;">
@@ -358,6 +398,8 @@
     let lastPayload = null;
     let catalogProducts = [];
     let defaultByChannel = {};
+    let marketsByChannel = {};
+    let defaultMarketByChannel = {};
 
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -376,6 +418,99 @@
 
     function selectedChannel() {
       return (channelSelect && channelSelect.value) || 'steam';
+    }
+
+    function selectedMarketCountry() {
+      const channel = selectedChannel();
+      const select = document.getElementById('market-country');
+      if (select && select.value) return select.value;
+      return defaultMarketByChannel[channel] || 'us';
+    }
+
+    function renderMarketSelect(channel) {
+      const select = document.getElementById('market-country');
+      if (!select) return;
+      const ch = channel || selectedChannel();
+      const markets = marketsByChannel[ch] || [];
+      const defaultMarket = defaultMarketByChannel[ch] || 'us';
+      const previous = select.value;
+      select.innerHTML = markets.map((market) =>
+        `<option value="${escapeHtml(market.id)}">${escapeHtml(market.label)}</option>`
+      ).join('');
+      const preferred = markets.some((market) => market.id === previous) ? previous : defaultMarket;
+      if (markets.some((market) => market.id === preferred)) {
+        select.value = preferred;
+      }
+      select.disabled = !markets.length || ch === 'app_store';
+    }
+
+    function describeMarket(dataset) {
+      if (dataset && dataset.market_label) return dataset.market_label;
+      const select = document.getElementById('market-country');
+      return select?.selectedOptions?.[0]?.textContent || '';
+    }
+
+    function syncCrawlFilterControls() {
+      const useDays = document.getElementById('use-review-days')?.checked;
+      const useCount = document.getElementById('use-max-reviews')?.checked;
+      const daysEl = document.getElementById('review-days');
+      const countEl = document.getElementById('max-reviews');
+      if (daysEl) daysEl.disabled = !useDays;
+      if (countEl) countEl.disabled = !useCount;
+    }
+
+    function describeCrawlFilters(dataset) {
+      if (dataset && dataset.filter_label) return dataset.filter_label;
+      const parts = [];
+      const useDays = dataset ? dataset.use_review_days !== false : true;
+      const useCount = Boolean(dataset && dataset.use_max_reviews);
+      if (useDays && dataset && dataset.review_days) {
+        const dayLabels = { 7: '近 7 天', 14: '近 14 天', 30: '近 30 天' };
+        parts.push(dayLabels[dataset.review_days] || `近 ${dataset.review_days} 天`);
+      } else if (useDays) {
+        const reviewDays = parseInt(document.getElementById('review-days')?.value || '30', 10) || 30;
+        const dayLabels = { 7: '近 7 天', 14: '近 14 天', 30: '近 30 天' };
+        parts.push(dayLabels[reviewDays] || `近 ${reviewDays} 天`);
+      }
+      if (useCount) {
+        const cap = dataset && dataset.max_reviews_per_app
+          ? dataset.max_reviews_per_app
+          : parseInt(document.getElementById('max-reviews')?.value || '0', 10);
+        if (cap) parts.push(`每产品最多 ${cap} 条`);
+      }
+      return parts.join(' + ') || '未设置筛选条件';
+    }
+
+    function buildCrawlFilterParams() {
+      const useDays = document.getElementById('use-review-days')?.checked;
+      const useCount = document.getElementById('use-max-reviews')?.checked;
+      if (!useDays && !useCount) {
+        return { error: '请至少勾选「按时间范围筛选」或「限制评价数量」之一' };
+      }
+      const params = new URLSearchParams();
+      params.set('use_review_days', useDays ? 'true' : 'false');
+      if (useDays) {
+        const reviewDays = parseInt(document.getElementById('review-days')?.value || '30', 10) || 30;
+        params.set('review_days', String(reviewDays));
+      }
+      params.set('use_max_reviews', useCount ? 'true' : 'false');
+      if (useCount) {
+        const maxReviews = parseInt(document.getElementById('max-reviews')?.value || '0', 10);
+        if (!maxReviews || maxReviews < 1) {
+          return { error: '启用评价数量时请填写大于 0 的条数' };
+        }
+        params.set('max_reviews', String(maxReviews));
+      }
+      params.set('market_country', selectedMarketCountry());
+      const marketLabel = describeMarket();
+      const filterLabel = describeCrawlFilters({
+        use_review_days: useDays,
+        review_days: useDays ? (parseInt(document.getElementById('review-days')?.value || '30', 10) || 30) : null,
+        use_max_reviews: useCount,
+        max_reviews_per_app: useCount ? parseInt(document.getElementById('max-reviews')?.value || '0', 10) : null,
+      });
+      const label = marketLabel ? `${marketLabel} · ${filterLabel}` : filterLabel;
+      return { params, label };
     }
 
     function filterPayload(payload) {
@@ -522,11 +657,11 @@
         </section>
       `;
 
-      const windowDays = payload.dataset && payload.dataset.review_days
-        ? payload.dataset.review_days
-        : (document.getElementById('review-days')?.value || '30');
+      const filterDesc = describeCrawlFilters(payload.dataset || {});
+      const marketDesc = describeMarket(payload.dataset || {});
+      const scopeDesc = marketDesc ? `${marketDesc} · ${filterDesc}` : filterDesc;
       const perProductHtml = reports.map((report) =>
-        `<li>${escapeHtml(report.product_name)}：${escapeHtml(report.sample_size)} 条（近 ${escapeHtml(windowDays)} 天）</li>`
+        `<li>${escapeHtml(report.product_name)}：${escapeHtml(report.sample_size)} 条（${escapeHtml(scopeDesc)}）</li>`
       ).join('');
 
       contentEl.innerHTML = `
@@ -536,7 +671,7 @@
           <div class="metric"><div class="label">整体好评率</div><div class="value">${escapeHtml(summary.overall_positive_rate)}%</div></div>
           <div class="metric"><div class="label">验证状态</div><div class="value">${validation.passed ? '通过' : '失败'}</div></div>
         </section>
-        <p class="filter-hint" style="margin:0 0 14px;">各产品样本：<ul style="margin:6px 0 0 18px;">${perProductHtml}</ul>数量变少通常是因为启用了<strong>日历时间窗口</strong>（只统计该时段内新发布的评论），不是漏抓。之前显示的「1000+」往往是未按日期过滤时的「最新一批评论」。</p>
+        <p class="filter-hint" style="margin:0 0 14px;">各产品样本（${escapeHtml(scopeDesc)}）：<ul style="margin:6px 0 0 18px;">${perProductHtml}</ul>国家决定渠道区服；只勾时间 = 该时段内全部评论；只勾条数 = 最新 N 条。</p>
         ${strategyHtml}
         <section class="grid">
           <div class="games">${gameHtml}</div>
@@ -627,6 +762,8 @@
       const data = await res.json();
       catalogProducts = data.products || [];
       defaultByChannel = data.default_by_channel || {};
+      marketsByChannel = data.markets_by_channel || {};
+      defaultMarketByChannel = data.default_market_by_channel || {};
       const pickIds = selectIds && selectIds.length ? selectIds : null;
       channelSelect.innerHTML = (data.channels || [{ id: 'steam', label: 'Steam' }])
         .map((c) => {
@@ -643,6 +780,7 @@
       } else {
         renderProductPicker(selectedChannel());
       }
+      renderMarketSelect(selectedChannel());
       filterHintEl.textContent = channelHint(selectedChannel());
     }
 
@@ -702,16 +840,17 @@
         return;
       }
       const labels = { steam: 'Steam', taptap: 'TapTap', google_play: 'Google Play' };
-      const reviewDays = parseInt(document.getElementById('review-days')?.value || '14', 10) || 14;
-      const dayLabels = { 7: '近 7 天', 14: '近 14 天', 30: '近 30 天' };
-      const dayLabel = dayLabels[reviewDays] || `近 ${reviewDays} 天`;
+      const filterBuild = buildCrawlFilterParams();
+      if (filterBuild.error) {
+        statusEl.textContent = filterBuild.error;
+        return;
+      }
       refreshButton.disabled = true;
       statusEl.textContent =
-        `正在从 ${labels[channel] || channel} 抓取（${dayLabel} 内的全部评论，逐款顺序抓取）…`;
+        `正在从 ${labels[channel] || channel} 抓取（${filterBuild.label}，逐款顺序抓取）…`;
       try {
-        const params = new URLSearchParams();
+        const params = filterBuild.params;
         params.set('app_ids', ids.join(','));
-        params.set('review_days', String(reviewDays));
         const response = await fetch(route + '?' + params.toString());
         if (!response.ok) throw new Error(await response.text());
         const payload = await response.json();
@@ -741,11 +880,15 @@
     channelSelect.addEventListener('change', () => {
       const ch = selectedChannel();
       filterHintEl.textContent = channelHint(ch);
+      renderMarketSelect(ch);
       renderProductPicker(ch);
       if (lastPayload) render(lastPayload);
     });
     refreshButton.addEventListener('click', refreshData);
     document.getElementById('add-product')?.addEventListener('click', addNewProduct);
+    document.getElementById('use-review-days')?.addEventListener('change', syncCrawlFilterControls);
+    document.getElementById('use-max-reviews')?.addEventListener('change', syncCrawlFilterControls);
+    syncCrawlFilterControls();
 
     (async function init() {
       try {

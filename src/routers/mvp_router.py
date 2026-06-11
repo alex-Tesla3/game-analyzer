@@ -18,8 +18,59 @@ from src.product_registry import (
     resolve_mvp_crawl_targets,
 )
 from src.services.google_play_pipeline import run_google_play_pipeline
-from src.services.review_window import DEFAULT_REVIEW_DAYS, normalize_review_days
+from src.services.market_locale import (
+    default_market_for_channel,
+    get_market_profile,
+    list_markets_for_channel,
+    normalize_market_country,
+)
+from src.services.review_window import (
+    DEFAULT_REVIEW_DAYS,
+    crawl_filter_description,
+    normalize_max_reviews,
+    normalize_review_days,
+)
 from src.services.taptap_pipeline import run_taptap_pipeline
+
+
+def _resolve_crawl_filters(
+    *,
+    use_review_days: bool,
+    review_days: int,
+    use_max_reviews: bool,
+    max_reviews: int,
+) -> dict:
+    if not use_review_days and not use_max_reviews:
+        raise HTTPException(
+            status_code=400,
+            detail="至少勾选「时间范围」或「评价数量」之一",
+        )
+    window_days = normalize_review_days(review_days) if use_review_days else None
+    review_cap = normalize_max_reviews(max_reviews) if use_max_reviews else None
+    if use_max_reviews and review_cap is None:
+        raise HTTPException(status_code=400, detail="启用评价数量时请填写大于 0 的条数")
+    return {
+        "use_review_days": use_review_days,
+        "review_days": window_days,
+        "use_max_reviews": use_max_reviews,
+        "max_reviews_per_app": review_cap,
+        "filter_label": crawl_filter_description(
+            use_review_days=use_review_days,
+            review_days=window_days,
+            use_max_reviews=use_max_reviews,
+            max_reviews=review_cap,
+        ),
+    }
+
+
+def _resolve_market(channel: str, market_country: str) -> dict:
+    normalized = normalize_market_country(channel, market_country)
+    profile = get_market_profile(channel, normalized)
+    return {
+        "market_country": profile.country,
+        "market_label": profile.label,
+    }
+
 
 router = APIRouter(tags=["mvp"])
 
@@ -77,10 +128,22 @@ async def get_mvp_catalog():
         {"id": "google_play", "label": "Google Play", "crawl_supported": True},
         {"id": "app_store", "label": "App Store", "crawl_supported": False},
     ]
+    markets_by_channel = {
+        channel["id"]: list_markets_for_channel(channel["id"])
+        for channel in channels
+        if channel.get("crawl_supported")
+    }
+    default_market_by_channel = {
+        channel["id"]: default_market_for_channel(channel["id"])
+        for channel in channels
+        if channel.get("crawl_supported")
+    }
     return {
         "success": True,
         "products": products,
         "channels": channels,
+        "markets_by_channel": markets_by_channel,
+        "default_market_by_channel": default_market_by_channel,
         "default_product_ids": list(DEFAULT_STEAM_APP_IDS),
         "default_by_channel": {
             "steam": list(DEFAULT_STEAM_APP_IDS),
@@ -178,9 +241,13 @@ async def resolve_mvp_inputs(
 @router.get("/api/mvp/steam")
 async def run_steam_mvp(
     app_ids: str = Query(",".join(DEFAULT_STEAM_APP_IDS)),
+    use_review_days: bool = Query(True, description="按评论发布日期筛选"),
     review_days: int = Query(
         DEFAULT_REVIEW_DAYS, ge=7, le=30, description="近 N 天评论（7/14/30，按发布日期）"
     ),
+    use_max_reviews: bool = Query(False, description="限制每产品抓取条数"),
+    max_reviews: int = Query(0, ge=0, description="每产品最多抓取条数（无上限，由用户填写）"),
+    market_country: str = Query("", description="渠道所在国家/地区（如 us、cn、jp）"),
     product_names: str = Query("", description="Custom display names: product_id:名称"),
 ):
     selected_app_ids, name_overrides, resolve_errors = resolve_mvp_crawl_targets(
@@ -189,18 +256,35 @@ async def run_steam_mvp(
     if not selected_app_ids:
         detail = "；".join(resolve_errors) if resolve_errors else "至少需要提供一个 Steam app_id"
         raise HTTPException(status_code=400, detail=detail)
+    filters = _resolve_crawl_filters(
+        use_review_days=use_review_days,
+        review_days=review_days,
+        use_max_reviews=use_max_reviews,
+        max_reviews=max_reviews,
+    )
+    market = _resolve_market("steam", market_country)
     try:
         result = await asyncio.to_thread(
             run_mvp_pipeline,
             app_ids=selected_app_ids,
             product_name_overrides=name_overrides or None,
-            review_days=normalize_review_days(review_days),
+            review_days=filters["review_days"],
+            use_review_days=filters["use_review_days"],
+            use_max_reviews=filters["use_max_reviews"],
+            max_reviews_per_app=filters["max_reviews_per_app"],
+            market_country=market["market_country"],
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Steam MVP pipeline failed: {exc}") from exc
     return {
         "success": result["success"],
-        "review_days": normalize_review_days(review_days),
+        "use_review_days": filters["use_review_days"],
+        "review_days": filters["review_days"],
+        "use_max_reviews": filters["use_max_reviews"],
+        "max_reviews_per_app": filters["max_reviews_per_app"],
+        "filter_label": filters["filter_label"],
+        "market_country": market["market_country"],
+        "market_label": market["market_label"],
         "summary": result["analysis"]["summary"],
         "product_reports": result["analysis"]["product_reports"],
         "ai_strategy": result["analysis"].get("ai_strategy"),
@@ -216,9 +300,13 @@ async def run_steam_mvp(
 @router.get("/api/mvp/taptap")
 async def run_taptap_mvp(
     app_ids: str = Query("", description="Comma-separated TapTap app ids or game names"),
+    use_review_days: bool = Query(True, description="按评论发布日期筛选"),
     review_days: int = Query(
         DEFAULT_REVIEW_DAYS, ge=7, le=30, description="近 N 天评论（7/14/30）"
     ),
+    use_max_reviews: bool = Query(False, description="限制每产品抓取条数"),
+    max_reviews: int = Query(0, ge=0, description="每产品最多抓取条数（无上限，由用户填写）"),
+    market_country: str = Query("", description="渠道所在国家/地区（如 cn、us、jp）"),
     product_names: str = Query("", description="Custom display names: app_id:名称"),
 ):
     selected, name_overrides, resolve_errors = resolve_mvp_crawl_targets(
@@ -227,19 +315,36 @@ async def run_taptap_mvp(
     if not selected:
         detail = "；".join(resolve_errors) if resolve_errors else "至少需要提供一个 TapTap AppID"
         raise HTTPException(status_code=400, detail=detail)
+    filters = _resolve_crawl_filters(
+        use_review_days=use_review_days,
+        review_days=review_days,
+        use_max_reviews=use_max_reviews,
+        max_reviews=max_reviews,
+    )
+    market = _resolve_market("taptap", market_country)
     try:
         result = await asyncio.to_thread(
             run_taptap_pipeline,
             app_ids=selected,
             product_name_overrides=name_overrides or None,
-            review_days=normalize_review_days(review_days),
+            review_days=filters["review_days"],
+            use_review_days=filters["use_review_days"],
+            use_max_reviews=filters["use_max_reviews"],
+            max_reviews_per_app=filters["max_reviews_per_app"],
+            market_country=market["market_country"],
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"TapTap pipeline failed: {exc}") from exc
     analysis = load_mvp_artifact("analysis") or {}
     return {
         "success": result["success"],
-        "review_days": normalize_review_days(review_days),
+        "use_review_days": filters["use_review_days"],
+        "review_days": filters["review_days"],
+        "use_max_reviews": filters["use_max_reviews"],
+        "max_reviews_per_app": filters["max_reviews_per_app"],
+        "filter_label": filters["filter_label"],
+        "market_country": market["market_country"],
+        "market_label": market["market_label"],
         "platform": "taptap",
         "data_mode": result.get("data_mode"),
         "summary": (analysis.get("summary") if analysis else None),
@@ -254,9 +359,13 @@ async def run_taptap_mvp(
 @router.get("/api/mvp/google-play")
 async def run_google_play_mvp(
     app_ids: str = Query("", description="Comma-separated package names or game names"),
+    use_review_days: bool = Query(True, description="按评论发布日期筛选"),
     review_days: int = Query(
         DEFAULT_REVIEW_DAYS, ge=7, le=30, description="近 N 天评论（7/14/30）"
     ),
+    use_max_reviews: bool = Query(False, description="限制每产品抓取条数"),
+    max_reviews: int = Query(0, ge=0, description="每产品最多抓取条数（无上限，由用户填写）"),
+    market_country: str = Query("", description="渠道所在国家/地区（如 us、cn、jp）"),
     product_names: str = Query("", description="Custom display names: package:名称"),
 ):
     selected, name_overrides, resolve_errors = resolve_mvp_crawl_targets(
@@ -265,19 +374,36 @@ async def run_google_play_mvp(
     if not selected:
         detail = "；".join(resolve_errors) if resolve_errors else "至少需要提供一个 Google Play 包名"
         raise HTTPException(status_code=400, detail=detail)
+    filters = _resolve_crawl_filters(
+        use_review_days=use_review_days,
+        review_days=review_days,
+        use_max_reviews=use_max_reviews,
+        max_reviews=max_reviews,
+    )
+    market = _resolve_market("google_play", market_country)
     try:
         result = await asyncio.to_thread(
             run_google_play_pipeline,
             app_ids=selected,
             product_name_overrides=name_overrides or None,
-            review_days=normalize_review_days(review_days),
+            review_days=filters["review_days"],
+            use_review_days=filters["use_review_days"],
+            use_max_reviews=filters["use_max_reviews"],
+            max_reviews_per_app=filters["max_reviews_per_app"],
+            market_country=market["market_country"],
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Google Play pipeline failed: {exc}") from exc
     analysis = load_mvp_artifact("analysis") or {}
     return {
         "success": result["success"],
-        "review_days": normalize_review_days(review_days),
+        "use_review_days": filters["use_review_days"],
+        "review_days": filters["review_days"],
+        "use_max_reviews": filters["use_max_reviews"],
+        "max_reviews_per_app": filters["max_reviews_per_app"],
+        "filter_label": filters["filter_label"],
+        "market_country": market["market_country"],
+        "market_label": market["market_label"],
         "platform": "google_play",
         "data_mode": result.get("data_mode"),
         "summary": (analysis.get("summary") if analysis else None),

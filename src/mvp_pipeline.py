@@ -59,9 +59,18 @@ class SteamPublicCrawler:
     APP_REVIEWS_URL = "https://store.steampowered.com/appreviews/{app_id}"
     STORE_SEARCH_URL = "https://store.steampowered.com/api/storesearch/"
 
-    def __init__(self, timeout: int = 20, session: Optional[requests.Session] = None):
+    def __init__(
+        self,
+        timeout: int = 20,
+        session: Optional[requests.Session] = None,
+        *,
+        market_country: str = "us",
+    ):
+        from src.services.market_locale import get_market_profile
+
         self.timeout = timeout
         self.session = session or requests.Session()
+        self.market = get_market_profile("steam", market_country)
         self.session.headers.update(
             {
                 "User-Agent": "GameAnalyzerMVP/1.0 (+https://example.local)",
@@ -75,17 +84,26 @@ class SteamPublicCrawler:
         max_reviews_per_app: int | None = None,
         *,
         review_days: int | None = None,
+        use_review_days: bool = True,
+        use_max_reviews: bool = False,
+        market_country: str | None = None,
     ) -> Dict[str, Any]:
         from src.services.crawl_runner import crawl_products_parallel
-        from src.services.review_window import normalize_review_days
+        from src.services.market_locale import get_market_profile
+        from src.services.review_window import normalize_max_reviews, normalize_review_days
 
+        if market_country:
+            self.market = get_market_profile("steam", market_country)
         if not app_ids:
             raise ValueError("app_ids must contain at least one Steam app id")
-        window_days = normalize_review_days(review_days)
+        if not use_review_days and not use_max_reviews:
+            raise ValueError("至少启用「时间范围」或「评价数量」之一")
+        window_days = normalize_review_days(review_days) if use_review_days else None
+        review_cap = normalize_max_reviews(max_reviews_per_app) if use_max_reviews else None
         valid_ids = [str(raw).strip() for raw in app_ids if str(raw).strip()]
 
         def _crawl_one(app_id: str) -> Dict[str, Any]:
-            worker = SteamPublicCrawler(timeout=self.timeout)
+            worker = SteamPublicCrawler(timeout=self.timeout, market_country=self.market.country)
             try:
                 return {
                     "app_id": app_id,
@@ -93,7 +111,7 @@ class SteamPublicCrawler:
                     **worker._crawl_single_app(
                         app_id,
                         window_days,
-                        max_reviews=max_reviews_per_app,
+                        max_reviews=review_cap,
                     ),
                 }
             except Exception as exc:
@@ -121,7 +139,13 @@ class SteamPublicCrawler:
         return {
             "source": "steam_public",
             "crawled_at": datetime.now(timezone.utc).isoformat(),
+            "use_review_days": use_review_days,
             "review_days": window_days,
+            "use_max_reviews": use_max_reviews,
+            "max_reviews_per_app": review_cap,
+            "market_country": self.market.country,
+            "market_label": self.market.label,
+            "steam_review_language": self.market.steam_review_language,
             "app_ids": list(app_ids),
             "games": games,
             "comments": comments,
@@ -132,7 +156,7 @@ class SteamPublicCrawler:
     def _crawl_single_app(
         self,
         app_id: str,
-        window_days: int,
+        window_days: int | None,
         *,
         max_reviews: int | None = None,
     ) -> Dict[str, Any]:
@@ -171,13 +195,14 @@ class SteamPublicCrawler:
     ) -> Dict[str, Any]:
         from src.services.crawl_runner import throttle_page_fetch
         from src.services.review_window import (
-            collect_recent_reviews_within_days,
+            collect_reviews_from_batches,
+            normalize_max_reviews,
             normalize_review_days,
             steam_review_datetime,
         )
 
-        window_days = normalize_review_days(review_days)
-        cap = int(max_reviews) if max_reviews and max_reviews > 0 else None
+        window_days = normalize_review_days(review_days) if review_days is not None else None
+        cap = normalize_max_reviews(max_reviews)
         query_summary: Dict[str, Any] = {}
         cursor = "*"
 
@@ -190,7 +215,7 @@ class SteamPublicCrawler:
                     params={
                         "json": 1,
                         "filter": "recent",
-                        "language": "english",
+                        "language": self.market.steam_review_language,
                         "num_per_page": 100,
                         "purchase_type": "all",
                         "cursor": cursor,
@@ -210,7 +235,7 @@ class SteamPublicCrawler:
                 if not batch or not cursor:
                     break
 
-        collected = collect_recent_reviews_within_days(
+        collected = collect_reviews_from_batches(
             _iter_batches(),
             days=window_days,
             max_count=cap,
@@ -218,9 +243,15 @@ class SteamPublicCrawler:
         )
 
         if not collected:
-            raise SteamCrawlerError(
-                f"Steam app_id={app_id} 在近 {window_days} 天内没有可用评论，请扩大时间范围。"
-            )
+            if window_days is not None and cap is not None:
+                detail = f"在近 {window_days} 天内未凑满 {cap} 条评论"
+            elif window_days is not None:
+                detail = f"在近 {window_days} 天内没有可用评论，请扩大时间范围"
+            elif cap is not None:
+                detail = f"未能拉到评论（目标 {cap} 条）"
+            else:
+                detail = "没有可用评论"
+            raise SteamCrawlerError(f"Steam app_id={app_id} {detail}。")
 
         return {
             "reviews": collected,
@@ -311,7 +342,7 @@ class SteamPublicCrawler:
         game: Dict[str, Any],
         reviews: Sequence[Dict[str, Any]],
         query_summary: Dict[str, Any],
-        window_days: int,
+        window_days: int | None,
     ) -> List[Dict[str, Any]]:
         positive = sum(1 for review in reviews if review.get("voted_up"))
         negative = len(reviews) - positive
@@ -343,7 +374,7 @@ class SteamPublicCrawler:
             "source": "steam_public",
         }
         values = [
-            ("抓取评论数", len(reviews), f"window_days={window_days}"),
+            ("抓取评论数", len(reviews), f"window_days={window_days or 'none'}"),
             ("样本好评率", review_score, f"positive={positive}; negative={negative}"),
             ("Steam汇总评论数", total_reviews, "query_summary.total_reviews"),
             ("Steam汇总好评率", total_score, f"total_positive={total_positive}; total_negative={total_negative}"),
@@ -604,14 +635,20 @@ def run_mvp_pipeline(
     *,
     product_name_overrides: Optional[Dict[str, str]] = None,
     review_days: int | None = None,
+    use_review_days: bool = True,
+    use_max_reviews: bool = False,
+    market_country: str = "us",
 ) -> Dict[str, Any]:
     """Crawl real Steam data, analyze it, validate results, and persist artifacts."""
 
-    crawler = crawler or SteamPublicCrawler()
+    crawler = crawler or SteamPublicCrawler(market_country=market_country)
     dataset = crawler.crawl(
         app_ids=app_ids,
         max_reviews_per_app=max_reviews_per_app,
         review_days=review_days,
+        use_review_days=use_review_days,
+        use_max_reviews=use_max_reviews,
+        market_country=market_country,
     )
     if product_name_overrides:
         from src.product_registry import apply_product_display_names

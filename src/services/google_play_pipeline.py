@@ -72,29 +72,13 @@ class GooglePlayCrawlerError(RuntimeError):
     pass
 
 
-def _gplay_search_locale() -> tuple[str, str]:
-    return (
-        os.getenv("GOOGLE_PLAY_SEARCH_LANG", os.getenv("GOOGLE_PLAY_LANG", "zh")).strip() or "zh",
-        os.getenv("GOOGLE_PLAY_SEARCH_COUNTRY", os.getenv("GOOGLE_PLAY_COUNTRY", "cn")).strip()
-        or "cn",
-    )
-
-
-def _gplay_review_locale() -> tuple[str, str]:
-    """Global GP games expose far more reviews under en/us than zh/cn."""
-    return (
-        os.getenv("GOOGLE_PLAY_REVIEW_LANG", os.getenv("GOOGLE_PLAY_LANG", "en")).strip() or "en",
-        os.getenv("GOOGLE_PLAY_REVIEW_COUNTRY", os.getenv("GOOGLE_PLAY_COUNTRY", "us")).strip()
-        or "us",
-    )
-
-
-def _gplay_locale() -> tuple[str, str]:
-    return _gplay_search_locale()
-
-
 class GooglePlayPublicCrawler:
     """Live Google Play scrape via google-play-scraper (public store pages)."""
+
+    def __init__(self, *, market_country: str = "us"):
+        from src.services.market_locale import get_market_profile
+
+        self.market = get_market_profile("google_play", market_country)
 
     def search(self, term: str, *, limit: int = 8) -> List[Dict[str, Any]]:
         query = (term or "").strip()
@@ -122,7 +106,7 @@ class GooglePlayPublicCrawler:
         if not _GPLAY_AVAILABLE:
             return self._offline_search(query, limit=limit)
 
-        lang, country = _gplay_search_locale()
+        lang, country = self.market.google_play_lang, self.market.google_play_country
         try:
             hits = gplay_search(query, lang=lang, country=country, n_hits=min(limit, 10))
             out: List[Dict[str, Any]] = []
@@ -159,11 +143,21 @@ class GooglePlayPublicCrawler:
         max_reviews_per_app: int | None = None,
         product_name_overrides: Optional[Dict[str, str]] = None,
         review_days: int | None = None,
+        use_review_days: bool = True,
+        use_max_reviews: bool = False,
+        market_country: str | None = None,
     ) -> Dict[str, Any]:
-        from src.services.crawl_runner import throttle_between_products
-        from src.services.review_window import normalize_review_days
+        from src.services.market_locale import get_market_profile
 
-        window_days = normalize_review_days(review_days)
+        if market_country:
+            self.market = get_market_profile("google_play", market_country)
+        from src.services.crawl_runner import throttle_between_products
+        from src.services.review_window import normalize_max_reviews, normalize_review_days
+
+        if not use_review_days and not use_max_reviews:
+            raise ValueError("至少启用「时间范围」或「评价数量」之一")
+        window_days = normalize_review_days(review_days) if use_review_days else None
+        review_cap = normalize_max_reviews(max_reviews_per_app) if use_max_reviews else None
         ids = [
             str(pkg).strip().replace("google_play_", "", 1)
             for pkg in (package_ids or app_ids or [])
@@ -184,7 +178,7 @@ class GooglePlayPublicCrawler:
                 game, reviews, demo = self._fetch_package(
                     pkg,
                     review_days=window_days,
-                    max_reviews=max_reviews_per_app,
+                    max_reviews=review_cap,
                 )
                 used_demo = used_demo or demo
                 games.append(game)
@@ -203,8 +197,13 @@ class GooglePlayPublicCrawler:
             "source": "google_play_public",
             "data_mode": "demo_fallback" if used_demo else "live",
             "crawled_at": datetime.now(timezone.utc).isoformat(),
+            "use_review_days": use_review_days,
             "review_days": window_days,
-            "review_locale": list(_gplay_review_locale()),
+            "use_max_reviews": use_max_reviews,
+            "max_reviews_per_app": review_cap,
+            "market_country": self.market.country,
+            "market_label": self.market.label,
+            "review_locale": [self.market.google_play_lang, self.market.google_play_country],
             "review_counts": review_counts,
             "platform": "Google Play",
             "games": games,
@@ -225,8 +224,10 @@ class GooglePlayPublicCrawler:
     ) -> List[Dict[str, Any]]:
         from src.services.crawl_runner import throttle_page_fetch
         from src.services.review_window import (
-            collect_recent_reviews_within_days,
+            collect_reviews_from_batches,
             gplay_review_datetime,
+            normalize_max_reviews,
+            normalize_review_days,
         )
 
         continuation_token = None
@@ -263,10 +264,12 @@ class GooglePlayPublicCrawler:
                 if not rows:
                     break
 
-        return collect_recent_reviews_within_days(
+        days = normalize_review_days(window_days) if window_days is not None else None
+        cap = normalize_max_reviews(max_reviews)
+        return collect_reviews_from_batches(
             _iter_batches(),
-            days=window_days,
-            max_count=max_reviews,
+            days=days,
+            max_count=cap,
             date_fn=gplay_review_datetime,
         )
 
@@ -277,15 +280,15 @@ class GooglePlayPublicCrawler:
         review_days: int | None = None,
         max_reviews: int | None = None,
     ) -> tuple[Dict[str, Any], List[Dict[str, Any]], bool]:
-        from src.services.review_window import normalize_review_days
+        from src.services.review_window import normalize_max_reviews, normalize_review_days
 
         if _GPLAY_AVAILABLE:
-            lang, country = _gplay_review_locale()
+            lang, country = self.market.google_play_lang, self.market.google_play_country
             try:
                 info = gplay_app(package_id, lang=lang, country=country)
                 name = info.get("title") or _merged_gplay_demo().get(package_id) or package_id.split(".")[-1]
-                window_days = normalize_review_days(review_days)
-                cap = int(max_reviews) if max_reviews and max_reviews > 0 else None
+                window_days = normalize_review_days(review_days) if review_days is not None else None
+                cap = normalize_max_reviews(max_reviews)
 
                 parsed = self._fetch_reviews_in_window(
                     package_id,
@@ -295,9 +298,15 @@ class GooglePlayPublicCrawler:
                     max_reviews=cap,
                 )
                 if not parsed:
-                    raise GooglePlayCrawlerError(
-                        f"Google Play {package_id} 在近 {window_days} 天内没有可用评论，请扩大时间范围。"
-                    )
+                    if window_days is not None and cap is not None:
+                        detail = f"在近 {window_days} 天内未凑满 {cap} 条评论"
+                    elif window_days is not None:
+                        detail = f"在近 {window_days} 天内没有可用评论，请扩大时间范围"
+                    elif cap is not None:
+                        detail = f"未能拉到评论（目标 {cap} 条）"
+                    else:
+                        detail = "没有可用评论"
+                    raise GooglePlayCrawlerError(f"Google Play {package_id} {detail}。")
                 if parsed:
                     return (
                         {
@@ -402,8 +411,13 @@ def _extract_package_id(token: str) -> Optional[str]:
     return None
 
 
-def search_google_play_games(term: str, *, limit: int = 8) -> List[Dict[str, Any]]:
-    return GooglePlayPublicCrawler().search(term, limit=limit)
+def search_google_play_games(
+    term: str,
+    *,
+    limit: int = 8,
+    market_country: str = "us",
+) -> List[Dict[str, Any]]:
+    return GooglePlayPublicCrawler(market_country=market_country).search(term, limit=limit)
 
 
 def split_input_tokens(raw: Sequence[str] | str) -> List[str]:
@@ -508,13 +522,19 @@ def run_google_play_pipeline(
     *,
     product_name_overrides: Optional[Dict[str, str]] = None,
     review_days: int | None = None,
+    use_review_days: bool = True,
+    use_max_reviews: bool = False,
+    market_country: str = "us",
 ) -> Dict[str, Any]:
-    crawler = crawler or GooglePlayPublicCrawler()
+    crawler = crawler or GooglePlayPublicCrawler(market_country=market_country)
     dataset = crawler.crawl(
         app_ids=app_ids,
         max_reviews_per_app=max_reviews_per_app,
         product_name_overrides=product_name_overrides,
         review_days=review_days,
+        use_review_days=use_review_days,
+        use_max_reviews=use_max_reviews,
+        market_country=market_country,
     )
     merge_result = merge_into_mvp_dataset(dataset, output_dir)
     return {

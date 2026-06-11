@@ -9,6 +9,15 @@ DEFAULT_REVIEW_DAYS = 30
 ALLOWED_REVIEW_DAYS = (7, 14, 30)
 
 
+def normalize_max_reviews(value: Any) -> Optional[int]:
+    """Return a positive review cap, or None when unset / disabled."""
+    try:
+        count = int(value or 0)
+    except (TypeError, ValueError):
+        return None
+    return count if count > 0 else None
+
+
 def normalize_review_days(value: Any) -> int:
     """Return one of 7, 14, 30 (default 14)."""
     try:
@@ -126,6 +135,43 @@ def filter_raw_reviews_by_days(
     return kept
 
 
+def collect_reviews_from_batches(
+    batches: Iterable[Sequence[Dict[str, Any]]],
+    *,
+    days: Optional[int],
+    date_fn,
+    max_count: Optional[int] = None,
+) -> List[Dict[str, Any]]:
+    """Paginate newest-first batches with optional calendar window and/or count cap."""
+    use_days = days is not None and int(days) > 0
+    use_count = max_count is not None and int(max_count) > 0
+    window_days = normalize_review_days(days) if use_days else None
+
+    collected: List[Dict[str, Any]] = []
+    for batch in batches:
+        if not batch:
+            break
+        saw_in_window = False
+        saw_outside_window = False
+        for review in batch:
+            if use_days:
+                dt = date_fn(review)
+                if review_is_within_days(dt, window_days):
+                    collected.append(review)
+                    saw_in_window = True
+                    if use_count and len(collected) >= max_count:
+                        return collected
+                elif dt is not None:
+                    saw_outside_window = True
+            else:
+                collected.append(review)
+                if use_count and len(collected) >= max_count:
+                    return collected
+        if use_days and saw_outside_window and not saw_in_window:
+            break
+    return collected
+
+
 def collect_recent_reviews_within_days(
     batches: Iterable[Sequence[Dict[str, Any]]],
     *,
@@ -134,21 +180,26 @@ def collect_recent_reviews_within_days(
     max_count: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Paginate newest-first batches until the time window is exhausted (no default cap)."""
-    collected: List[Dict[str, Any]] = []
-    for batch in batches:
-        if not batch:
-            break
-        saw_in_window = False
-        saw_outside_window = False
-        for review in batch:
-            dt = date_fn(review)
-            if review_is_within_days(dt, days):
-                collected.append(review)
-                saw_in_window = True
-                if max_count is not None and len(collected) >= max_count:
-                    return collected
-            elif dt is not None:
-                saw_outside_window = True
-        if saw_outside_window and not saw_in_window:
-            break
-    return collected
+    return collect_reviews_from_batches(
+        batches,
+        days=days,
+        date_fn=date_fn,
+        max_count=max_count,
+    )
+
+
+def crawl_filter_description(
+    *,
+    use_review_days: bool,
+    review_days: Optional[int] = None,
+    use_max_reviews: bool = False,
+    max_reviews: Optional[int] = None,
+) -> str:
+    parts: List[str] = []
+    if use_review_days:
+        parts.append(review_days_label(normalize_review_days(review_days)))
+    if use_max_reviews:
+        cap = normalize_max_reviews(max_reviews)
+        if cap:
+            parts.append(f"每产品最多 {cap} 条")
+    return " + ".join(parts) if parts else "未设置筛选条件"

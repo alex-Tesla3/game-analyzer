@@ -16,17 +16,24 @@ def allow_demo_fallback() -> bool:
     )
 
 
-def taptap_xua() -> str:
+def taptap_xua(*, lang: str = "zh_CN", loc: str = "CN") -> str:
     """Client fingerprint required by TapTap webapiv2."""
     uid = os.getenv("TAPTAP_XUA_UID", "").strip() or str(uuid.uuid4())
+    lang_code = (lang or "zh_CN").strip() or "zh_CN"
+    loc_code = (loc or "CN").strip() or "CN"
     return (
-        "V=1&PN=WebApp&LANG=zh_CN&VN_CODE=102&VN=0.1.0&LOC=CN&PLT=PC"
+        f"V=1&PN=WebApp&LANG={lang_code}&VN_CODE=102&VN=0.1.0&LOC={loc_code}&PLT=PC"
         f"&DS=Android&UID={uid}&DT=PC"
     )
 
 
-def taptap_params(extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    params = {"X-UA": taptap_xua()}
+def taptap_params(
+    extra: Optional[Dict[str, Any]] = None,
+    *,
+    lang: str = "zh_CN",
+    loc: str = "CN",
+) -> Dict[str, Any]:
+    params = {"X-UA": taptap_xua(lang=lang, loc=loc)}
     if extra:
         params.update(extra)
     return params

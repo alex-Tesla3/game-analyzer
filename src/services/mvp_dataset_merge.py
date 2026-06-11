@@ -100,7 +100,12 @@ def merge_platform_dataset(
     merged = {
         "source": "mvp_multi",
         "crawled_at": datetime.now(timezone.utc).isoformat(),
+        "use_review_days": platform_dataset.get("use_review_days"),
         "review_days": platform_dataset.get("review_days"),
+        "use_max_reviews": platform_dataset.get("use_max_reviews"),
+        "max_reviews_per_app": platform_dataset.get("max_reviews_per_app"),
+        "market_country": platform_dataset.get("market_country"),
+        "market_label": platform_dataset.get("market_label"),
         "games": list(existing.get("games") or []) + list(platform_dataset.get("games") or []),
         "comments": list(existing.get("comments") or []) + list(platform_dataset.get("comments") or []),
         "metrics": list(existing.get("metrics") or []) + list(platform_dataset.get("metrics") or []),

@@ -13,7 +13,8 @@ Multi-platform crawl pipeline: public reviews → normalized schema → analysis
 ## CLI (Steam batch)
 
 ```bash
-python3 run_mvp.py --app-ids 730,570,117247 --review-days 14
+python3 run_mvp.py --app-ids 730,570,117247 --review-days 30
+python3 run_mvp.py --app-ids 730 --no-use-review-days --use-max-reviews --max-reviews 1000
 ```
 
 ## Artifacts (`data/mvp/`)
@@ -25,9 +26,9 @@ python3 run_mvp.py --app-ids 730,570,117247 --review-days 14
 ## FastAPI endpoints
 
 ```text
-GET /api/mvp/steam?app_ids=730,570&review_days=14
-GET /api/mvp/taptap?app_ids=168332&review_days=7
-GET /api/mvp/google-play?app_ids=com.miHoYo.GenshinImpact&review_days=14
+GET /api/mvp/steam?app_ids=730,570&use_review_days=true&review_days=30
+GET /api/mvp/google-play?app_ids=com.example.app&market_country=us&use_max_reviews=true&max_reviews=1000
+GET /api/mvp/taptap?app_ids=168332&use_review_days=true&use_max_reviews=true&review_days=14&max_reviews=500
 GET /api/mvp/latest
 GET /mvp
 ```

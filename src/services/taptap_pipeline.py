@@ -72,9 +72,19 @@ class TapTapCrawlerError(RuntimeError):
 class TapTapPublicCrawler:
     """TapTap webapiv2 — live crawl with optional demo fallback."""
 
-    def __init__(self, timeout: int = 20, session: Optional[requests.Session] = None):
+    def __init__(
+        self,
+        timeout: int = 20,
+        session: Optional[requests.Session] = None,
+        *,
+        market_country: str = "cn",
+    ):
+        from src.services.market_locale import get_market_profile
+
         self.timeout = timeout
         self.session = session or requests.Session()
+        self.market = get_market_profile("taptap", market_country)
+        self.api_base = self.market.taptap_api_base
         self.session.headers.update(
             {
                 "User-Agent": (
@@ -82,16 +92,20 @@ class TapTapPublicCrawler:
                     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                 ),
                 "Accept": "application/json",
-                "Accept-Language": "zh-CN,zh;q=0.9",
-                "Referer": "https://www.taptap.cn/",
+                "Accept-Language": f"{self.market.taptap_accept_language},en;q=0.8",
+                "Referer": self.market.taptap_referer,
             }
         )
 
     def _get_json(self, path: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        url = f"{_TAPTAP_BASE}/{path.lstrip('/')}"
+        url = f"{self.api_base}/{path.lstrip('/')}"
         response = self.session.get(
             url,
-            params=taptap_params(params),
+            params=taptap_params(
+                params,
+                lang=self.market.taptap_xua_lang,
+                loc=self.market.taptap_xua_loc,
+            ),
             timeout=self.timeout,
         )
         if response.status_code != 200:
@@ -142,11 +156,23 @@ class TapTapPublicCrawler:
         *,
         product_name_overrides: Optional[Dict[str, str]] = None,
         review_days: int | None = None,
+        use_review_days: bool = True,
+        use_max_reviews: bool = False,
+        market_country: str | None = None,
     ) -> Dict[str, Any]:
         from src.services.crawl_runner import crawl_products_parallel
-        from src.services.review_window import normalize_review_days
+        from src.services.market_locale import get_market_profile
+        from src.services.review_window import normalize_max_reviews, normalize_review_days
 
-        window_days = normalize_review_days(review_days)
+        if market_country:
+            self.market = get_market_profile("taptap", market_country)
+            self.api_base = self.market.taptap_api_base
+            self.session.headers["Accept-Language"] = f"{self.market.taptap_accept_language},en;q=0.8"
+            self.session.headers["Referer"] = self.market.taptap_referer
+        if not use_review_days and not use_max_reviews:
+            raise ValueError("至少启用「时间范围」或「评价数量」之一")
+        window_days = normalize_review_days(review_days) if use_review_days else None
+        review_cap = normalize_max_reviews(max_reviews_per_app) if use_max_reviews else None
         valid_ids = [str(raw).strip().replace("taptap_", "") for raw in app_ids if str(raw).strip()]
 
         def _crawl_one(raw_id: str) -> Dict[str, Any]:
@@ -157,7 +183,7 @@ class TapTapPublicCrawler:
                 reviews, demo = worker._fetch_reviews(
                     app_id,
                     review_days=window_days,
-                    max_reviews=max_reviews_per_app,
+                    max_reviews=review_cap,
                 )
                 return {
                     "app_id": app_id,
@@ -210,7 +236,13 @@ class TapTapPublicCrawler:
             "source": "taptap_public",
             "data_mode": "demo_fallback" if used_demo else "live",
             "crawled_at": datetime.now(timezone.utc).isoformat(),
+            "use_review_days": use_review_days,
             "review_days": window_days,
+            "use_max_reviews": use_max_reviews,
+            "max_reviews_per_app": review_cap,
+            "market_country": self.market.country,
+            "market_label": self.market.label,
+            "taptap_api_base": self.api_base,
             "app_ids": list(app_ids),
             "games": games,
             "comments": comments,
@@ -234,14 +266,15 @@ class TapTapPublicCrawler:
     ) -> tuple[List[Dict[str, Any]], bool]:
         from src.services.crawl_runner import throttle_page_fetch
         from src.services.review_window import (
-            collect_recent_reviews_within_days,
+            collect_reviews_from_batches,
+            normalize_max_reviews,
             normalize_review_days,
             taptap_review_datetime,
         )
 
         try:
-            window_days = normalize_review_days(review_days)
-            cap = int(max_reviews) if max_reviews and max_reviews > 0 else None
+            window_days = normalize_review_days(review_days) if review_days is not None else None
+            cap = normalize_max_reviews(max_reviews)
             offset = 0
             page_size = 30
 
@@ -267,7 +300,7 @@ class TapTapPublicCrawler:
                         break
                     offset += len(parsed)
 
-            collected = collect_recent_reviews_within_days(
+            collected = collect_reviews_from_batches(
                 _iter_batches(),
                 days=window_days,
                 max_count=cap,
@@ -276,9 +309,15 @@ class TapTapPublicCrawler:
 
             if collected:
                 return collected, False
-            raise TapTapCrawlerError(
-                f"TapTap app_id={app_id} 在近 {window_days} 天内没有可用评论，请扩大时间范围。"
-            )
+            if window_days is not None and cap is not None:
+                detail = f"在近 {window_days} 天内未凑满 {cap} 条评论"
+            elif window_days is not None:
+                detail = f"在近 {window_days} 天内没有可用评论，请扩大时间范围"
+            elif cap is not None:
+                detail = f"未能拉到评论（目标 {cap} 条）"
+            else:
+                detail = "没有可用评论"
+            raise TapTapCrawlerError(f"TapTap app_id={app_id} {detail}。")
         except TapTapCrawlerError:
             if not allow_demo_fallback() and app_id not in _merged_taptap_demo():
                 raise
@@ -467,13 +506,19 @@ def run_taptap_pipeline(
     *,
     product_name_overrides: Optional[Dict[str, str]] = None,
     review_days: int | None = None,
+    use_review_days: bool = True,
+    use_max_reviews: bool = False,
+    market_country: str = "cn",
 ) -> Dict[str, Any]:
-    crawler = crawler or TapTapPublicCrawler()
+    crawler = crawler or TapTapPublicCrawler(market_country=market_country)
     dataset = crawler.crawl(
         app_ids=app_ids,
         max_reviews_per_app=max_reviews_per_app,
         product_name_overrides=product_name_overrides,
         review_days=review_days,
+        use_review_days=use_review_days,
+        use_max_reviews=use_max_reviews,
+        market_country=market_country,
     )
     merge_result = merge_into_mvp_dataset(dataset, output_dir)
     return {

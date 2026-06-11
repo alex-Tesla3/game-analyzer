@@ -19,10 +19,32 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated Steam app ids. Defaults to CS2, Dota 2, and Apex Legends.",
     )
     parser.add_argument(
+        "--use-review-days",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Filter reviews by publish date window.",
+    )
+    parser.add_argument(
         "--review-days",
         type=int,
-        default=14,
-        help="Only keep reviews from the last N days (allowed: 7, 14, 30).",
+        default=30,
+        help="Only keep reviews from the last N days when --use-review-days (allowed: 7, 14, 30).",
+    )
+    parser.add_argument(
+        "--use-max-reviews",
+        action="store_true",
+        help="Cap reviews per product at --max-reviews.",
+    )
+    parser.add_argument(
+        "--max-reviews",
+        type=int,
+        default=0,
+        help="Max reviews per product when --use-max-reviews (no system cap).",
+    )
+    parser.add_argument(
+        "--market-country",
+        default="us",
+        help="Steam store country/region for review language (e.g. us, cn, jp).",
     )
     parser.add_argument(
         "--output-dir",
@@ -39,6 +61,10 @@ def main() -> int:
         app_ids=app_ids,
         output_dir=args.output_dir,
         review_days=args.review_days,
+        use_review_days=args.use_review_days,
+        use_max_reviews=args.use_max_reviews,
+        max_reviews_per_app=args.max_reviews or None,
+        market_country=args.market_country,
     )
     summary = {
         "success": result["success"],
