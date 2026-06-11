@@ -318,10 +318,10 @@
             const hint = document.getElementById('input-hint');
             const search = document.getElementById('game-search');
             if (selectedPlatform() === 'taptap') {
-                hint.textContent = 'TapTap 示例：原神, 王者荣耀 · 或 AppID 168332';
+                hint.textContent = 'TapTap 示例：Last War, 王者荣耀 · 或 AppID 33569155 / 23167';
                 if (search) search.placeholder = '搜索 TapTap 游戏名…';
             } else if (selectedPlatform() === 'google_play') {
-                hint.textContent = 'Google Play 示例：原神 · 王者荣耀国际服 · 或包名 com.miHoYo.GenshinImpact / com.levelinfinite.sgameGlobal（国服请选 TapTap）';
+                hint.textContent = 'Google Play 示例：Last War, Dark War · 或包名 com.fun.lastwar.gp / com.readygo.dark.gp';
                 if (search) search.placeholder = '搜索 Google Play 游戏名…';
             } else {
                 hint.textContent = 'Steam 示例：Counter-Strike 2 · Dota 2 · 或 AppID 730, 570';

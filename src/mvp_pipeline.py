@@ -516,11 +516,17 @@ def run_mvp_pipeline(
     max_reviews_per_app: int = 50,
     output_dir: str = DEFAULT_OUTPUT_DIR,
     crawler: Optional[SteamPublicCrawler] = None,
+    *,
+    product_name_overrides: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """Crawl real Steam data, analyze it, validate results, and persist artifacts."""
 
     crawler = crawler or SteamPublicCrawler()
     dataset = crawler.crawl(app_ids=app_ids, max_reviews_per_app=max_reviews_per_app)
+    if product_name_overrides:
+        from src.product_registry import apply_product_display_names
+
+        dataset = apply_product_display_names(dataset, product_name_overrides)
     analysis = analyze_actual_steam_data(dataset["comments"], dataset["metrics"])
     validation = validate_analysis(dataset["comments"], dataset["metrics"], analysis)
 

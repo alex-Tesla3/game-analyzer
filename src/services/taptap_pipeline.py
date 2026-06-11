@@ -15,6 +15,7 @@ from src.mvp_pipeline import (
     analyze_actual_steam_data,
     validate_analysis,
 )
+from src.product_registry import apply_product_display_names, taptap_alias_map, taptap_demo_map
 from src.services.platform_crawl_utils import (
     allow_demo_fallback,
     extract_taptap_app_id,
@@ -49,7 +50,9 @@ _DEMO_GAMES: Dict[str, str] = {
     "168332": "原神",
     "23167": "王者荣耀",
     "70056": "和平精英",
+    **taptap_demo_map(),
 }
+_TAPTAP_ALIASES.update(taptap_alias_map())
 
 
 class TapTapCrawlerError(RuntimeError):
@@ -122,7 +125,13 @@ class TapTapPublicCrawler:
 
         return []
 
-    def crawl(self, app_ids: Sequence[str], max_reviews_per_app: int = 30) -> Dict[str, Any]:
+    def crawl(
+        self,
+        app_ids: Sequence[str],
+        max_reviews_per_app: int = 30,
+        *,
+        product_name_overrides: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
         comments: List[Dict[str, Any]] = []
         metrics: List[Dict[str, Any]] = []
         games: List[Dict[str, Any]] = []
@@ -141,12 +150,22 @@ class TapTapPublicCrawler:
                 comments.extend(self._normalize_reviews(app_id, game["name"], reviews))
                 metrics.extend(self._build_metrics(app_id, game, reviews))
             except Exception as exc:
-                errors.append({"app_id": app_id, "error": str(exc)})
+                if app_id in _DEMO_GAMES:
+                    demo_name = _DEMO_GAMES[app_id]
+                    game = {"app_id": app_id, "name": demo_name, "platform": "TapTap"}
+                    reviews = self._demo_reviews(app_id)
+                    used_demo = True
+                    games.append(game)
+                    comments.extend(self._normalize_reviews(app_id, demo_name, reviews))
+                    metrics.extend(self._build_metrics(app_id, game, reviews))
+                    errors.append({"app_id": app_id, "error": f"live_fetch_failed: {exc}"})
+                else:
+                    errors.append({"app_id": app_id, "error": str(exc)})
 
         if not comments and not metrics:
             raise TapTapCrawlerError(f"No usable TapTap data. Errors: {errors}")
 
-        return {
+        payload = {
             "source": "taptap_public",
             "data_mode": "demo_fallback" if used_demo else "live",
             "crawled_at": datetime.now(timezone.utc).isoformat(),
@@ -156,6 +175,7 @@ class TapTapPublicCrawler:
             "metrics": metrics,
             "errors": errors,
         }
+        return apply_product_display_names(payload, product_name_overrides)
 
     def _fetch_game(self, app_id: str) -> Dict[str, Any]:
         payload = self._get_json("app/v6/detail", {"id": app_id})
@@ -365,9 +385,15 @@ def run_taptap_pipeline(
     max_reviews_per_app: int = 30,
     output_dir: str = DEFAULT_OUTPUT_DIR,
     crawler: Optional[TapTapPublicCrawler] = None,
+    *,
+    product_name_overrides: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     crawler = crawler or TapTapPublicCrawler()
-    dataset = crawler.crawl(app_ids=app_ids, max_reviews_per_app=max_reviews_per_app)
+    dataset = crawler.crawl(
+        app_ids=app_ids,
+        max_reviews_per_app=max_reviews_per_app,
+        product_name_overrides=product_name_overrides,
+    )
     merge_result = merge_into_mvp_dataset(dataset, output_dir)
     return {
         "success": merge_result.get("success"),

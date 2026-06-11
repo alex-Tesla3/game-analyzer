@@ -319,6 +319,10 @@
         <label for="max-reviews">每款评论数</label>
         <input id="max-reviews" type="number" min="5" max="100" value="20">
       </div>
+      <div style="grid-column: 1 / -1;">
+        <label for="product-names">自定义产品名（可选）</label>
+        <input id="product-names" type="text" placeholder="产品ID:显示名，如 com.fun.lastwar.gp:Last War生存, 33569155:Last War" style="width:100%;min-height:38px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;">
+      </div>
       <div class="filter-actions">
         <button id="apply-filter" type="button">应用筛选</button>
         <button id="refresh" class="primary" type="button">重新抓取</button>
@@ -527,8 +531,8 @@
       const sync = '抓取成功后数据自动写入看板数据集，请前往 /dashboard 点「应用筛选」查看。';
       const hints = {
         steam: '「重新抓取」从 Steam 拉取真实评论；本页「应用筛选」仅过滤当前报告。' + sync,
-        taptap: 'TapTap 需 AppID 或 taptap.cn/app/数字 链接。' + sync,
-        google_play: 'Google Play 需包名（如 com.miHoYo.GenshinImpact）。王者荣耀国服请改选 TapTap；Play 上为国际服 com.levelinfinite.sgameGlobal。' + sync,
+        taptap: 'TapTap 支持 Last War(33569155)、王者荣耀(23167) 等；可填 AppID 或游戏名。' + sync,
+        google_play: 'Google Play 支持 Last War(com.fun.lastwar.gp)、Dark War(com.readygo.dark.gp) 等包名或游戏名。' + sync,
         app_store: 'App Store 暂不支持抓取，仅可筛选已有结果。',
       };
       return hints[channel] || hints.steam;
@@ -602,6 +606,8 @@
         const params = new URLSearchParams();
         params.set('app_ids', ids.join(','));
         params.set('max_reviews', String(maxReviews));
+        const customNames = (document.getElementById('product-names')?.value || '').trim();
+        if (customNames) params.set('product_names', customNames);
         const response = await fetch(route + '?' + params.toString());
         if (!response.ok) throw new Error(await response.text());
         const payload = await response.json();

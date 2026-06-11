@@ -55,15 +55,35 @@ def normalize_steam_app_id(product_id: str) -> str:
 
 
 def lookup_steam_product_name(product_id: str) -> str:
-    return STEAM_APP_NAMES.get(normalize_steam_app_id(product_id), "")
+    pid = normalize_steam_app_id(product_id)
+    if pid in STEAM_APP_NAMES:
+        return STEAM_APP_NAMES[pid]
+    try:
+        from src.product_registry import lookup_display_name
+
+        label = lookup_display_name(pid)
+        if label and label != pid:
+            return label
+    except Exception:
+        pass
+    return ""
 
 
 def infer_product_genre(product_id: str, product_name: str = "") -> str:
     pid = normalize_steam_app_id(product_id)
     if pid in STEAM_APP_GENRES:
         return STEAM_APP_GENRES[pid]
+    try:
+        from src.product_registry import lookup_product_genre
+
+        registry_genre = lookup_product_genre(pid)
+        if registry_genre:
+            return registry_genre
+    except Exception:
+        pass
     name = (product_name or "").lower()
     rules = [
+        ("SLG", ("last war", "dark war", "survival game", "slg", "strategy", "末日", "丧尸")),
         ("MOBA", ("dota", "moba", "legend", "league", "honor of kings", "王者荣耀", "王者")),
         ("FPS", ("counter", "shooter", "apex", "cs2", "valorant", "fortress")),
         ("Battle Royale", ("pubg", "battleground", "royale")),

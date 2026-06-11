@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse
 
 from src.mvp_data import load_mvp_artifact
 from src.mvp_pipeline import DEFAULT_STEAM_APP_IDS, run_mvp_pipeline, steam_app_catalog
+from src.product_registry import get_mvp_presets, parse_product_name_overrides
 from src.services.google_play_pipeline import run_google_play_pipeline
 from src.services.taptap_pipeline import run_taptap_pipeline
 
@@ -59,22 +60,7 @@ async def get_mvp_catalog():
             elif platform == "google play" and gid and gid not in seen:
                 products.append({"id": gid, "name": name, "genre": "", "platform": "google_play"})
                 seen.add(gid)
-    preset_platform = [
-        {"id": "168332", "name": "原神", "genre": "RPG", "platform": "taptap"},
-        {"id": "23167", "name": "王者荣耀", "genre": "MOBA", "platform": "taptap"},
-        {
-            "id": "com.miHoYo.GenshinImpact",
-            "name": "原神",
-            "genre": "RPG",
-            "platform": "google_play",
-        },
-        {
-            "id": "com.levelinfinite.sgameGlobal",
-            "name": "王者荣耀国际服",
-            "genre": "MOBA",
-            "platform": "google_play",
-        },
-    ]
+    preset_platform = get_mvp_presets()
     for item in preset_platform:
         if item["id"] not in seen:
             products.append(item)
@@ -120,15 +106,18 @@ async def get_latest_mvp():
 async def run_steam_mvp(
     app_ids: str = Query(",".join(DEFAULT_STEAM_APP_IDS)),
     max_reviews: int = Query(25, ge=1, le=100),
+    product_names: str = Query("", description="Custom display names: product_id:名称"),
 ):
     selected_app_ids = [item.strip() for item in app_ids.split(",") if item.strip()]
     if not selected_app_ids:
         raise HTTPException(status_code=400, detail="至少需要提供一个 Steam app_id")
+    name_overrides = parse_product_name_overrides(product_names)
     try:
         result = await asyncio.to_thread(
             run_mvp_pipeline,
             app_ids=selected_app_ids,
             max_reviews_per_app=max_reviews,
+            product_name_overrides=name_overrides or None,
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Steam MVP pipeline failed: {exc}") from exc
@@ -148,15 +137,18 @@ async def run_steam_mvp(
 async def run_taptap_mvp(
     app_ids: str = Query(..., description="Comma-separated TapTap app ids"),
     max_reviews: int = Query(25, ge=1, le=100),
+    product_names: str = Query("", description="Custom display names: app_id:名称"),
 ):
     selected = [item.strip() for item in app_ids.split(",") if item.strip()]
     if not selected:
         raise HTTPException(status_code=400, detail="至少需要提供一个 TapTap AppID")
+    name_overrides = parse_product_name_overrides(product_names)
     try:
         result = await asyncio.to_thread(
             run_taptap_pipeline,
             app_ids=selected,
             max_reviews_per_app=max_reviews,
+            product_name_overrides=name_overrides or None,
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"TapTap pipeline failed: {exc}") from exc
@@ -176,15 +168,18 @@ async def run_taptap_mvp(
 async def run_google_play_mvp(
     app_ids: str = Query(..., description="Comma-separated package names"),
     max_reviews: int = Query(25, ge=1, le=100),
+    product_names: str = Query("", description="Custom display names: package:名称"),
 ):
     selected = [item.strip() for item in app_ids.split(",") if item.strip()]
     if not selected:
         raise HTTPException(status_code=400, detail="至少需要提供一个 Google Play 包名")
+    name_overrides = parse_product_name_overrides(product_names)
     try:
         result = await asyncio.to_thread(
             run_google_play_pipeline,
             app_ids=selected,
             max_reviews_per_app=max_reviews,
+            product_name_overrides=name_overrides or None,
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Google Play pipeline failed: {exc}") from exc

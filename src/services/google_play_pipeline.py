@@ -13,6 +13,11 @@ from src.mvp_pipeline import (
     analyze_actual_steam_data,
     validate_analysis,
 )
+from src.product_registry import (
+    apply_product_display_names,
+    google_play_alias_map,
+    google_play_demo_map,
+)
 from src.services.platform_crawl_utils import allow_demo_fallback
 
 try:
@@ -46,7 +51,9 @@ _DEMO_GAMES: Dict[str, str] = {
     "com.miHoYo.GenshinImpact": "原神",
     "com.levelinfinite.sgameGlobal": "王者荣耀国际服",
     "com.tencent.tmgp.pubgmhd": "和平精英",
+    **google_play_demo_map(),
 }
+_ALIASES.update(google_play_alias_map())
 
 
 class GooglePlayCrawlerError(RuntimeError):
@@ -124,6 +131,7 @@ class GooglePlayPublicCrawler:
         *,
         app_ids: Sequence[str] | None = None,
         max_reviews_per_app: int = 30,
+        product_name_overrides: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         ids = list(package_ids or app_ids or [])
         comments: List[Dict[str, Any]] = []
@@ -148,7 +156,7 @@ class GooglePlayPublicCrawler:
         if not comments and not metrics:
             raise GooglePlayCrawlerError(f"No usable Google Play data. Errors: {errors}")
 
-        return {
+        payload = {
             "source": "google_play_public",
             "data_mode": "demo_fallback" if used_demo else "live",
             "crawled_at": datetime.now(timezone.utc).isoformat(),
@@ -158,6 +166,7 @@ class GooglePlayPublicCrawler:
             "metrics": metrics,
             "errors": errors,
         }
+        return apply_product_display_names(payload, product_name_overrides)
 
     def _fetch_package(
         self, package_id: str, max_reviews: int
@@ -410,9 +419,15 @@ def run_google_play_pipeline(
     max_reviews_per_app: int = 30,
     output_dir: str = DEFAULT_OUTPUT_DIR,
     crawler: Optional[GooglePlayPublicCrawler] = None,
+    *,
+    product_name_overrides: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     crawler = crawler or GooglePlayPublicCrawler()
-    dataset = crawler.crawl(app_ids=app_ids, max_reviews_per_app=max_reviews_per_app)
+    dataset = crawler.crawl(
+        app_ids=app_ids,
+        max_reviews_per_app=max_reviews_per_app,
+        product_name_overrides=product_name_overrides,
+    )
     merge_result = merge_into_mvp_dataset(dataset, output_dir)
     return {
         "success": merge_result.get("success"),
