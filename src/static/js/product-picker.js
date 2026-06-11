@@ -111,7 +111,13 @@
         });
         root.innerHTML = html;
 
-        if (!select.options.length || select.options[0]?.value !== String(products[0]?.id || "")) {
+        const nextIds = products.map((item) => String(item.id || ""));
+        const existingIds = Array.from(select.options).map((opt) => opt.value);
+        const needsRebuild =
+            existingIds.length !== nextIds.length ||
+            nextIds.some((id, index) => existingIds[index] !== id);
+
+        if (needsRebuild) {
             select.innerHTML = "";
             products.forEach((item, index) => {
                 const id = String(item.id || "");

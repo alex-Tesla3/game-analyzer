@@ -84,7 +84,11 @@ async def get_mvp_catalog():
         "default_by_channel": {
             "steam": list(DEFAULT_STEAM_APP_IDS),
             "taptap": ["168332"],
-            "google_play": ["com.miHoYo.GenshinImpact"],
+            "google_play": [
+                "com.fun.lastwar.gp",
+                "com.readygo.dark.gp",
+                "com.hnhs.endlesssea.gp",
+            ],
         },
     }
 

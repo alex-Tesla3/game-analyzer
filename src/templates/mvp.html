@@ -304,16 +304,17 @@
   </header>
   <main class="wrap">
     <section class="filter-panel" aria-label="筛选条件">
-      <div style="grid-column: 1 / -1;">
-        <label>产品选择（可多选；TapTap 填 AppID，Google Play 填包名）</label>
-        <div id="product-picker"></div>
-        <select id="product-select" multiple></select>
-      </div>
       <div>
         <label for="channel-select">渠道 / 数据来源</label>
         <select id="channel-select">
           <option value="steam">Steam</option>
         </select>
+        <p id="channel-product-hint" class="filter-hint" style="margin:6px 0 0;"></p>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label>产品选择（单击勾选，可多选）</label>
+        <div id="product-picker"></div>
+        <select id="product-select" multiple></select>
       </div>
       <div>
         <label for="max-reviews">每款评论数</label>
@@ -528,29 +529,61 @@
 
     function productsForChannel(channel) {
       const ch = channel || selectedChannel();
-      const scoped = catalogProducts.filter((p) => !p.platform || p.platform === ch);
-      return scoped.length ? scoped : catalogProducts;
+      if (ch === 'steam') {
+        return catalogProducts.filter((p) => !p.platform || p.platform === 'steam');
+      }
+      const scoped = catalogProducts.filter((p) => p.platform === ch);
+      return scoped;
     }
 
     function channelHint(channel) {
       const sync = '抓取成功后数据自动写入看板数据集，请前往 /dashboard 点「应用筛选」查看。';
       const hints = {
-        steam: '「重新抓取」从 Steam 拉取真实评论；本页「应用筛选」仅过滤当前报告。' + sync,
-        taptap: 'TapTap 支持 Last War(33569155)、王者荣耀(23167) 等；可填 AppID 或游戏名。' + sync,
-        google_play: 'Google Play 支持 Last War、Dark War、Last Beacon 等；也可用下方「新增游戏产品」添加未列出的游戏。' + sync,
+        steam: 'Steam 渠道仅显示 PC 游戏。Last War / Dark War / Last Beacon 等手游请切换到 Google Play 或 TapTap。' + sync,
+        taptap: 'TapTap 渠道可选 Last War、原神、王者荣耀等；Dark War / Last Beacon 请用 Google Play。' + sync,
+        google_play: 'Google Play 渠道可选 Last War、Dark War、Last Beacon、原神等手游。' + sync,
         app_store: 'App Store 暂不支持抓取，仅可筛选已有结果。',
       };
       return hints[channel] || hints.steam;
+    }
+
+    function channelProductHint(channel) {
+      const ch = channel || selectedChannel();
+      const count = productsForChannel(ch).length;
+      if (ch === 'google_play') {
+        return count
+          ? `当前渠道 ${count} 款手游可选（含 Last War、Dark War、Last Beacon）。`
+          : '当前渠道暂无产品，请用下方「新增游戏产品」添加。';
+      }
+      if (ch === 'taptap') {
+        return count
+          ? `当前渠道 ${count} 款 TapTap 游戏可选（含 Last War）。`
+          : '当前渠道暂无产品。';
+      }
+      if (ch === 'steam') {
+        return count
+          ? `当前渠道 ${count} 款 Steam 游戏可选；手游不在此列表。`
+          : '当前渠道暂无产品。';
+      }
+      return '';
     }
 
     function renderProductPicker(channel) {
       const ch = channel || selectedChannel();
       const products = productsForChannel(ch);
       const defaults = defaultByChannel[ch] || dataDefaultIds(ch);
+      const hintEl = document.getElementById('channel-product-hint');
+      if (hintEl) hintEl.textContent = channelProductHint(ch);
       if (window.ProductPicker) {
         ProductPicker.render('product-picker', products, {
           selectedIds: defaults.filter((id) => products.some((p) => p.id === id)),
           defaultCount: Math.min(3, products.length),
+          emptyHint:
+            ch === 'google_play'
+              ? '请切换到 Google Play 渠道，或用下方「新增游戏产品」添加包名'
+              : ch === 'taptap'
+                ? '请切换到 TapTap 渠道，或用下方「新增游戏产品」添加 AppID'
+                : '暂无产品 — 请切换渠道或新增游戏产品',
           onChange: () => {
             if (lastPayload) render(lastPayload);
           },
@@ -559,8 +592,10 @@
     }
 
     function dataDefaultIds(channel) {
-      if (channel === 'taptap') return ['168332'];
-      if (channel === 'google_play') return ['com.miHoYo.GenshinImpact'];
+      if (channel === 'taptap') return ['33569155'];
+      if (channel === 'google_play') {
+        return ['com.fun.lastwar.gp', 'com.readygo.dark.gp', 'com.hnhs.endlesssea.gp'];
+      }
       return [];
     }
 
