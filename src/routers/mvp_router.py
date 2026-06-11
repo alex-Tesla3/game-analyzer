@@ -6,12 +6,17 @@ import asyncio
 import os
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
 from src.mvp_data import load_mvp_artifact
 from src.mvp_pipeline import DEFAULT_STEAM_APP_IDS, run_mvp_pipeline, steam_app_catalog
-from src.product_registry import get_mvp_presets, resolve_mvp_crawl_targets
+from src.product_registry import (
+    add_custom_product,
+    get_mvp_presets,
+    load_custom_products,
+    resolve_mvp_crawl_targets,
+)
 from src.services.google_play_pipeline import run_google_play_pipeline
 from src.services.taptap_pipeline import run_taptap_pipeline
 
@@ -100,6 +105,39 @@ async def get_latest_mvp():
         "analysis": analysis,
         "validation": validation,
     }
+
+
+@router.get("/api/mvp/custom-products")
+async def list_custom_products():
+    products = []
+    for entry in load_custom_products():
+        name = str(entry.get("display_name") or "")
+        genre = str(entry.get("genre") or "")
+        for plat, pid in (entry.get("platforms") or {}).items():
+            products.append(
+                {
+                    "id": str(pid),
+                    "name": name,
+                    "genre": genre,
+                    "platform": plat,
+                    "user_added": True,
+                }
+            )
+    return {"success": True, "products": products}
+
+
+@router.post("/api/mvp/custom-products")
+async def create_custom_product(body: dict = Body(default_factory=dict)):
+    try:
+        result = add_custom_product(
+            display_name=str(body.get("name") or body.get("display_name") or ""),
+            platform=str(body.get("platform") or "google_play"),
+            product_id=str(body.get("product_id") or body.get("id") or ""),
+            genre=str(body.get("genre") or ""),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return result
 
 
 @router.get("/api/mvp/resolve")

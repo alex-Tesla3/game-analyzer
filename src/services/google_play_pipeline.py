@@ -51,9 +51,19 @@ _DEMO_GAMES: Dict[str, str] = {
     "com.miHoYo.GenshinImpact": "原神",
     "com.levelinfinite.sgameGlobal": "王者荣耀国际服",
     "com.tencent.tmgp.pubgmhd": "和平精英",
-    **google_play_demo_map(),
 }
-_ALIASES.update(google_play_alias_map())
+
+
+def _merged_gplay_aliases() -> Dict[str, str]:
+    merged = dict(_ALIASES)
+    merged.update(google_play_alias_map())
+    return merged
+
+
+def _merged_gplay_demo() -> Dict[str, str]:
+    merged = dict(_DEMO_GAMES)
+    merged.update(google_play_demo_map())
+    return merged
 
 
 class GooglePlayCrawlerError(RuntimeError):
@@ -79,13 +89,13 @@ class GooglePlayPublicCrawler:
         if pkg_from_url:
             return [{"package_id": pkg_from_url, "app_id": pkg_from_url, "name": pkg_from_url, "type": "app"}]
 
-        alias = _ALIASES.get(query.lower())
+        alias = _merged_gplay_aliases().get(query.lower())
         if alias:
             return [
                 {
                     "package_id": alias,
                     "app_id": alias,
-                    "name": _DEMO_GAMES.get(alias, query),
+                    "name": _merged_gplay_demo().get(alias, query),
                     "type": "app",
                 }
             ]
@@ -120,7 +130,7 @@ class GooglePlayPublicCrawler:
     def _offline_search(self, query: str, *, limit: int) -> List[Dict[str, Any]]:
         hits: List[Dict[str, Any]] = []
         lower = query.lower()
-        for pkg, name in _DEMO_GAMES.items():
+        for pkg, name in _merged_gplay_demo().items():
             if lower in name.lower() or lower in pkg.lower():
                 hits.append({"package_id": pkg, "app_id": pkg, "name": name, "type": "app"})
         return hits[:limit]
@@ -175,7 +185,7 @@ class GooglePlayPublicCrawler:
             lang, country = _gplay_locale()
             try:
                 info = gplay_app(package_id, lang=lang, country=country)
-                name = info.get("title") or _DEMO_GAMES.get(package_id) or package_id.split(".")[-1]
+                name = info.get("title") or _merged_gplay_demo().get(package_id) or package_id.split(".")[-1]
                 count = min(max(max_reviews, 3), 100)
                 rows, _ = gplay_reviews(package_id, lang=lang, country=country, count=count)
                 parsed = [
@@ -203,8 +213,8 @@ class GooglePlayPublicCrawler:
                 if not allow_demo_fallback():
                     raise GooglePlayCrawlerError(str(exc)) from exc
 
-        if allow_demo_fallback() or package_id in _DEMO_GAMES:
-            name = _DEMO_GAMES.get(package_id, package_id.split(".")[-1])
+        if allow_demo_fallback() or package_id in _merged_gplay_demo():
+            name = _merged_gplay_demo().get(package_id, package_id.split(".")[-1])
             reviews = self._demo_reviews(package_id, name)[: max(3, min(max_reviews, 50))]
             return (
                 {"package_id": package_id, "name": name, "platform": "Google Play"},
@@ -325,19 +335,19 @@ def resolve_google_play_inputs(raw: Sequence[str] | str, *, max_games: int = 5) 
                     {
                         "input": token,
                         "app_id": bare,
-                        "name": _DEMO_GAMES.get(bare),
+                        "name": _merged_gplay_demo().get(bare),
                         "via": "package_id",
                     }
                 )
             continue
-        alias = _ALIASES.get(token.strip().lower())
+        alias = _merged_gplay_aliases().get(token.strip().lower())
         if alias and alias not in app_ids:
             app_ids.append(alias)
             resolved.append(
                 {
                     "input": token,
                     "app_id": alias,
-                    "name": _DEMO_GAMES.get(alias),
+                    "name": _merged_gplay_demo().get(alias),
                     "via": "alias",
                 }
             )

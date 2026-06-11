@@ -319,10 +319,14 @@
         <label for="max-reviews">每款评论数</label>
         <input id="max-reviews" type="number" min="5" max="100" value="20">
       </div>
-      <div style="grid-column: 1 / -1;">
-        <label for="product-names">自定义产品名（可选）</label>
-        <input id="product-names" type="text" placeholder="勾选产品后填显示名（如 Last Beacon）；或填 包名:显示名；也可直接填游戏名抓取" style="width:100%;min-height:38px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;">
-        <p id="product-names-hint" class="filter-hint" style="margin:6px 0 0;">先勾选上方产品，再填想显示的名称；不勾选时可直接填游戏名（如 Last War）触发抓取。</p>
+      <div style="grid-column: 1 / -1; border-top: 1px dashed var(--line); padding-top: 12px;">
+        <label for="new-product-name">新增游戏产品（与上方列表独立的新游戏）</label>
+        <div style="display:grid; grid-template-columns: 1.2fr 1fr auto; gap:8px; align-items:end;">
+          <input id="new-product-name" type="text" placeholder="游戏名称，如 Last Beacon" style="min-height:38px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;">
+          <input id="new-product-id" type="text" placeholder="可选：包名/AppID（留空自动搜索）" style="min-height:38px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;">
+          <button id="add-product" type="button">添加产品</button>
+        </div>
+        <p class="filter-hint" style="margin:6px 0 0;">添加后会出现在上方产品列表（标注「自定义」），勾选后点「重新抓取」即可拉取该游戏数据。</p>
       </div>
       <div class="filter-actions">
         <button id="apply-filter" type="button">应用筛选</button>
@@ -364,18 +368,6 @@
 
     function selectedChannel() {
       return (channelSelect && channelSelect.value) || 'steam';
-    }
-
-    function hasMappingSyntax(text) {
-      return /[:@|]/.test(String(text || ''));
-    }
-
-    function buildProductNamesParam(customText, ids) {
-      const text = (customText || '').trim();
-      if (!text) return '';
-      if (hasMappingSyntax(text)) return text;
-      if (!ids.length) return text;
-      return ids.map((id) => id + ':' + text).join(',');
     }
 
     function filterPayload(payload) {
@@ -545,7 +537,7 @@
       const hints = {
         steam: '「重新抓取」从 Steam 拉取真实评论；本页「应用筛选」仅过滤当前报告。' + sync,
         taptap: 'TapTap 支持 Last War(33569155)、王者荣耀(23167) 等；可填 AppID 或游戏名。' + sync,
-        google_play: 'Google Play 支持 Last War(com.fun.lastwar.gp)、Dark War(com.readygo.dark.gp) 等包名或游戏名。' + sync,
+        google_play: 'Google Play 支持 Last War、Dark War、Last Beacon 等；也可用下方「新增游戏产品」添加未列出的游戏。' + sync,
         app_store: 'App Store 暂不支持抓取，仅可筛选已有结果。',
       };
       return hints[channel] || hints.steam;
@@ -572,20 +564,60 @@
       return [];
     }
 
-    async function loadCatalog() {
+    async function loadCatalog(selectIds) {
       const res = await fetch('/api/mvp/catalog');
       if (!res.ok) throw new Error('无法加载产品列表');
       const data = await res.json();
       catalogProducts = data.products || [];
       defaultByChannel = data.default_by_channel || {};
+      const pickIds = selectIds && selectIds.length ? selectIds : null;
       channelSelect.innerHTML = (data.channels || [{ id: 'steam', label: 'Steam' }])
         .map((c) => {
           const label = c.label + (c.crawl_supported ? '' : '（仅展示）');
           return `<option value="${escapeHtml(c.id)}">${escapeHtml(label)}</option>`;
         })
         .join('');
-      renderProductPicker(selectedChannel());
+      if (pickIds && window.ProductPicker) {
+        ProductPicker.render('product-picker', productsForChannel(selectedChannel()), {
+          selectedIds: pickIds,
+          defaultCount: pickIds.length,
+          onChange: () => { if (lastPayload) render(lastPayload); },
+        });
+      } else {
+        renderProductPicker(selectedChannel());
+      }
       filterHintEl.textContent = channelHint(selectedChannel());
+    }
+
+    async function addNewProduct() {
+      const name = (document.getElementById('new-product-name')?.value || '').trim();
+      const productId = (document.getElementById('new-product-id')?.value || '').trim();
+      const platform = selectedChannel();
+      if (!name) {
+        statusEl.textContent = '请填写要新增的游戏产品名称';
+        return;
+      }
+      const addBtn = document.getElementById('add-product');
+      if (addBtn) addBtn.disabled = true;
+      statusEl.textContent = `正在添加游戏产品「${name}」…`;
+      try {
+        const res = await fetch('/api/mvp/custom-products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, platform, product_id: productId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || '添加失败');
+        const product = data.product || {};
+        document.getElementById('new-product-name').value = '';
+        document.getElementById('new-product-id').value = '';
+        await loadCatalog([String(product.id || '')].filter(Boolean));
+        statusEl.textContent = `已添加「${product.name || name}」到产品列表，请点「重新抓取」拉取数据。`;
+      } catch (error) {
+        statusEl.textContent = `添加失败：${error.message}`;
+      } finally {
+        if (addBtn) addBtn.disabled = false;
+      }
     }
 
     async function loadLatest() {
@@ -607,12 +639,8 @@
         return;
       }
       const ids = selectedProductIds();
-      const customNames = (document.getElementById('product-names')?.value || '').trim();
-      const appIdsParam = ids.length
-        ? ids.join(',')
-        : (customNames && !hasMappingSyntax(customNames) ? customNames : '');
-      if (!appIdsParam && !customNames) {
-        statusEl.textContent = '请至少选择一款产品，或在自定义产品名中填写游戏名/包名';
+      if (!ids.length) {
+        statusEl.textContent = '请至少选择一款产品，或先用「新增游戏产品」添加游戏';
         return;
       }
       const labels = { steam: 'Steam', taptap: 'TapTap', google_play: 'Google Play' };
@@ -621,10 +649,8 @@
       statusEl.textContent = `正在从 ${labels[channel] || channel} 抓取（每款最多 ${maxReviews} 条评论）…`;
       try {
         const params = new URLSearchParams();
-        params.set('app_ids', appIdsParam);
+        params.set('app_ids', ids.join(','));
         params.set('max_reviews', String(maxReviews));
-        const namesParam = buildProductNamesParam(customNames, ids);
-        if (namesParam) params.set('product_names', namesParam);
         const response = await fetch(route + '?' + params.toString());
         if (!response.ok) throw new Error(await response.text());
         const payload = await response.json();
@@ -655,6 +681,7 @@
       if (lastPayload) render(lastPayload);
     });
     refreshButton.addEventListener('click', refreshData);
+    document.getElementById('add-product')?.addEventListener('click', addNewProduct);
 
     (async function init() {
       try {

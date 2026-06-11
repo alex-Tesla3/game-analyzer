@@ -50,9 +50,19 @@ _DEMO_GAMES: Dict[str, str] = {
     "168332": "原神",
     "23167": "王者荣耀",
     "70056": "和平精英",
-    **taptap_demo_map(),
 }
-_TAPTAP_ALIASES.update(taptap_alias_map())
+
+
+def _merged_taptap_aliases() -> Dict[str, str]:
+    merged = dict(_TAPTAP_ALIASES)
+    merged.update(taptap_alias_map())
+    return merged
+
+
+def _merged_taptap_demo() -> Dict[str, str]:
+    merged = dict(_DEMO_GAMES)
+    merged.update(taptap_demo_map())
+    return merged
 
 
 class TapTapCrawlerError(RuntimeError):
@@ -108,12 +118,12 @@ class TapTapPublicCrawler:
                 }
             ]
 
-        alias = _TAPTAP_ALIASES.get(query.lower())
+        alias = _merged_taptap_aliases().get(query.lower())
         if alias:
             return [
                 {
                     "app_id": alias,
-                    "name": _DEMO_GAMES.get(alias, query),
+                    "name": _merged_taptap_demo().get(alias, query),
                     "type": "app",
                 }
             ]
@@ -150,8 +160,8 @@ class TapTapPublicCrawler:
                 comments.extend(self._normalize_reviews(app_id, game["name"], reviews))
                 metrics.extend(self._build_metrics(app_id, game, reviews))
             except Exception as exc:
-                if app_id in _DEMO_GAMES:
-                    demo_name = _DEMO_GAMES[app_id]
+                if app_id in _merged_taptap_demo():
+                    demo_name = _merged_taptap_demo()[app_id]
                     game = {"app_id": app_id, "name": demo_name, "platform": "TapTap"}
                     reviews = self._demo_reviews(app_id)
                     used_demo = True
@@ -199,10 +209,10 @@ class TapTapPublicCrawler:
             if parsed:
                 return parsed, False
         except TapTapCrawlerError:
-            if not allow_demo_fallback() and app_id not in _DEMO_GAMES:
+            if not allow_demo_fallback() and app_id not in _merged_taptap_demo():
                 raise
 
-        if allow_demo_fallback() or app_id in _DEMO_GAMES:
+        if allow_demo_fallback() or app_id in _merged_taptap_demo():
             return self._demo_reviews(app_id), True
         raise TapTapCrawlerError(
             f"TapTap 评论抓取失败（app_id={app_id}）。"
@@ -210,7 +220,7 @@ class TapTapPublicCrawler:
         )
 
     def _demo_reviews(self, app_id: str) -> List[Dict[str, Any]]:
-        name = _DEMO_GAMES.get(app_id, f"App {app_id}")
+        name = _merged_taptap_demo().get(app_id, f"App {app_id}")
         return [
             {"score": 5, "contents": {"text": f"{name} 玩法不错，画面精美，值得推荐。"}, "voted_up": True},
             {"score": 2, "contents": {"text": f"{name} 抽卡概率太低，肝度偏高。"}, "voted_up": False},
@@ -312,10 +322,17 @@ def resolve_taptap_inputs(raw: Sequence[str] | str, *, max_games: int = 5) -> Di
                 app_ids.append(bare)
                 resolved.append({"input": token, "app_id": bare, "via": "app_id"})
             continue
-        alias = _TAPTAP_ALIASES.get(token.strip().lower())
+        alias = _merged_taptap_aliases().get(token.strip().lower())
         if alias and alias not in app_ids:
             app_ids.append(alias)
-            resolved.append({"input": token, "app_id": alias, "name": _DEMO_GAMES.get(alias), "via": "alias"})
+            resolved.append(
+                {
+                    "input": token,
+                    "app_id": alias,
+                    "name": _merged_taptap_demo().get(alias),
+                    "via": "alias",
+                }
+            )
             continue
         hits = search_taptap_games(token, limit=5)
         if not hits:

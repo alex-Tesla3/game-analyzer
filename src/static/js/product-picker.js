@@ -62,7 +62,7 @@
         let html = "";
         products.forEach((item, index) => {
             const id = String(item.id || "");
-            const name = item.name || id;
+            const name = (item.name || id) + (item.user_added ? " · 自定义" : "");
             const checked = selectedIds.size
                 ? selectedIds.has(id)
                 : index < Math.min(defaultCount, products.length);

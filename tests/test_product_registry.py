@@ -1,14 +1,16 @@
-"""Tests for crawl product registry and custom display names."""
+"""Tests for crawl product registry and custom game products."""
 
 from __future__ import annotations
 
 from src.product_registry import (
+    add_custom_product,
     apply_product_display_names,
-    coerce_product_name_overrides,
     get_mvp_presets,
+    load_custom_products,
     lookup_display_name,
     parse_product_name_overrides,
     resolve_mvp_crawl_targets,
+    save_custom_products,
 )
 from src.services.google_play_pipeline import resolve_google_play_inputs, run_google_play_pipeline
 from src.services.taptap_pipeline import resolve_taptap_inputs, run_taptap_pipeline
@@ -26,6 +28,12 @@ def test_registry_dark_war_google_play_alias():
     assert out["app_ids"] == ["com.readygo.dark.gp"]
 
 
+def test_registry_last_beacon_google_play_alias():
+    out = resolve_google_play_inputs("last beacon")
+    assert out["success"] is True
+    assert out["app_ids"] == ["com.hnhs.endlesssea.gp"]
+
+
 def test_registry_last_war_taptap_alias():
     out = resolve_taptap_inputs("last war")
     assert out["success"] is True
@@ -33,16 +41,13 @@ def test_registry_last_war_taptap_alias():
 
 
 def test_lookup_display_name_prefers_registry():
-    name = lookup_display_name("com.readygo.dark.gp", platform="google_play")
-    assert name == "Dark War: Survival"
+    name = lookup_display_name("com.hnhs.endlesssea.gp", platform="google_play")
+    assert name == "Last Beacon: Survival"
 
 
-def test_parse_product_name_overrides_colon_and_at():
-    parsed = parse_product_name_overrides(
-        "com.fun.lastwar.gp:我的Last War; 33569155:TapTap Last War"
-    )
+def test_parse_product_name_overrides_colon():
+    parsed = parse_product_name_overrides("com.fun.lastwar.gp:我的Last War")
     assert parsed["com.fun.lastwar.gp"] == "我的Last War"
-    assert parsed["33569155"] == "TapTap Last War"
 
 
 def test_apply_product_display_names_overrides_store_title():
@@ -62,12 +67,46 @@ def test_apply_product_display_names_overrides_store_title():
     assert dataset["games"][0]["name"] == "自定义 Last War"
 
 
-def test_mvp_presets_include_last_war_and_dark_war():
+def test_mvp_presets_include_last_war_dark_war_and_last_beacon():
     presets = get_mvp_presets()
     ids = {p["id"] for p in presets}
     assert "com.fun.lastwar.gp" in ids
     assert "com.readygo.dark.gp" in ids
+    assert "com.hnhs.endlesssea.gp" in ids
     assert "33569155" in ids
+
+
+def test_add_custom_product_persists(tmp_path, monkeypatch):
+    path = tmp_path / "custom_products.json"
+    monkeypatch.setattr("src.product_registry.custom_products_path", lambda: str(path))
+
+    result = add_custom_product(
+        display_name="My Custom SLG",
+        platform="google_play",
+        product_id="com.example.custom",
+        genre="SLG",
+    )
+    assert result["success"] is True
+    assert result["product"]["id"] == "com.example.custom"
+    saved = load_custom_products()
+    assert len(saved) == 1
+    assert saved[0]["display_name"] == "My Custom SLG"
+
+
+def test_add_custom_product_resolves_name(tmp_path, monkeypatch):
+    path = tmp_path / "custom_products.json"
+    monkeypatch.setattr("src.product_registry.custom_products_path", lambda: str(path))
+
+    result = add_custom_product(display_name="Last Beacon", platform="google_play")
+    assert result["product"]["id"] == "com.hnhs.endlesssea.gp"
+    assert "Last Beacon" in result["product"]["name"] or result["product"]["name"]
+
+
+def test_resolve_mvp_crawl_targets_by_game_name():
+    app_ids, overrides, errors = resolve_mvp_crawl_targets("google_play", "", "last beacon")
+    assert errors == []
+    assert app_ids == ["com.hnhs.endlesssea.gp"]
+    assert overrides == {}
 
 
 def test_run_google_play_pipeline_uses_registry_display_name(tmp_path):
@@ -76,35 +115,6 @@ def test_run_google_play_pipeline_uses_registry_display_name(tmp_path):
     assert result["success"] is True
     metrics = result["dataset"]["metrics"]
     assert metrics[0]["product_name"] == "Dark War: Survival"
-
-
-def test_coerce_product_name_overrides_plain_label():
-    overrides = coerce_product_name_overrides(
-        "Last Beacon",
-        ["com.fun.lastwar.gp"],
-    )
-    assert overrides == {"com.fun.lastwar.gp": "Last Beacon"}
-
-
-def test_resolve_mvp_crawl_targets_plain_custom_name_with_selection():
-    app_ids, overrides, errors = resolve_mvp_crawl_targets(
-        "google_play",
-        "com.fun.lastwar.gp",
-        "Last Beacon",
-    )
-    assert errors == []
-    assert app_ids == ["com.fun.lastwar.gp"]
-    assert overrides["com.fun.lastwar.gp"] == "Last Beacon"
-
-
-def test_resolve_mvp_crawl_targets_game_name_only():
-    app_ids, overrides, errors = resolve_mvp_crawl_targets(
-        "google_play",
-        "",
-        "last war",
-    )
-    assert app_ids == ["com.fun.lastwar.gp"]
-    assert overrides["com.fun.lastwar.gp"] == "last war"
 
 
 def test_run_taptap_pipeline_uses_registry_display_name(tmp_path):
