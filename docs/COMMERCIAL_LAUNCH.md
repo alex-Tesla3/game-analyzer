@@ -48,7 +48,7 @@ PILOT_CONTACT_EMAIL=you@company.com
 - [ ] 回调 Body 示例：`{"order_id":"...","payment_status":"paid","transaction_id":"..."}`  
 - [ ] 签名头：`X-Payment-Signature` = HMAC-SHA256(raw_body, `PAYMENT_WEBHOOK_SECRET`)  
 - [ ] 定价页生成订单后**不显示**「支付完成」，自动轮询订单状态  
-- [ ] 持久化：`DATABASE_URL` → Postgres（[POSTGRES.md](./POSTGRES.md)）或 `data/` 卷 SQLite  
+- [ ] 持久化：`DATABASE_URL` → Postgres（[POSTGRES.md](./POSTGRES.md)）或 Render `data/` 卷（见 `render.yaml` disk）  
 - [ ] 运行 `./scripts/seed_demo.sh` 仅用于内部演示账号，非客户租户  
 
 ### Webhook 联调（通用 HMAC）
@@ -93,7 +93,8 @@ APP_ENV=production ALLOW_DEMO_ACCOUNTS=false PAYMENT_TEST_MODE=false \
 
 - [ ] 接入真实微信/支付宝（二维码 URL 替换 `create-order` 中的演示 QR）  
 - [ ] Postgres 迁移（多租户、备份）— 见架构说明  
-- [ ] 隐私政策 / 数据处理协议  
+- [x] 隐私政策 / 服务条款页面（`/privacy`、`/terms`）
+- [ ] 数据处理协议（企业客户）  
 - [ ] 监控：`/api/health` 纳入 Uptime 探测  
 - [ ] LLM Key 按客户或按环境配置  
 

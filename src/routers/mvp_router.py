@@ -24,6 +24,7 @@ from src.services.market_locale import (
     list_markets_for_channel,
     normalize_market_country,
 )
+from src.services.mvp_storage import resolve_mvp_output_dir
 from src.services.review_window import (
     DEFAULT_REVIEW_DAYS,
     crawl_filter_description,
@@ -31,6 +32,7 @@ from src.services.review_window import (
     normalize_review_days,
 )
 from src.services.taptap_pipeline import run_taptap_pipeline
+from src.web_common import get_current_user
 
 
 def _resolve_crawl_filters(
@@ -75,6 +77,13 @@ def _resolve_market(channel: str, market_country: str) -> dict:
 router = APIRouter(tags=["mvp"])
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+async def _mvp_scope(token: Optional[str]) -> tuple[Optional[str], str]:
+    if not token:
+        return None, resolve_mvp_output_dir(None)
+    user = await get_current_user(token)
+    return user.username, resolve_mvp_output_dir(user.username)
 
 
 @router.get("/mvp", response_class=HTMLResponse)
@@ -160,10 +169,12 @@ async def get_mvp_catalog():
 @router.get("/api/mvp/latest")
 async def get_latest_mvp(
     channel: str = Query("", description="Optional: steam | taptap | google_play"),
+    token: Optional[str] = Query(None, description="User token for per-tenant MVP data"),
 ):
-    dataset = load_mvp_artifact("dataset")
-    analysis = load_mvp_artifact("analysis")
-    validation = load_mvp_artifact("validation")
+    _, output_dir = await _mvp_scope(token)
+    dataset = load_mvp_artifact("dataset", output_dir)
+    analysis = load_mvp_artifact("analysis", output_dir)
+    validation = load_mvp_artifact("validation", output_dir)
     if not dataset or not analysis or not validation:
         raise HTTPException(
             status_code=404,
@@ -175,7 +186,7 @@ async def get_latest_mvp(
         "taptap": "taptap_dataset",
     }
     if channel_key in platform_artifacts:
-        platform_blob = load_mvp_artifact(platform_artifacts[channel_key])
+        platform_blob = load_mvp_artifact(platform_artifacts[channel_key], output_dir)
         if platform_blob:
             if platform_blob.get("analysis"):
                 analysis = platform_blob["analysis"]
@@ -249,7 +260,9 @@ async def run_steam_mvp(
     max_reviews: int = Query(0, ge=0, description="每产品最多抓取条数（无上限，由用户填写）"),
     market_country: str = Query("", description="渠道所在国家/地区（如 us、cn、jp）"),
     product_names: str = Query("", description="Custom display names: product_id:名称"),
+    token: Optional[str] = Query(None, description="User token (required for isolated crawl data)"),
 ):
+    username, output_dir = await _mvp_scope(token)
     selected_app_ids, name_overrides, resolve_errors = resolve_mvp_crawl_targets(
         "steam", app_ids, product_names
     )
@@ -267,6 +280,7 @@ async def run_steam_mvp(
         result = await asyncio.to_thread(
             run_mvp_pipeline,
             app_ids=selected_app_ids,
+            output_dir=output_dir,
             product_name_overrides=name_overrides or None,
             review_days=filters["review_days"],
             use_review_days=filters["use_review_days"],
@@ -278,6 +292,8 @@ async def run_steam_mvp(
         raise HTTPException(status_code=502, detail=f"Steam MVP pipeline failed: {exc}") from exc
     return {
         "success": result["success"],
+        "username": username,
+        "output_dir": output_dir,
         "use_review_days": filters["use_review_days"],
         "review_days": filters["review_days"],
         "use_max_reviews": filters["use_max_reviews"],
@@ -308,7 +324,9 @@ async def run_taptap_mvp(
     max_reviews: int = Query(0, ge=0, description="每产品最多抓取条数（无上限，由用户填写）"),
     market_country: str = Query("", description="渠道所在国家/地区（如 cn、us、jp）"),
     product_names: str = Query("", description="Custom display names: app_id:名称"),
+    token: Optional[str] = Query(None, description="User token for per-tenant crawl data"),
 ):
+    username, output_dir = await _mvp_scope(token)
     selected, name_overrides, resolve_errors = resolve_mvp_crawl_targets(
         "taptap", app_ids, product_names
     )
@@ -326,6 +344,7 @@ async def run_taptap_mvp(
         result = await asyncio.to_thread(
             run_taptap_pipeline,
             app_ids=selected,
+            output_dir=output_dir,
             product_name_overrides=name_overrides or None,
             review_days=filters["review_days"],
             use_review_days=filters["use_review_days"],
@@ -335,9 +354,11 @@ async def run_taptap_mvp(
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"TapTap pipeline failed: {exc}") from exc
-    analysis = load_mvp_artifact("analysis") or {}
+    analysis = load_mvp_artifact("analysis", output_dir) or {}
     return {
         "success": result["success"],
+        "username": username,
+        "output_dir": output_dir,
         "use_review_days": filters["use_review_days"],
         "review_days": filters["review_days"],
         "use_max_reviews": filters["use_max_reviews"],
@@ -367,7 +388,9 @@ async def run_google_play_mvp(
     max_reviews: int = Query(0, ge=0, description="每产品最多抓取条数（无上限，由用户填写）"),
     market_country: str = Query("", description="渠道所在国家/地区（如 us、cn、jp）"),
     product_names: str = Query("", description="Custom display names: package:名称"),
+    token: Optional[str] = Query(None, description="User token for per-tenant crawl data"),
 ):
+    username, output_dir = await _mvp_scope(token)
     selected, name_overrides, resolve_errors = resolve_mvp_crawl_targets(
         "google_play", app_ids, product_names
     )
@@ -385,6 +408,7 @@ async def run_google_play_mvp(
         result = await asyncio.to_thread(
             run_google_play_pipeline,
             app_ids=selected,
+            output_dir=output_dir,
             product_name_overrides=name_overrides or None,
             review_days=filters["review_days"],
             use_review_days=filters["use_review_days"],
@@ -394,9 +418,11 @@ async def run_google_play_mvp(
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Google Play pipeline failed: {exc}") from exc
-    analysis = load_mvp_artifact("analysis") or {}
+    analysis = load_mvp_artifact("analysis", output_dir) or {}
     return {
         "success": result["success"],
+        "username": username,
+        "output_dir": output_dir,
         "use_review_days": filters["use_review_days"],
         "review_days": filters["review_days"],
         "use_max_reviews": filters["use_max_reviews"],

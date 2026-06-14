@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from src.database import ImportedDataRepository
 from src.data_catalog import metrics_dataset_usable
 from src.mvp_data import get_mvp_comments_and_metrics, mvp_validation_passed, record_product
+from src.services.mvp_storage import resolve_mvp_output_dir
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "..", "mock_data")
@@ -116,7 +117,7 @@ def cached_metrics_usable(records: List[Dict[str, Any]]) -> bool:
 def resolve_user_data_source(username: str) -> str:
     if ImportedDataRepository.get_comments(username) or ImportedDataRepository.get_metrics(username):
         return "imported"
-    _, _, mvp_source = get_mvp_comments_and_metrics()
+    _, _, mvp_source = get_mvp_comments_and_metrics(resolve_mvp_output_dir(username))
     if mvp_source:
         return mvp_source
     cached_metrics = ImportedDataRepository.get_cached_metrics(max_age_hours=24)
@@ -133,7 +134,7 @@ def get_user_comments_data(username: str) -> List[Dict]:
     if imported:
         return _strip_repo_fields(imported, COMMENT_REPO_EXCLUDED)
 
-    mvp_comments, _, mvp_source = get_mvp_comments_and_metrics()
+    mvp_comments, _, mvp_source = get_mvp_comments_and_metrics(resolve_mvp_output_dir(username))
     if mvp_source and mvp_comments:
         return mvp_comments
 
@@ -149,7 +150,7 @@ def get_user_metrics_data(username: str) -> List[Dict]:
     if imported:
         return _strip_repo_fields(imported, METRIC_REPO_EXCLUDED)
 
-    _, mvp_metrics, mvp_source = get_mvp_comments_and_metrics()
+    _, mvp_metrics, mvp_source = get_mvp_comments_and_metrics(resolve_mvp_output_dir(username))
     if mvp_source and mvp_metrics:
         return mvp_metrics
 

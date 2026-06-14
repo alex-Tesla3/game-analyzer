@@ -552,6 +552,10 @@
                         <div class="icon">💙</div>
                         <div class="name">支付宝</div>
                     </div>
+                    <div class="payment-method stripe-method" id="stripeMethod" style="display:none;" onclick="selectPaymentMethod('stripe')">
+                        <div class="icon">💳</div>
+                        <div class="name">银行卡 (Stripe)</div>
+                    </div>
                 </div>
                 <button class="btn btn-primary btn-select" onclick="createOrder()">生成订单</button>
             </div>
@@ -608,17 +612,25 @@
         let selectedPlan = null;
         let selectedPaymentMethod = 'wechat';
         let currentOrderId = null;
+        let paymentMode = 'demo';
+        let stripeCheckoutAvailable = false;
+        let orderPollTimer = null;
 
         async function loadPlans() {
             try {
                 const response = await fetch(`/api/plans?token=${token}`);
                 const result = await response.json();
                 if (result.success) {
+                    paymentMode = result.payment_mode || 'demo';
+                    stripeCheckoutAvailable = !!result.stripe_checkout_available;
+                    const stripeEl = document.getElementById('stripeMethod');
+                    if (stripeEl) stripeEl.style.display = stripeCheckoutAvailable ? 'block' : 'none';
                     renderPlans(result.plans);
-                    if (result.payment_mode === 'demo' && result.message) {
+                    if (result.message) {
                         const box = document.getElementById('demo-payment-notice');
                         if (box) box.textContent = '⚠️ ' + result.message;
                     }
+                    updatePaymentUiMode();
                 }
             } catch (e) {
                 console.error('加载套餐失败:', e);
@@ -743,6 +755,40 @@
             event.currentTarget.classList.add('selected');
         }
 
+        function updatePaymentUiMode() {
+            const demoBtn = document.getElementById('checkPaymentBtn');
+            const demoHint = document.querySelector('#paymentQRCode p[style*="f59e0b"]');
+            const isDemo = paymentMode === 'demo';
+            if (demoBtn) demoBtn.style.display = isDemo ? 'block' : 'none';
+            if (demoHint) demoHint.style.display = isDemo ? 'block' : 'none';
+        }
+
+        function stopOrderPolling() {
+            if (orderPollTimer) {
+                clearInterval(orderPollTimer);
+                orderPollTimer = null;
+            }
+        }
+
+        function startOrderPolling(orderId) {
+            stopOrderPolling();
+            orderPollTimer = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/payment/order/${orderId}?token=${token}`);
+                    const result = await response.json();
+                    if (result.success && result.order && result.order.payment_status === 'paid') {
+                        stopOrderPolling();
+                        document.getElementById('paymentQRCode').style.display = 'none';
+                        document.getElementById('paymentSuccess').style.display = 'block';
+                        setTimeout(() => {
+                            closeModal();
+                            window.location.href = '/';
+                        }, 2000);
+                    }
+                } catch (_) { /* ignore transient errors */ }
+            }, 3000);
+        }
+
         async function createOrder() {
             try {
                 const response = await fetch(`/api/payment/create-order?token=${token}`, {
@@ -757,6 +803,10 @@
                 const result = await response.json();
                 if (result.success) {
                     currentOrderId = result.order_id;
+                    if (result.checkout_url) {
+                        window.location.href = result.checkout_url;
+                        return;
+                    }
                     document.getElementById('qrCode').src = result.qr_code_url;
                     document.getElementById('orderId').textContent = result.order_id;
                     document.getElementById('orderAmount').textContent = '¥' + result.amount;
@@ -765,6 +815,9 @@
                     
                     document.getElementById('paymentForm').style.display = 'none';
                     document.getElementById('paymentQRCode').style.display = 'block';
+                    if (paymentMode !== 'demo') {
+                        startOrderPolling(result.order_id);
+                    }
                 } else {
                     alert(result.message);
                 }
@@ -818,7 +871,16 @@
         }
 
         function closeModal() {
+            stopOrderPolling();
             document.getElementById('paymentModal').classList.remove('active');
+        }
+
+        async function handlePaidReturn() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('paid') !== '1') return;
+            const orderId = params.get('order_id');
+            if (!orderId) return;
+            startOrderPolling(orderId);
         }
 
         function goBack() {
@@ -845,6 +907,7 @@
         }
 
         initCommercialUi();
+        handlePaidReturn();
         loadPlans();
         loadCurrentPlan();
         loadOrders();

@@ -8,6 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter
 
 from database import config_manager
+from src.commercial_config import commercial_status_payload, production_startup_warnings
 from src.db_dialect import resolve_database_backend
 
 router = APIRouter(tags=["health"])
@@ -20,6 +21,7 @@ async def health_check():
     app_env = os.getenv("APP_ENV", "development").lower()
     allow_demo = os.getenv("ALLOW_DEMO_ACCOUNTS", "true").strip().lower() in ("1", "true", "yes")
     db_type, _ = resolve_database_backend(config_manager)
+    commercial = commercial_status_payload()
     return {
         "status": "ok",
         "service": "game_analyzer",
@@ -27,5 +29,8 @@ async def health_check():
         "environment": app_env,
         "database_type": db_type,
         "demo_accounts_enabled": allow_demo and app_env != "production",
+        "deploy_profile": commercial.get("deploy_profile"),
+        "payment_mode": commercial.get("payment_mode"),
+        "production_warnings": production_startup_warnings(),
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }

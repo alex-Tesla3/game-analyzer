@@ -129,7 +129,33 @@ async def app_lifespan(app: FastAPI):
     _alert_scheduler_task = asyncio.create_task(_alert_scheduler_loop(_alert_scheduler_stop))
     print("Alert scheduler background task started")
 
+    _subscription_task = None
+    try:
+        from src.subscription_reminder import SubscriptionReminder
+
+        reminder = SubscriptionReminder(check_interval=3600)
+
+        async def _subscription_loop():
+            while True:
+                try:
+                    await reminder.check_all_subscriptions()
+                except Exception as exc:
+                    print(f"Subscription reminder check failed: {exc}")
+                await asyncio.sleep(reminder.check_interval)
+
+        _subscription_task = asyncio.create_task(_subscription_loop())
+        print("Subscription reminder background task started")
+    except Exception as exc:
+        print(f"Subscription reminder startup skipped: {exc}")
+
     yield
+
+    if _subscription_task:
+        _subscription_task.cancel()
+        try:
+            await _subscription_task
+        except asyncio.CancelledError:
+            pass
 
     if _alert_scheduler_stop:
         _alert_scheduler_stop.set()
@@ -169,9 +195,15 @@ app.include_router(wizard_router)
 app.add_middleware(BearerTokenQueryBridgeMiddleware)
 
 # 配置CORS（allow_credentials 与 allow_origins="*" 不可同时使用）
+_cors_origins = os.getenv("CORS_ORIGINS", "*").strip()
+_allow_origins = (
+    ["*"]
+    if not _cors_origins or _cors_origins == "*"
+    else [item.strip() for item in _cors_origins.split(",") if item.strip()]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allow_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

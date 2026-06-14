@@ -389,6 +389,7 @@
   <script src="/static/js/analysis-guide.js"></script>
   <script src="/static/js/site-map-panel.js" defer></script>
   <script src="/static/js/product-picker.js"></script>
+  <script src="/static/js/auth-token.js"></script>
   <script>
     const statusEl = document.getElementById('status');
     const contentEl = document.getElementById('content');
@@ -400,6 +401,22 @@
     let defaultByChannel = {};
     let marketsByChannel = {};
     let defaultMarketByChannel = {};
+
+    function mvpAuthToken() {
+      return typeof getAuthToken === 'function' ? getAuthToken() : localStorage.getItem('access_token');
+    }
+
+    function mvpAuthQuery() {
+      const token = mvpAuthToken();
+      return token ? `token=${encodeURIComponent(token)}` : '';
+    }
+
+    function mvpAuthHeaders() {
+      const token = mvpAuthToken();
+      const headers = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      return headers;
+    }
 
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -817,7 +834,10 @@
 
     async function loadLatest() {
       const channel = selectedChannel();
-      const response = await fetch('/api/mvp/latest?channel=' + encodeURIComponent(channel));
+      const auth = mvpAuthQuery();
+      const response = await fetch(
+        '/api/mvp/latest?channel=' + encodeURIComponent(channel) + (auth ? '&' + auth : '')
+      );
       if (!response.ok) throw new Error(await response.text());
       render(await response.json());
     }
@@ -851,7 +871,11 @@
       try {
         const params = filterBuild.params;
         params.set('app_ids', ids.join(','));
-        const response = await fetch(route + '?' + params.toString());
+        const token = mvpAuthToken();
+        if (token) params.set('token', token);
+        const response = await fetch(route + '?' + params.toString(), {
+          headers: mvpAuthHeaders(),
+        });
         if (!response.ok) throw new Error(await response.text());
         const payload = await response.json();
         const mode = payload.data_mode === 'live' ? '真实数据' : '演示回退';

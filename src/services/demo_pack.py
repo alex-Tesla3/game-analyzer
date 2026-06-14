@@ -85,9 +85,9 @@ class _DemoCrawler:
 
 async def bootstrap_demo_pack(username: str = "demo", output_dir: str = None) -> Dict[str, Any]:
     """Write demo MVP artifacts, sync library, create one sample archived report."""
-    from src.mvp_pipeline import DEFAULT_OUTPUT_DIR
+    from src.services.mvp_storage import resolve_mvp_output_dir
 
-    out = output_dir or DEFAULT_OUTPUT_DIR
+    out = output_dir or resolve_mvp_output_dir(username)
     crawler = _DemoCrawler()
     pipeline = run_mvp_pipeline(
         app_ids=DEMO_APP_IDS[:2],
