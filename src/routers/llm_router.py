@@ -81,6 +81,7 @@ async def update_llm_config(request: Request, token: Optional[str] = Query(None)
     
     body = await request.json()
     config = {}
+    existing = LLMConfigRepository.get() or {}
     
     if "provider" in body:
         if body["provider"] not in LLM_PROVIDERS:
@@ -88,7 +89,12 @@ async def update_llm_config(request: Request, token: Optional[str] = Query(None)
         config["provider"] = body["provider"]
         provider_info = LLM_PROVIDERS[body["provider"]]
         if "model" not in body:
-            config["model"] = provider_info["default_model"]
+            if body["provider"] == "ollama":
+                endpoint = (body.get("endpoint") or (existing or {}).get("endpoint") or "http://localhost:11434").strip()
+                local_models = await get_local_ollama_models(endpoint)
+                config["model"] = local_models[0] if local_models else provider_info["default_model"]
+            else:
+                config["model"] = provider_info["default_model"]
     
     if "model" in body:
         provider_id = config.get("provider", LLM_CONFIG["provider"])
@@ -119,7 +125,6 @@ async def update_llm_config(request: Request, token: Optional[str] = Query(None)
     if "max_tokens" in body:
         config["max_tokens"] = int(body["max_tokens"])
 
-    existing = LLMConfigRepository.get() or {}
     merged = {
         k: v
         for k, v in existing.items()

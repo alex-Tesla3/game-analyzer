@@ -69,6 +69,24 @@ def test_rule_competitor_empty():
     assert "暂无" in out["executive_summary"]
 
 
+def test_rule_competitor_single_product():
+    out = _rule_competitor_report(
+        {
+            "products": [
+                {
+                    "name": "Sausage Man",
+                    "positive_rate": 78.33,
+                    "risk_level": "medium",
+                    "themes": [{"theme": "matchmaking", "count": 5}],
+                }
+            ]
+        }
+    )
+    assert "相对落后" not in out["executive_summary"]
+    assert "单款" in out["executive_summary"] or "单品" in out["title"]
+    assert "Sausage Man" in out["executive_summary"]
+
+
 def test_rule_review_with_deltas():
     out = _rule_review_report(
         deltas=[{"product_name": "CS2", "positive_rate_before": 80, "positive_rate_after": 85, "delta": 5}],

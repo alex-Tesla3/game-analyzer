@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sequence
 
 import asyncio
 
@@ -42,8 +42,77 @@ def refresh_llm_config_from_db() -> None:
                 "max_tokens": row.get("max_tokens", LLM_CONFIG.get("max_tokens", 2000)),
             }
         )
+        _resolve_ollama_model_in_config()
     except Exception as exc:
         print(f"Failed to refresh LLM config from DB: {exc}")
+
+
+def _list_ollama_models_sync(endpoint: str) -> List[str]:
+    try:
+        import httpx
+
+        base = _ollama_base_url(endpoint or "http://localhost:11434")
+        with httpx.Client(timeout=5.0) as client:
+            response = client.get(f"{base}/api/tags")
+            if response.status_code == 200:
+                return [str(model.get("name") or "") for model in response.json().get("models", []) if model.get("name")]
+    except Exception:
+        pass
+    return []
+
+
+def _ollama_model_is_installed(requested: str, installed: Sequence[str]) -> bool:
+    if not requested:
+        return False
+    if requested in installed:
+        return True
+    base = requested.split(":", 1)[0]
+    return any(name.split(":", 1)[0] == base for name in installed)
+
+
+def _pick_installed_ollama_model(requested: str, installed: Sequence[str]) -> str:
+    if not installed:
+        return requested
+    if requested in installed:
+        return requested
+    base = requested.split(":", 1)[0]
+    for name in installed:
+        if name.split(":", 1)[0] == base:
+            return name
+    return installed[0]
+
+
+def _resolve_ollama_model_in_config(*, persist: bool = True) -> Optional[str]:
+    """If configured Ollama model is missing locally, fall back to first installed model."""
+    if LLM_CONFIG.get("provider") != "ollama":
+        return None
+    endpoint = LLM_CONFIG.get("endpoint") or "http://localhost:11434"
+    installed = _list_ollama_models_sync(endpoint)
+    if not installed:
+        return None
+    requested = str(LLM_CONFIG.get("model") or "").strip()
+    if _ollama_model_is_installed(requested, installed):
+        resolved = _pick_installed_ollama_model(requested, installed)
+        if resolved != requested:
+            LLM_CONFIG["model"] = resolved
+            if persist:
+                try:
+                    from database import LLMConfigRepository
+
+                    LLMConfigRepository.save({"model": resolved})
+                except Exception:
+                    pass
+        return None
+    resolved = installed[0]
+    LLM_CONFIG["model"] = resolved
+    if persist:
+        try:
+            from database import LLMConfigRepository
+
+            LLMConfigRepository.save({"model": resolved})
+        except Exception:
+            pass
+    return resolved
 
 
 def _ollama_base_url(endpoint: str) -> str:
@@ -204,6 +273,10 @@ async def _complete_prompt_inner(prompt: str, *, max_tokens: int = 500) -> str:
     endpoint = LLM_CONFIG.get("endpoint", "")
     http_timeout = _http_timeout_for_tokens(max_tokens)
 
+    if provider == "ollama":
+        _resolve_ollama_model_in_config(persist=False)
+        model = LLM_CONFIG["model"]
+
     if provider == "openai":
         return await call_openai_api(prompt, api_key, model, endpoint, max_tokens=max_tokens, http_timeout=http_timeout)
     if provider == "anthropic":
@@ -211,6 +284,8 @@ async def _complete_prompt_inner(prompt: str, *, max_tokens: int = 500) -> str:
     if provider == "gemini":
         return await call_gemini_api(prompt, api_key, model, max_tokens=max_tokens, http_timeout=http_timeout)
     if provider == "ollama":
+        _resolve_ollama_model_in_config(persist=False)
+        model = LLM_CONFIG["model"]
         return await call_ollama_api(prompt, model, endpoint, max_tokens=max_tokens)
     raise RuntimeError("不支持的LLM提供商")
 

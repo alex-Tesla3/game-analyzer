@@ -444,8 +444,6 @@ def _rule_competitor_report(facts: Dict[str, Any]) -> Dict[str, Any]:
         key=lambda x: float(x.get("positive_rate") or 0),
         reverse=True,
     )
-    leader = ranked[0]
-    laggard = ranked[-1] if len(ranked) > 1 else leader
     theme_counts: Dict[str, int] = {}
     for p in products:
         for t in p.get("themes") or []:
@@ -454,6 +452,56 @@ def _rule_competitor_report(facts: Dict[str, Any]) -> Dict[str, Any]:
             )
     top_themes = sorted(theme_counts.items(), key=lambda x: -x[1])[:4]
 
+    if len(products) == 1:
+        solo = ranked[0]
+        name = solo.get("name") or "该产品"
+        exec_summary = (
+            f"当前仅分析「{name}」单款产品，样本好评率约 {solo.get('positive_rate')}%"
+            f"（风险等级：{solo.get('risk_level') or '—'}）。"
+            " 如需横向竞品对比，请在向导中再选 1–2 款同类产品。"
+        )
+        if top_themes:
+            exec_summary += " 评论高频主题：" + "、".join(t[0] for t in top_themes) + "。"
+        sections = [
+            {
+                "title": "产品快照",
+                "content": (
+                    f"· {name}：样本好评率 {solo.get('positive_rate')}%，"
+                    f"风险 {solo.get('risk_level') or '—'}\n"
+                    f"· 优先关注：{solo.get('recommendation') or '匹配/体验/内容更新'}"
+                ),
+            },
+            {
+                "title": "舆情主题",
+                "content": (
+                    "、".join(t[0] for t in top_themes)
+                    if top_themes
+                    else "样本中暂未形成明显主题簇，建议扩大抓取窗口。"
+                ),
+            },
+            {
+                "title": "建议行动",
+                "content": (
+                    "1. 补充 1–2 款同类产品后生成横向对比\n"
+                    "2. 围绕高频差评主题做小步迭代\n"
+                    "3. 结合六维评分与功能矩阵定位短板"
+                ),
+            },
+        ]
+        dim_sec = _dimension_score_section(facts)
+        if dim_sec:
+            sections.insert(1, dim_sec)
+        title = f"单品分析 · {name}"
+        return {
+            "title": title,
+            "executive_summary": exec_summary,
+            "sections": sections,
+            "markdown": _to_markdown(title, exec_summary, sections),
+            "html": _report_html(title, exec_summary, sections),
+        }
+
+    leader = ranked[0]
+    laggard = ranked[-1]
     exec_summary = (
         f"本批 {len(products)} 款产品中，样本口碑领先为「{leader.get('name')}」"
         f"（{leader.get('positive_rate')}%）；"
@@ -523,7 +571,7 @@ async def generate_competitor_scenario_report(
             f"{json.dumps(facts, ensure_ascii=False)}"
         )
         try:
-            raw = await complete_prompt_with_retry(prompt, max_tokens=1400, retries=1)
+            raw = await complete_prompt_with_retry(prompt, max_tokens=1400, timeout=120, retries=1)
             base, using_llm, llm_error = _merge_llm_into_report(base, raw)
         except Exception as exc:
             llm_error = str(exc)
@@ -641,7 +689,7 @@ async def generate_breakdown_scenario_report(
             f"{json.dumps(facts, ensure_ascii=False)}"
         )
         try:
-            raw = await complete_prompt_with_retry(prompt, max_tokens=1400, retries=1)
+            raw = await complete_prompt_with_retry(prompt, max_tokens=1400, timeout=120, retries=1)
             base, using_llm, llm_error = _merge_llm_into_report(base, raw)
         except Exception as exc:
             llm_error = str(exc)
@@ -766,7 +814,7 @@ async def generate_review_scenario_report(
             f"{json.dumps(facts, ensure_ascii=False)}"
         )
         try:
-            raw = await complete_prompt_with_retry(prompt, max_tokens=1200, retries=1)
+            raw = await complete_prompt_with_retry(prompt, max_tokens=1200, timeout=120, retries=1)
             base, using_llm, llm_error = _merge_llm_into_report(base, raw)
         except Exception as exc:
             llm_error = str(exc)

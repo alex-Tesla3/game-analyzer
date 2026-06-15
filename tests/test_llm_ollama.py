@@ -8,7 +8,12 @@ import httpx
 import pytest
 import pytest_asyncio
 
-from src.services.llm_client import _ollama_base_url, _ollama_error_message
+from src.services.llm_client import (
+    LLM_CONFIG,
+    _ollama_base_url,
+    _ollama_error_message,
+    _resolve_ollama_model_in_config,
+)
 from src.web_app import app
 
 
@@ -52,3 +57,14 @@ async def test_llm_test_rejects_missing_ollama_model(api_client, monkeypatch):
     assert body["success"] is False
     assert "llama3.2" in body["message"]
     assert "gemma4:latest" in body["message"]
+
+
+def test_resolve_ollama_model_falls_back_to_installed(monkeypatch):
+    monkeypatch.setattr(
+        "src.services.llm_client._list_ollama_models_sync",
+        lambda _endpoint: ["gemma4:latest", "mistral:latest"],
+    )
+    LLM_CONFIG.update({"provider": "ollama", "model": "llama3.2", "endpoint": "http://localhost:11434"})
+    resolved = _resolve_ollama_model_in_config(persist=False)
+    assert resolved == "gemma4:latest"
+    assert LLM_CONFIG["model"] == "gemma4:latest"
