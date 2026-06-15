@@ -640,16 +640,91 @@ def _article_footer(
     return f"\n---\n*生成时间：{generated_at} · 规则引擎（未配置 LLM）*"
 
 
+def _decode_json_string_fragment(raw: str) -> str:
+    wrapped = f'"{raw}"'
+    try:
+        return json.loads(wrapped)
+    except json.JSONDecodeError:
+        return raw.replace('\\"', '"').replace("\\n", "\n").replace("\\t", "\t")
+
+
+def _looks_like_json_wrapper(text: str) -> bool:
+    t = (text or "").strip()
+    return t.startswith("{") and ('"markdown"' in t or '"title"' in t or '"summary"' in t)
+
+
+def _normalize_article_text(text: str) -> str:
+    return _strip_md_fences(str(text or "").strip())
+
+
+def _extract_partial_llm_article(raw: str) -> Optional[Dict[str, Any]]:
+    """Best-effort parse when json.loads fails on long markdown payloads."""
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start == -1 or end <= start:
+        return None
+    snippet = raw[start : end + 1]
+
+    def grab(field: str) -> str:
+        match = re.search(
+            rf'"{field}"\s*:\s*"((?:[^"\\]|\\.)*)"',
+            snippet,
+            flags=re.DOTALL,
+        )
+        return _decode_json_string_fragment(match.group(1)) if match else ""
+
+    title = grab("title")
+    summary = grab("summary")
+    markdown = grab("markdown") or grab("body")
+    if not markdown:
+        return None
+    markdown = _strip_md_fences(markdown)
+    if "\\n" in markdown and markdown.count("\n") < 3:
+        markdown = markdown.replace("\\n", "\n").replace("\\t", "\t").replace('\\"', '"')
+    return {
+        "title": _normalize_article_text(title),
+        "summary": _normalize_article_text(summary),
+        "markdown": markdown.strip(),
+    }
+
+
+def _normalize_article_markdown(text: str) -> str:
+    md = _strip_md_fences(str(text or "").strip())
+    if not md:
+        return ""
+    if _looks_like_json_wrapper(md):
+        partial = _extract_partial_llm_article(md)
+        return partial.get("markdown", "") if partial else ""
+    if "\\n" in md and md.count("\n") < 3:
+        md = md.replace("\\n", "\n").replace("\\t", "\t").replace('\\"', '"')
+    return md.strip()
+
+
 def _parse_llm_article(raw: str, facts: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+
     parsed = parse_json_from_llm(raw)
+    if not isinstance(parsed, dict):
+        parsed = _extract_partial_llm_article(raw)
+
     if isinstance(parsed, dict):
-        title = clean_llm_report_text(str(parsed.get("title") or ""))
-        markdown = _strip_md_fences(str(parsed.get("markdown") or parsed.get("body") or ""))
-        summary = clean_llm_report_text(str(parsed.get("summary") or ""))
-        if markdown:
+        title = _normalize_article_text(parsed.get("title") or "")
+        summary = _normalize_article_text(parsed.get("summary") or "")
+        markdown = _normalize_article_markdown(parsed.get("markdown") or parsed.get("body") or "")
+        if markdown and not _looks_like_json_wrapper(markdown):
+            if summary and summary not in markdown:
+                markdown = f"> {summary}\n\n{markdown}"
             return {"title": title, "summary": summary, "markdown": markdown}
-    text = _strip_md_fences(clean_llm_report_text(raw))
-    if text and len(text) > 200 and ("##" in text or text.startswith("#")):
+
+    if _looks_like_json_wrapper(raw):
+        return None
+
+    text = _normalize_article_markdown(clean_llm_report_text(raw))
+    if text and len(text) > 200 and (
+        text.startswith("#") or re.search(r"^##\s", text, re.MULTILINE)
+    ):
         title_match = re.search(r"^#\s+(.+)$", text, re.MULTILINE)
         title = title_match.group(1).strip() if title_match else ""
         return {"title": title, "summary": "", "markdown": text}

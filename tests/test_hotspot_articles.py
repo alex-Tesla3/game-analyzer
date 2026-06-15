@@ -71,6 +71,24 @@ def test_parse_llm_article_accepts_plain_markdown():
     assert parsed["markdown"].startswith("# 测试标题")
 
 
+def test_parse_llm_article_extracts_markdown_from_json_blob():
+    raw = (
+        '{"title":"【深度分析】香肠派对","summary":"样本好评率 78.8%","markdown":'
+        '"# 【深度分析】香肠派对\\n\\n## 🚀 热点背景\\n\\n匹配与外挂是核心痛点。"}'
+    )
+    parsed = _parse_llm_article(raw, {})
+    assert parsed is not None
+    assert not parsed["markdown"].startswith("{")
+    assert "\\n" not in parsed["markdown"]
+    assert "## 🚀 热点背景" in parsed["markdown"]
+    assert parsed["title"] == "【深度分析】香肠派对"
+
+
+def test_parse_llm_article_rejects_raw_json_wrapper():
+    raw = '{"title":"坏例子","summary":"导语","markdown":"# 只有开头'
+    assert _parse_llm_article(raw, {}) is None
+
+
 @pytest.mark.asyncio
 async def test_generate_hotspot_article_rule_based(monkeypatch):
     monkeypatch.setattr("src.services.hotspot_articles.llm_is_configured", lambda: False)

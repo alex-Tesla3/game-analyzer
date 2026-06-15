@@ -35,6 +35,9 @@
             } else if (line.startsWith("# ")) {
                 closeUl();
                 out.push("<h2>" + inline(line.slice(2)) + "</h2>");
+            } else if (line.startsWith("> ")) {
+                closeUl();
+                out.push("<blockquote class=\"lead\">" + inline(line.slice(2)) + "</blockquote>");
             } else if (/^[-*]\s+/.test(line)) {
                 if (!inUl) {
                     out.push("<ul>");
