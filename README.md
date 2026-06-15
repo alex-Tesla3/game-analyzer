@@ -54,26 +54,26 @@ Demo 账号：`demo` / `demo123`（`ALLOW_DEMO_ACCOUNTS=true` 已写在 Blueprin
 
 生产环境请修改密码并设置 `ALLOW_DEMO_ACCOUNTS=false`。
 
-## 数据流：抓取 → 看板（不隔离）
+## 数据流：抓取 → 看板（按用户隔离）
 
 ```
-分析向导 /guide  或  MVP /mvp  抓取
+登录后：分析向导 /guide  或  MVP /mvp  抓取
         ↓
-data/mvp/steam_dataset.json（评论 + 样本指标）
+data/mvp/users/{username}/steam_dataset.json（评论 + 样本指标）
         ↓
-运营看板 /dashboard  自动读取（/api/metrics）
+运营看板 /dashboard  自动读取该用户目录（/api/metrics）
         ↓
 筛选栏「应用筛选」→ KPI / 平台排行 / 预警
 ```
 
-各页面**共用同一份数据集**，分工不同：向导/MVP 侧重深度报告，看板侧重筛选汇总。详见 `/trust` 或看板内「数据流说明」。
+每位登录用户拥有**独立 MVP 数据集**；未登录访问 `/mvp` 会跳转登录。向导/MVP 侧重深度报告，看板侧重筛选汇总。详见 `/trust` 或看板内「数据流说明」。
 
 ## 数据优先级
 
 用户看到的评论/指标按以下顺序解析（见 `src/data_resolution.py`）：
 
 1. **用户导入** CSV（Owner 经营指标，可选）
-2. **MVP 抓取真数据**（`data/mvp/`，含 Steam / TapTap / Google Play）
+2. **MVP 抓取真数据**（`data/mvp/users/{username}/`，含 Steam / TapTap / Google Play）
 3. **24h 缓存**
 4. **无数据** — 看板显示空态并引导先抓取（已不再默认回退 mock）
 

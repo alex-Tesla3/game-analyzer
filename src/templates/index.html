@@ -1693,6 +1693,7 @@
                 <div id="realtime-product-tip" style="padding: 12px; background: rgba(0, 113, 232, 0.1); border-left: 4px solid #0071e3; border-radius: 0 12px 12px 0; margin-bottom: 16px; font-size: 0.875rem; color: #86868b;">
                     📱 当前分析: 全部产品
                 </div>
+                <div id="realtime-data-notice"></div>
                 <div class="kpi-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px;">
                     <div class="kpi-card health-green">
                         <div class="kpi-header">
@@ -1724,7 +1725,7 @@
                     </div>
                 </div>
                 <div class="section">
-                    <h3 class="section-title">📈 收入趋势（实时更新）</h3>
+                    <h3 class="section-title" id="realtime-chart-title">📈 趋势曲线</h3>
                     <div id="realtime-explanation" style="display: none; padding: 12px; background: rgba(0, 113, 232, 0.1); border-left: 4px solid #0071e3; border-radius: 0 12px 12px 0; margin-bottom: 16px; font-size: 0.875rem; color: #86868b;">
                     </div>
                     <div id="realtime-extra-info" style="margin-bottom: 16px;">
@@ -1740,6 +1741,7 @@
                 <div id="journey-product-tip" style="padding: 12px; background: rgba(0, 113, 232, 0.1); border-left: 4px solid #0071e3; border-radius: 0 12px 12px 0; margin-bottom: 16px; font-size: 0.875rem; color: #86868b;">
                     📱 当前分析: 全部产品
                 </div>
+                <div id="journey-data-notice"></div>
                 <div class="section">
                     <h3 class="section-title">🔄 用户行为路径</h3>
                     <div id="journey-visualization" style="padding: 16px; background: #f5f5f7; border-radius: 12px; border: 1px solid rgba(0,0,0,0.05);">
@@ -1761,6 +1763,7 @@
                 <div id="funnel-product-tip" style="padding: 12px; background: rgba(0, 113, 232, 0.1); border-left: 4px solid #0071e3; border-radius: 0 12px 12px 0; margin-bottom: 16px; font-size: 0.875rem; color: #86868b;">
                     📱 当前分析: 全部产品
                 </div>
+                <div id="funnel-data-notice"></div>
                 <div class="section">
                     <h3 class="section-title">📊 转化漏斗</h3>
                     <div id="funnel-visualization" style="padding: 16px; background: #f5f5f7; border-radius: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; border: 1px solid rgba(0,0,0,0.05);">
@@ -1783,6 +1786,7 @@
                 <div id="cohort-product-tip" style="padding: 12px; background: rgba(0, 113, 232, 0.1); border-left: 4px solid #0071e3; border-radius: 0 12px 12px 0; margin-bottom: 16px; font-size: 0.875rem; color: #86868b;">
                     📱 当前分析: 全部产品
                 </div>
+                <div id="cohort-data-notice"></div>
                 <div class="section">
                     <h3 class="section-title">👥 群组留存曲线</h3>
                     <div class="chart-container" style="height: 280px; min-height: 200px;">
@@ -2798,10 +2802,16 @@
 
         function renderAdvancedDashboardResult(result, productInfo) {
             if (!result || !result.success) return false;
+            const tip = document.getElementById('realtime-product-tip');
+            if (tip && (result.data_basis_label || result.data_note)) {
+                const basis = result.data_basis_label || (result.simulated ? '演示模板' : '真实数据');
+                const note = result.data_note ? ` · ${result.data_note}` : '';
+                tip.innerHTML = `📱 当前分析: ${productInfo?.displayName || '全部产品'}${productInfo?.compareMode ? ' (对比模式)' : ''} · <strong>${basis}</strong>${note}`;
+            }
             if (result.compare_mode) {
                 renderRealtimeComparison(result);
             } else if (result.realtime) {
-                updateRealtimeUI(result.realtime, productInfo);
+                updateRealtimeUI(result.realtime, productInfo, result);
             }
             return true;
         }
@@ -3021,41 +3031,58 @@
             });
         }
         
-        function updateRealtimeUI(data, productInfo) {
+        function updateRealtimeUI(data, productInfo, meta) {
             if (!data) return;
-            // 更新KPI卡片（不重置DOM结构）
+            const isRealSample = data.data_basis === 'review_sample' || data.data_basis === 'imported_metrics';
             const onlineEl = document.getElementById('realtime-online');
             const revenueEl = document.getElementById('realtime-revenue');
             const downloadsEl = document.getElementById('realtime-downloads');
             const arppuEl = document.getElementById('realtime-arppu');
-            
-            if (onlineEl) onlineEl.textContent = Number(data.online_users || 0).toLocaleString();
-            if (revenueEl) revenueEl.textContent = '¥' + Number(data.today_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+            if (onlineEl) {
+                onlineEl.textContent = data.online_users == null && isRealSample
+                    ? '演示占位'
+                    : Number(data.online_users || 0).toLocaleString();
+            }
+            if (revenueEl) {
+                revenueEl.textContent = data.today_revenue == null && isRealSample
+                    ? '演示占位'
+                    : ('¥' + Number(data.today_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            }
             if (downloadsEl) {
-                downloadsEl.textContent = Number(data.total_downloads || 0).toLocaleString();
+                downloadsEl.textContent = Number(data.total_downloads || data.review_sample_count || 0).toLocaleString();
                 const dlTitle = downloadsEl.closest('.kpi-card')?.querySelector('.kpi-title');
-                if (dlTitle && data.steam_positive_rate != null && !Number(data.total_downloads)) {
-                    dlTitle.textContent = 'Steam 评论样本';
-                } else if (dlTitle) {
-                    dlTitle.textContent = '总下载量 / 样本';
+                if (dlTitle) {
+                    dlTitle.textContent = isRealSample ? '评论样本' : '总下载量 / 样本';
                 }
             }
             if (arppuEl) {
-                arppuEl.textContent = Number(data.avg_arppu || 0) > 0
-                    ? ('¥' + Number(data.avg_arppu).toFixed(2))
-                    : (data.steam_positive_rate != null ? (data.steam_positive_rate + '% 好评') : '—');
+                if (data.positive_rate != null || data.steam_positive_rate != null) {
+                    arppuEl.textContent = (data.positive_rate ?? data.steam_positive_rate) + '% 好评';
+                } else if (Number(data.avg_arppu || 0) > 0) {
+                    arppuEl.textContent = '¥' + Number(data.avg_arppu).toFixed(2);
+                } else {
+                    arppuEl.textContent = '—';
+                }
+                const arppuTitle = arppuEl.closest('.kpi-card')?.querySelector('.kpi-title');
+                if (arppuTitle) {
+                    arppuTitle.textContent = (data.positive_rate != null || data.steam_positive_rate != null) ? '样本好评率' : '平均ARPPU';
+                }
             }
-            
-            // 更新产品信息提示
-            if (productInfo) {
+
+            const chartTitle = document.getElementById('realtime-chart-title');
+            if (chartTitle) {
+                chartTitle.textContent = '📈 ' + (data.chart_label || '收入趋势（实时更新）');
+            }
+
+            if (productInfo && !(meta && meta.data_basis_label)) {
                 const productTip = document.getElementById('realtime-product-tip');
                 if (productTip) {
                     const modeLabel = productInfo.compareMode ? ' (对比模式)' : '';
                     productTip.textContent = `📱 当前分析: ${productInfo.displayName}${modeLabel}`;
                 }
             }
-            
-            // 更新数据解释
+
             if (data.data_explanation) {
                 const explanationEl = document.getElementById('realtime-explanation');
                 if (explanationEl) {
@@ -3063,34 +3090,36 @@
                     explanationEl.style.display = 'block';
                 }
             }
-            
-            // 更新额外信息
+
             const extraInfoEl = document.getElementById('realtime-extra-info');
             if (extraInfoEl) {
-                extraInfoEl.innerHTML = `
+                if (isRealSample && data.online_users == null) {
+                    extraInfoEl.innerHTML = '<p style="font-size:0.85rem;color:#86868b;margin:0;">在线用户与收入 KPI 为演示占位；评论样本、好评率与下图周趋势来自真实抓取。</p>';
+                } else {
+                    extraInfoEl.innerHTML = `
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; font-size: 0.875rem;">
                         <div style="padding: 8px; background: #f5f5f7; border-radius: 8px;">
                             <div style="color: #86868b;">当前小时收入</div>
-                            <div style="font-weight: bold; color: #0071e3;">¥${data.current_hour_revenue.toLocaleString()}</div>
+                            <div style="font-weight: bold; color: #0071e3;">¥${Number(data.current_hour_revenue || 0).toLocaleString()}</div>
                         </div>
                         <div style="padding: 8px; background: #f5f5f7; border-radius: 8px;">
                             <div style="color: #86868b;">预计今日总收入</div>
-                            <div style="font-weight: bold; color: #34c759;">¥${data.estimated_daily_revenue.toLocaleString()}</div>
+                            <div style="font-weight: bold; color: #34c759;">¥${Number(data.estimated_daily_revenue || 0).toLocaleString()}</div>
                         </div>
                         <div style="padding: 8px; background: #f5f5f7; border-radius: 8px;">
                             <div style="color: #86868b;">已过去</div>
-                            <div style="font-weight: bold; color: #ff9500;">${data.hours_passed}小时</div>
+                            <div style="font-weight: bold; color: #ff9500;">${data.hours_passed || 0}小时</div>
                         </div>
                     </div>
                 `;
+                }
             }
-            
-            // 更新图表
-            updateRealtimeChart(data.revenue_trend);
+
+            updateRealtimeChart(data.revenue_trend || [], data.chart_metric || 'revenue');
         }
         
         // 使用节流限制图表更新频率
-        function updateRealtimeChart(trendData) {
+        function updateRealtimeChart(trendData, chartMetric) {
             if (typeof Chart === 'undefined') {
                 console.warn('Chart.js 未加载，跳过实时图表更新');
                 return;
@@ -3098,12 +3127,16 @@
             
             const ctx = document.getElementById('realtime-chart');
             if (!ctx) return;
+            trendData = trendData || [];
+            chartMetric = chartMetric || 'revenue';
+            const datasetLabel = chartMetric === 'reviews' ? '评论量' : '收入';
             
             const labels = trendData.map(d => d.time);
             const values = trendData.map(d => d.value);
             
             if (realtimeChart) {
                 realtimeChart.data.labels = labels;
+                realtimeChart.data.datasets[0].label = datasetLabel;
                 realtimeChart.data.datasets[0].data = values;
                 realtimeChart.update('none'); // 使用'none'模式禁用动画，提升性能
             } else {
@@ -3112,7 +3145,7 @@
                     data: {
                         labels: labels,
                         datasets: [{
-                            label: '收入',
+                            label: datasetLabel,
                             data: values,
                             borderColor: '#0071e3',
                             backgroundColor: 'rgba(0, 113, 227, 0.1)',
@@ -3162,7 +3195,9 @@
                     if (result.selected_products) {
                         const tip = document.getElementById('journey-product-tip');
                         if (tip) {
-                            tip.textContent = `📱 当前分析: ${productInfo?.displayName || '全部产品'} ${productInfo?.compareMode ? '(对比模式)' : ''}`;
+                            const basis = result.data_basis_label || (result.simulated ? '演示模板' : '真实数据');
+                            const note = result.data_note ? ` · ${result.data_note}` : '';
+                            tip.innerHTML = `📱 当前分析: ${productInfo?.displayName || '全部产品'} ${productInfo?.compareMode ? '(对比模式)' : ''} · <strong>${basis}</strong>${note}`;
                         }
                     }
                 }
@@ -3171,6 +3206,11 @@
             }
         }
         
+        function linearJourneySteps(journey) {
+            const nodes = journey?.summary?.journey_nodes || journey?.nodes || [];
+            return nodes.filter((step) => step.type !== 'end' && step.id !== 'churn');
+        }
+
         function renderJourneyComparison(data) {
             const nodesContainer = document.getElementById('journey-nodes');
             const pathContainer = document.getElementById('path-distribution');
@@ -3182,9 +3222,9 @@
             // 创建对比表格
             const products = data.selected_products;
             
-            // 获取所有路径步骤
+            // 获取线性漏斗步骤（排除流失等非顺序节点）
             const firstProduct = products[0];
-            const steps = data.journey_by_product[firstProduct]?.summary?.journey_nodes || [];
+            const steps = linearJourneySteps(data.journey_by_product[firstProduct]);
             
             // 创建产品对比表头
             let html = `
@@ -3215,10 +3255,13 @@
                 
                 products.forEach(product => {
                     const productJourney = data.journey_by_product[product];
-                    const stepData = productJourney?.summary?.journey_nodes[index];
+                    const productSteps = linearJourneySteps(productJourney);
+                    const stepData = productSteps[index] || productSteps.find((s) => s.name === step.name);
                     const count = stepData?.count || 0;
-                    const prevStep = index > 0 ? productJourney?.summary?.journey_nodes[index - 1] : null;
-                    const conversion = prevStep ? Math.round((count / prevStep.count) * 100) : 100;
+                    const prevStep = index > 0 ? (productSteps[index - 1] || productSteps.find((s) => s.name === steps[index - 1]?.name)) : null;
+                    const conversion = stepData?.conversion_rate != null
+                        ? Math.round(stepData.conversion_rate)
+                        : (prevStep && prevStep.count ? Math.round((count / prevStep.count) * 100) : 100);
                     
                     html += `<td style="text-align: right; padding: 12px;">
                         <div style="font-weight: 600; color: #1d1d1f;">${count.toLocaleString()}</div>
@@ -3344,7 +3387,9 @@
                     if (result.selected_products) {
                         const tip = document.getElementById('funnel-product-tip');
                         if (tip) {
-                            tip.textContent = `📱 当前分析: ${productInfo?.displayName || '全部产品'} ${productInfo?.compareMode ? '(对比模式)' : ''}`;
+                            const basis = result.data_basis_label || (result.simulated ? '演示模板' : '真实数据');
+                            const note = result.data_note ? ` · ${result.data_note}` : '';
+                            tip.innerHTML = `📱 当前分析: ${productInfo?.displayName || '全部产品'} ${productInfo?.compareMode ? '(对比模式)' : ''} · <strong>${basis}</strong>${note}`;
                         }
                     }
                 }
@@ -3517,7 +3562,9 @@
                     if (result.selected_products) {
                         const tip = document.getElementById('cohort-product-tip');
                         if (tip) {
-                            tip.textContent = `📱 当前分析: ${productInfo?.displayName || '全部产品'} ${productInfo?.compareMode ? '(对比模式)' : ''}`;
+                            const basis = result.data_basis_label || (result.simulated ? '演示模板' : '真实数据');
+                            const note = result.data_note ? ` · ${result.data_note}` : '';
+                            tip.innerHTML = `📱 当前分析: ${productInfo?.displayName || '全部产品'} ${productInfo?.compareMode ? '(对比模式)' : ''} · <strong>${basis}</strong>${note}`;
                         }
                     }
                 }
@@ -3572,10 +3619,11 @@
                 
                 cohort.cohorts.forEach((c, idx) => {
                     const heightPercent = (c.retention_d7 / maxRetention) * 100;
+                    const d7Label = cohort.summary?.metric_labels?.retention_d7 || '7日';
                     cardHtml += '<div style="flex: 1; display: flex; flex-direction: column; align-items: center;">' +
                         '<div style="width: 24px; background: ' + color + '; height: ' + heightPercent + '%; border-radius: 4px 4px 0 0; transition: height 0.3s ease;"></div>' +
                         '<div style="font-size: 0.7rem; margin-top: 4px; color: #1d1d1f;">' + c.cohort_week + '</div>' +
-                        '<div style="font-size: 0.65rem; color: #86868b;">' + c.retention_d7 + '%</div>' +
+                        '<div style="font-size: 0.65rem; color: #86868b;">' + d7Label + ' ' + c.retention_d7 + '%</div>' +
                     '</div>';
                 });
                 
@@ -6052,6 +6100,12 @@ ${data.summary || ''}
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (window.AppNav) AppNav.mount('#app-nav-mount');
+            if (window.DataFlowGuide) {
+                DataFlowGuide.renderAdvancedNotice('journey-data-notice', { theme: 'light', focus: 'journey' });
+                DataFlowGuide.renderAdvancedNotice('funnel-data-notice', { theme: 'light', focus: 'funnel' });
+                DataFlowGuide.renderAdvancedNotice('realtime-data-notice', { theme: 'light', focus: 'realtime' });
+                DataFlowGuide.renderAdvancedNotice('cohort-data-notice', { theme: 'light', focus: 'cohort' });
+            }
             try {
             mountCohortHealthHelp();
             if (!checkAuth()) return;

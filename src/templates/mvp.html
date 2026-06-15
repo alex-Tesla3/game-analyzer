@@ -323,7 +323,17 @@
     </div>
   </header>
   <main class="wrap">
+    <div id="mvp-advanced-notice"></div>
     <section class="filter-panel" aria-label="筛选条件">
+      <div id="crawl-progress-wrap" style="grid-column:1/-1;display:none;margin-bottom:4px;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:6px;">
+          <span id="crawl-progress-label">抓取进度</span>
+          <span id="crawl-progress-percent">0%</span>
+        </div>
+        <div style="height:8px;background:#eef1f5;border-radius:999px;overflow:hidden;">
+          <div id="crawl-progress-bar" style="height:100%;width:0%;background:var(--accent);transition:width .25s ease;"></div>
+        </div>
+      </div>
       <div>
         <label for="channel-select">渠道 / 数据来源</label>
         <select id="channel-select">
@@ -784,8 +794,8 @@
       const pickIds = selectIds && selectIds.length ? selectIds : null;
       channelSelect.innerHTML = (data.channels || [{ id: 'steam', label: 'Steam' }])
         .map((c) => {
-          const label = c.label + (c.crawl_supported ? '' : '（仅展示）');
-          return `<option value="${escapeHtml(c.id)}">${escapeHtml(label)}</option>`;
+          const disabled = c.crawl_supported ? '' : ' disabled';
+          return `<option value="${escapeHtml(c.id)}"${disabled}>${escapeHtml(c.label)}</option>`;
         })
         .join('');
       if (pickIds && window.ProductPicker) {
@@ -851,7 +861,9 @@
       };
       const route = crawlRoutes[channel];
       if (!route) {
-        statusEl.textContent = '当前渠道暂不支持重新抓取，请切换 Steam / TapTap / Google Play。';
+        statusEl.textContent = channel === 'app_store'
+          ? 'App Store 评论抓取即将支持；请先用 Google Play 或 TapTap 抓取 iOS 手游口碑。'
+          : '当前渠道暂不支持重新抓取，请切换 Steam / TapTap / Google Play。';
         return;
       }
       const ids = selectedProductIds();
@@ -866,34 +878,57 @@
         return;
       }
       refreshButton.disabled = true;
-      statusEl.textContent =
-        `正在从 ${labels[channel] || channel} 抓取（${filterBuild.label}，逐款顺序抓取）…`;
+      const progressWrap = document.getElementById('crawl-progress-wrap');
+      const progressBar = document.getElementById('crawl-progress-bar');
+      const progressLabel = document.getElementById('crawl-progress-label');
+      const progressPercent = document.getElementById('crawl-progress-percent');
+      if (progressWrap) progressWrap.style.display = 'block';
+      const token = mvpAuthToken();
+      let lastPayload = null;
+      let totalReviews = 0;
       try {
-        const params = filterBuild.params;
-        params.set('app_ids', ids.join(','));
-        const token = mvpAuthToken();
-        if (token) params.set('token', token);
-        const response = await fetch(route + '?' + params.toString(), {
-          headers: mvpAuthHeaders(),
-        });
-        if (!response.ok) throw new Error(await response.text());
-        const payload = await response.json();
-        const mode = payload.data_mode === 'live' ? '真实数据' : '演示回退';
-        const countBits = payload.review_counts
-          ? Object.entries(payload.review_counts).map(([id, n]) => `${id.split('.').pop()}: ${n}`).join(' · ')
-          : '';
+        for (let index = 0; index < ids.length; index++) {
+          const appId = ids[index];
+          const pct = Math.round((index / ids.length) * 100);
+          if (progressBar) progressBar.style.width = pct + '%';
+          if (progressPercent) progressPercent.textContent = pct + '%';
+          if (progressLabel) {
+            progressLabel.textContent = `正在抓取 ${index + 1}/${ids.length}：${appId}`;
+          }
+          statusEl.textContent =
+            `正在从 ${labels[channel] || channel} 抓取 ${index + 1}/${ids.length}（${filterBuild.label}）…`;
+          const params = new URLSearchParams(filterBuild.params);
+          params.set('app_ids', appId);
+          if (token) params.set('token', token);
+          const response = await fetch(route + '?' + params.toString(), {
+            headers: mvpAuthHeaders(),
+          });
+          if (!response.ok) throw new Error(await response.text());
+          lastPayload = await response.json();
+          const count = lastPayload.review_counts
+            ? Object.values(lastPayload.review_counts).reduce((a, b) => a + Number(b || 0), 0)
+            : 0;
+          totalReviews += count;
+        }
+        if (progressBar) progressBar.style.width = '100%';
+        if (progressPercent) progressPercent.textContent = '100%';
+        const mode = lastPayload?.data_mode === 'live' ? '真实数据' : '演示回退';
         const dashParams = new URLSearchParams();
-        const crawledIds = (payload.crawled_app_ids || ids).join(',');
+        const crawledIds = (lastPayload?.crawled_app_ids || ids).join(',');
         if (crawledIds) dashParams.set('product_ids', crawledIds);
         if (channel && channel !== 'steam') dashParams.set('data_source', channel);
         statusEl.innerHTML =
-          `${labels[channel]} 抓取完成（${mode}${countBits ? ` · ${countBits}` : ''}）· 数据已写入看板数据集，` +
+          `${labels[channel]} 抓取完成（${ids.length} 款产品 · ${mode}${totalReviews ? ` · 合计约 ${totalReviews} 条评论` : ''}）· 数据已写入看板，` +
           `<a href="/dashboard?${dashParams.toString()}" style="color:var(--accent);margin-left:6px;">前往看板查看 →</a>`;
         await loadLatest();
       } catch (error) {
         statusEl.textContent = `刷新失败：${error.message}`;
       } finally {
         refreshButton.disabled = false;
+        setTimeout(() => {
+          if (progressWrap) progressWrap.style.display = 'none';
+          if (progressBar) progressBar.style.width = '0%';
+        }, 1200);
       }
     }
 
@@ -915,6 +950,13 @@
     syncCrawlFilterControls();
 
     (async function init() {
+      if (window.DataFlowGuide) {
+        DataFlowGuide.renderAdvancedNotice('mvp-advanced-notice', { theme: 'light', focus: 'mvp' });
+      }
+      if (!mvpAuthToken()) {
+        location.replace('/login?redirect=' + encodeURIComponent('/mvp'));
+        return;
+      }
       try {
         await loadCatalog();
         await loadLatest();

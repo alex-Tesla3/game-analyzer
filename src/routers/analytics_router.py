@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
@@ -13,7 +13,21 @@ from fastapi.responses import HTMLResponse
 from advanced_analytics import get_advanced_analytics
 from auth import LLM_CONFIG, LLM_PROVIDERS
 from src.api_meta import with_simulated
-from src.data_resolution import get_metrics_data, get_user_metrics_data, resolve_user_data_source
+from src.data_resolution import (
+    get_user_comments_data,
+    get_user_metrics_data,
+    resolve_user_data_source,
+)
+from src.services.engagement_funnel import (
+    build_path_distribution_from_comments,
+    data_basis_label as engagement_basis_label,
+    resolve_funnel_for_product,
+    resolve_journey_for_product,
+)
+from src.services.real_metrics_analytics import (
+    resolve_cohort_for_product,
+    resolve_realtime_for_product,
+)
 from src.mvp_data import get_mvp_analysis, mvp_validation_passed, product_matches
 from src.services.legacy_ai_report import (
     generate_action_plan,
@@ -52,11 +66,29 @@ def _filter_metrics_by_products(metrics_data: list, products: List[str]) -> list
 
 def _advanced_data_basis(username: str) -> str:
     source = resolve_user_data_source(username) or "empty"
-    if source == "mvp_steam":
-        return "mvp_steam"
+    if source in {"mvp_steam", "taptap_public", "google_play_public", "mvp_multi"}:
+        return source
     if source == "imported":
         return "imported"
     return "mock_data"
+
+
+def _annotate_advanced_response(
+    payload: Dict,
+    *,
+    simulated: bool,
+    basis: str,
+    note: str = "",
+) -> Dict:
+    enriched = {
+        **payload,
+        "simulated": simulated,
+        "data_basis": basis,
+        "data_basis_label": engagement_basis_label(basis),
+    }
+    if note:
+        enriched["data_note"] = note
+    return enriched
 
 
 async def generate_ai_report_with_llm(products: List[str], product_names: dict, time_label: str):
@@ -282,41 +314,99 @@ async def get_user_journey(
 ):
     if not token:
         raise HTTPException(status_code=401, detail="Token required")
-    await get_current_user(token)
+    current_user = await get_current_user(token)
+    comments = get_user_comments_data(current_user.username)
+    metrics = get_user_metrics_data(current_user.username)
     
     products = _parse_product_ids(product_ids)
     
     if compare_mode and products != ['all']:
-        # 对比模式：按产品分别获取数据
         journey_by_product = {}
         path_dist_by_product = {}
+        simulated_any = False
+        basis_notes: List[str] = []
+        basis_set = set()
         
         for product in products:
-            journey_by_product[product] = analytics['journey'].analyze_user_journey(time_range, [product])
-            path_dist_data = analytics['journey'].get_path_distribution([product])
-            path_dist_by_product[product] = path_dist_data.get(product, [])
+            journey, basis, simulated = resolve_journey_for_product(product, comments, metrics)
+            if simulated:
+                journey = analytics['journey'].analyze_user_journey(time_range, [product])
+                path_dist_by_product[product] = analytics['journey'].get_path_distribution([product]).get(product, [])
+                simulated_any = True
+                basis_set.add("mock_data")
+            else:
+                path_dist_by_product[product] = build_path_distribution_from_comments(product, comments)
+                basis_set.add(basis)
+                note = (journey.get("summary") or {}).get("data_note")
+                if note:
+                    basis_notes.append(note)
+            journey_by_product[product] = journey
         
-        return with_simulated({
-            "success": True,
-            "selected_products": products,
-            "compare_mode": True,
-            "journey_by_product": journey_by_product,
-            "path_dist_by_product": path_dist_by_product
-        })
+        basis = next(iter(basis_set)) if len(basis_set) == 1 else ("mixed" if basis_set else "mock_data")
+        return _annotate_advanced_response(
+            {
+                "success": True,
+                "selected_products": products,
+                "compare_mode": True,
+                "journey_by_product": journey_by_product,
+                "path_dist_by_product": path_dist_by_product,
+            },
+            simulated=simulated_any,
+            basis=basis,
+            note=basis_notes[0] if basis_notes else "",
+        )
     else:
-        journey_data = analytics['journey'].analyze_user_journey(time_range, products)
-        path_distribution_data = analytics['journey'].get_path_distribution(products)
-        
-        first_product = products[0] if products else 'all'
-        path_distribution = path_distribution_data.get(first_product, path_distribution_data.get('all', [])) if isinstance(path_distribution_data, dict) else path_distribution_data
-        
-        return with_simulated({
-            "success": True,
-            "selected_products": products,
-            "compare_mode": False,
-            "journey": journey_data,
-            "path_distribution": path_distribution
-        })
+        product_key = products[0] if products and products != ["all"] else "all"
+        if product_key == "all":
+            journey_data = analytics['journey'].analyze_user_journey(time_range, products)
+            path_distribution_data = analytics['journey'].get_path_distribution(products)
+            first_product = products[0] if products else 'all'
+            path_distribution = path_distribution_data.get(first_product, path_distribution_data.get('all', [])) if isinstance(path_distribution_data, dict) else path_distribution_data
+            return _annotate_advanced_response(
+                {
+                    "success": True,
+                    "selected_products": products,
+                    "compare_mode": False,
+                    "journey": journey_data,
+                    "path_distribution": path_distribution,
+                },
+                simulated=True,
+                basis="mock_data",
+                note="未选择具体产品时无法按真实评论样本计算，当前为演示模板。",
+            )
+
+        journey, basis, simulated = resolve_journey_for_product(product_key, comments, metrics)
+        if simulated:
+            journey_data = analytics['journey'].analyze_user_journey(time_range, products)
+            path_distribution_data = analytics['journey'].get_path_distribution(products)
+            first_product = products[0] if products else 'all'
+            path_distribution = path_distribution_data.get(first_product, path_distribution_data.get('all', [])) if isinstance(path_distribution_data, dict) else path_distribution_data
+            return _annotate_advanced_response(
+                {
+                    "success": True,
+                    "selected_products": products,
+                    "compare_mode": False,
+                    "journey": journey_data,
+                    "path_distribution": path_distribution,
+                },
+                simulated=True,
+                basis="mock_data",
+                note="当前账号尚无足够抓取/导入数据，请先于 /mvp 抓取或导入 CSV。",
+            )
+
+        path_distribution = build_path_distribution_from_comments(product_key, comments)
+        return _annotate_advanced_response(
+            {
+                "success": True,
+                "selected_products": products,
+                "compare_mode": False,
+                "journey": journey,
+                "path_distribution": path_distribution,
+            },
+            simulated=False,
+            basis=basis,
+            note=(journey.get("summary") or {}).get("data_note", ""),
+        )
 
 @router.get("/api/advanced/funnel")
 async def get_funnel_analysis(
@@ -327,30 +417,84 @@ async def get_funnel_analysis(
 ):
     if not token:
         raise HTTPException(status_code=401, detail="Token required")
-    await get_current_user(token)
+    current_user = await get_current_user(token)
+    comments = get_user_comments_data(current_user.username)
+    metrics = get_user_metrics_data(current_user.username)
     
     products = _parse_product_ids(product_ids)
     
     if compare_mode and products != ['all']:
         funnel_by_product = {}
+        simulated_any = False
+        basis_set = set()
+        basis_notes: List[str] = []
         for product in products:
-            funnel_by_product[product] = analytics['funnel'].create_funnel(time_range=time_range, products=[product])
+            funnel, basis, simulated = resolve_funnel_for_product(product, comments, metrics)
+            if simulated:
+                funnel = analytics['funnel'].create_funnel(time_range=time_range, products=[product])
+                simulated_any = True
+                basis_set.add("mock_data")
+            else:
+                basis_set.add(basis)
+                note = funnel.get("data_note")
+                if note:
+                    basis_notes.append(note)
+            funnel_by_product[product] = funnel
         
-        return with_simulated({
-            "success": True,
-            "selected_products": products,
-            "compare_mode": True,
-            "funnel_by_product": funnel_by_product
-        })
+        basis = next(iter(basis_set)) if len(basis_set) == 1 else ("mixed" if basis_set else "mock_data")
+        return _annotate_advanced_response(
+            {
+                "success": True,
+                "selected_products": products,
+                "compare_mode": True,
+                "funnel_by_product": funnel_by_product,
+            },
+            simulated=simulated_any,
+            basis=basis,
+            note=basis_notes[0] if basis_notes else "",
+        )
     else:
-        funnel_data = analytics['funnel'].create_funnel(time_range=time_range, products=products)
-        
-        return with_simulated({
-            "success": True,
-            "selected_products": products,
-            "compare_mode": False,
-            "funnel": funnel_data
-        })
+        product_key = products[0] if products and products != ["all"] else "all"
+        if product_key == "all":
+            funnel_data = analytics['funnel'].create_funnel(time_range=time_range, products=products)
+            return _annotate_advanced_response(
+                {
+                    "success": True,
+                    "selected_products": products,
+                    "compare_mode": False,
+                    "funnel": funnel_data,
+                },
+                simulated=True,
+                basis="mock_data",
+                note="未选择具体产品时无法按真实数据计算，当前为演示模板。",
+            )
+
+        funnel, basis, simulated = resolve_funnel_for_product(product_key, comments, metrics)
+        if simulated:
+            funnel_data = analytics['funnel'].create_funnel(time_range=time_range, products=products)
+            return _annotate_advanced_response(
+                {
+                    "success": True,
+                    "selected_products": products,
+                    "compare_mode": False,
+                    "funnel": funnel_data,
+                },
+                simulated=True,
+                basis="mock_data",
+                note="当前账号尚无足够抓取/导入数据，请先于 /mvp 抓取或导入 CSV。",
+            )
+
+        return _annotate_advanced_response(
+            {
+                "success": True,
+                "selected_products": products,
+                "compare_mode": False,
+                "funnel": funnel,
+            },
+            simulated=False,
+            basis=basis,
+            note=funnel.get("data_note", ""),
+        )
 
 @router.get("/api/advanced/funnel/compare")
 async def compare_funnels(
@@ -379,30 +523,84 @@ async def get_cohort_analysis(
 ):
     if not token:
         raise HTTPException(status_code=401, detail="Token required")
-    await get_current_user(token)
+    current_user = await get_current_user(token)
+    comments = get_user_comments_data(current_user.username)
+    metrics = get_user_metrics_data(current_user.username)
     
     products = _parse_product_ids(product_ids)
     
     if compare_mode and products != ['all']:
         cohort_by_product = {}
+        simulated_any = False
+        basis_set = set()
+        basis_notes: List[str] = []
         for product in products:
-            cohort_by_product[product] = analytics['cohort'].create_cohort(cohort_type, date_range, [product])
+            cohort, basis, simulated = resolve_cohort_for_product(product, comments, metrics)
+            if simulated:
+                cohort = analytics['cohort'].create_cohort(cohort_type, date_range, [product])
+                simulated_any = True
+                basis_set.add("mock_data")
+            else:
+                basis_set.add(basis)
+                note = cohort.get("data_note")
+                if note:
+                    basis_notes.append(note)
+            cohort_by_product[product] = cohort
         
-        return with_simulated({
-            "success": True,
-            "selected_products": products,
-            "compare_mode": True,
-            "cohort_by_product": cohort_by_product
-        })
+        basis = next(iter(basis_set)) if len(basis_set) == 1 else ("mixed" if basis_set else "mock_data")
+        return _annotate_advanced_response(
+            {
+                "success": True,
+                "selected_products": products,
+                "compare_mode": True,
+                "cohort_by_product": cohort_by_product,
+            },
+            simulated=simulated_any,
+            basis=basis,
+            note=basis_notes[0] if basis_notes else "",
+        )
     else:
-        cohort_data = analytics['cohort'].create_cohort(cohort_type, date_range, products)
-        
-        return with_simulated({
-            "success": True,
-            "selected_products": products,
-            "compare_mode": False,
-            "cohort": cohort_data
-        })
+        product_key = products[0] if products and products != ["all"] else "all"
+        if product_key == "all":
+            cohort_data = analytics['cohort'].create_cohort(cohort_type, date_range, products)
+            return _annotate_advanced_response(
+                {
+                    "success": True,
+                    "selected_products": products,
+                    "compare_mode": False,
+                    "cohort": cohort_data,
+                },
+                simulated=True,
+                basis="mock_data",
+                note="未选择具体产品时无法按真实评论周样本计算，当前为演示模板。",
+            )
+
+        cohort, basis, simulated = resolve_cohort_for_product(product_key, comments, metrics)
+        if simulated:
+            cohort_data = analytics['cohort'].create_cohort(cohort_type, date_range, products)
+            return _annotate_advanced_response(
+                {
+                    "success": True,
+                    "selected_products": products,
+                    "compare_mode": False,
+                    "cohort": cohort_data,
+                },
+                simulated=True,
+                basis="mock_data",
+                note="当前账号尚无足够抓取/导入数据，请先于 /mvp 抓取或导入 CSV。",
+            )
+
+        return _annotate_advanced_response(
+            {
+                "success": True,
+                "selected_products": products,
+                "compare_mode": False,
+                "cohort": cohort,
+            },
+            simulated=False,
+            basis=basis,
+            note=cohort.get("data_note", ""),
+        )
 
 @router.get("/api/advanced/cohort/{cohort_id}")
 async def get_cohort_detail(
@@ -507,42 +705,84 @@ async def get_advanced_dashboard(
     current_user = await get_current_user(token)
     
     products = _parse_product_ids(product_ids)
-    basis = _advanced_data_basis(current_user.username)
-    
-    # 优先使用缓存数据，然后使用用户导入的数据，最后使用mock数据
-    metrics_data = get_user_metrics_data(current_user.username)
+    comments = get_user_comments_data(current_user.username)
+    metrics = get_user_metrics_data(current_user.username)
     
     if compare_mode and products != ['all']:
         realtime_by_product = {}
+        simulated_any = False
+        basis_set = set()
+        basis_notes: List[str] = []
         for product in products:
-            product_metrics = _filter_metrics_by_products(metrics_data, [product])
-            realtime_by_product[product] = analytics['realtime'].calculate_real_time_metrics(product_metrics)
+            realtime, basis, simulated = resolve_realtime_for_product(product, comments, metrics)
+            if simulated:
+                product_metrics = _filter_metrics_by_products(metrics, [product])
+                realtime = analytics['realtime'].calculate_real_time_metrics(product_metrics)
+                simulated_any = True
+                basis_set.add("mock_data")
+            else:
+                basis_set.add(basis)
+                note = realtime.get("data_note")
+                if note:
+                    basis_notes.append(note)
+            realtime_by_product[product] = realtime
         
-        return with_simulated({
-            "success": True,
-            "compare_mode": True,
-            "realtime_by_product": realtime_by_product,
-            "selected_products": products
-        }, basis=basis)
+        basis = next(iter(basis_set)) if len(basis_set) == 1 else ("mixed" if basis_set else "mock_data")
+        return _annotate_advanced_response(
+            {
+                "success": True,
+                "compare_mode": True,
+                "realtime_by_product": realtime_by_product,
+                "selected_products": products,
+            },
+            simulated=simulated_any,
+            basis=basis,
+            note=basis_notes[0] if basis_notes else "",
+        )
     else:
-        filtered_metrics = _filter_metrics_by_products(metrics_data, products)
-        
-        journey = analytics['journey'].analyze_user_journey(products=products)
-        funnel = analytics['funnel'].create_funnel(products=products)
-        cohort = analytics['cohort'].create_cohort(products=products)
-        alerts = analytics['anomaly'].get_active_alerts(products)
-        realtime = analytics['realtime'].calculate_real_time_metrics(filtered_metrics)
-        
-        return with_simulated({
-            "success": True,
-            "compare_mode": False,
-            "realtime": realtime,
-            "journey": journey,
-            "funnel": funnel,
-            "cohort": cohort,
-            "alerts": alerts,
-            "selected_products": products
-        }, basis=basis)
+        product_key = products[0] if products and products != ["all"] else "all"
+        if product_key == "all":
+            filtered_metrics = _filter_metrics_by_products(metrics, products)
+            realtime = analytics['realtime'].calculate_real_time_metrics(filtered_metrics)
+            return _annotate_advanced_response(
+                {
+                    "success": True,
+                    "compare_mode": False,
+                    "realtime": realtime,
+                    "selected_products": products,
+                },
+                simulated=True,
+                basis="mock_data",
+                note="未选择具体产品时无法展示真实评论样本趋势，当前为演示模板。",
+            )
+
+        realtime, basis, simulated = resolve_realtime_for_product(product_key, comments, metrics)
+        if simulated:
+            filtered_metrics = _filter_metrics_by_products(metrics, products)
+            realtime = analytics['realtime'].calculate_real_time_metrics(filtered_metrics)
+            return _annotate_advanced_response(
+                {
+                    "success": True,
+                    "compare_mode": False,
+                    "realtime": realtime,
+                    "selected_products": products,
+                },
+                simulated=True,
+                basis="mock_data",
+                note="当前账号尚无足够抓取/导入数据，请先于 /mvp 抓取或导入 CSV。",
+            )
+
+        return _annotate_advanced_response(
+            {
+                "success": True,
+                "compare_mode": False,
+                "realtime": realtime,
+                "selected_products": products,
+            },
+            simulated=False,
+            basis=basis,
+            note=realtime.get("data_note", ""),
+        )
 
 # =========================================
 # Phase 2: 预测分析 API

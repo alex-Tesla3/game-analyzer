@@ -17,6 +17,7 @@ from auth import (
     verify_password,
 )
 from database import OperationLogRepository, UserRepository
+from password_reset import create_reset_token_for_email, reset_password_with_token
 from src.abuse_guard import (
     client_ip,
     extract_device_id,
@@ -36,6 +37,18 @@ router = APIRouter(tags=["auth"])
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     with open(LOGIN_FILE, 'r', encoding='utf-8') as f:
+        return f.read()
+
+@router.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_page(request: Request):
+    path = os.path.join(BASE_DIR, "templates", "forgot_password.html")
+    with open(path, 'r', encoding='utf-8') as f:
+        return f.read()
+
+@router.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_page(request: Request):
+    path = os.path.join(BASE_DIR, "templates", "reset_password.html")
+    with open(path, 'r', encoding='utf-8') as f:
         return f.read()
 
 @router.get("/admin", response_class=HTMLResponse)
@@ -106,6 +119,28 @@ async def login_for_access_token(request: Request):
 @router.post("/logout")
 async def logout():
     return {"success": True, "message": "Logout successful"}
+
+@router.post("/api/auth/forgot-password")
+async def forgot_password(request: Request):
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="请输入邮箱")
+    _, payload = create_reset_token_for_email(email)
+    response = {"success": True, "message": payload["message"]}
+    if os.getenv("APP_ENV", "development").lower() != "production":
+        dev_url = payload.get("dev_reset_url")
+        if dev_url:
+            response["dev_reset_url"] = dev_url
+    return response
+
+@router.post("/api/auth/reset-password")
+async def reset_password_api(request: Request):
+    body = await request.json()
+    token = (body.get("token") or "").strip()
+    password = body.get("password") or ""
+    ok, message = reset_password_with_token(token, password)
+    return {"success": ok, "message": message}
 
 @router.post("/register")
 async def register_user(request: Request):

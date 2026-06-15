@@ -29,12 +29,25 @@
         <div class="card">
             <h1 style="font-size:1.2rem;margin-bottom:8px;">上传 CSV 指标数据</h1>
             <p class="hint">导入后系统将优先使用您的 DAU、留存、收入等指标（覆盖 Mock）。Steam 口碑仍来自公开评论抓取。必填列：<code>product</code>、<code>metric</code>、<code>值</code>（或 value）。</p>
+            <p class="hint" style="margin-top:10px;padding:12px;background:#243044;border-radius:8px;border-left:3px solid var(--accent);">
+                <strong>路径 / 漏斗：</strong>若 CSV 含 <code>installs</code>、<code>retention_1d/7d/30d</code>，或指标名含「下载 / 注册 / 教程 / 战斗 / 付费」，看板「高级分析」中的漏斗将自动使用<strong>经营漏斗</strong>（非评论样本推导）。
+                仅有商店评论抓取时，无法还原「启动 → 登录 → 教程」等客户端埋点漏斗。详见 <a href="/trust" style="color:var(--accent);">数据说明</a>。
+            </p>
             <input type="file" id="file-input" accept=".csv,.xlsx,.xls">
             <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
                 <button type="button" class="btn btn-primary" id="btn-upload">上传并导入</button>
                 <button type="button" class="btn" id="btn-template">下载 CSV 模板</button>
             </div>
             <p id="status"></p>
+        </div>
+        <div class="card">
+            <h2 style="font-size:1rem;margin-bottom:8px;">漏斗相关指标（可选）</h2>
+            <p class="hint">导入以下类型指标后，看板「漏斗分析」会优先使用经营数据，而非评论样本推导：</p>
+            <ul class="hint" style="padding-left:1.2rem;margin-bottom:12px;">
+                <li>仓库字段：<code>installs</code>、<code>retention_1d</code>、<code>retention_7d</code>、<code>retention_30d</code></li>
+                <li>或指标名列：用户总下载量、注册用户、新手教程完成、首次战斗用户、首次付费用户 等</li>
+            </ul>
+            <p class="hint">Firebase / Adjust 等埋点数据导出为 CSV 后，按上述格式导入即可。</p>
         </div>
         <div class="card">
             <h2 style="font-size:1rem;margin-bottom:8px;">示例格式</h2>

@@ -14,9 +14,13 @@ from src.database import UserRepository
 EXEMPT_PATH_PREFIXES = (
     "/static/",
     "/api/health",
+    "/api/auth/forgot-password",
+    "/api/auth/reset-password",
     "/token",
     "/register",
     "/login",
+    "/forgot-password",
+    "/reset-password",
     "/shared/",
     "/docs",
     "/openapi.json",

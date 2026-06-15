@@ -135,7 +135,7 @@ async def get_mvp_catalog():
         {"id": "steam", "label": "Steam", "crawl_supported": True},
         {"id": "taptap", "label": "TapTap", "crawl_supported": True},
         {"id": "google_play", "label": "Google Play", "crawl_supported": True},
-        {"id": "app_store", "label": "App Store", "crawl_supported": False},
+        {"id": "app_store", "label": "App Store（即将支持）", "crawl_supported": False},
     ]
     markets_by_channel = {
         channel["id"]: list_markets_for_channel(channel["id"])

@@ -683,3 +683,47 @@ body.smp-no-scroll {
     opacity: 0.85;
 }
 .dfg-optional a { color: inherit; text-decoration: underline; }
+
+/* 高级分析 · 路径/漏斗数据说明 */
+.aan-panel {
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    font-size: 0.84rem;
+    line-height: 1.55;
+}
+.aan-theme-light {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    color: #0c4a6e;
+}
+.aan-theme-dark {
+    background: rgba(6, 182, 212, 0.08);
+    border: 1px solid rgba(6, 182, 212, 0.25);
+    color: #cbd5e1;
+}
+.aan-title {
+    margin: 0 0 8px;
+    font-size: 0.9rem;
+    font-weight: 650;
+}
+.aan-intro,
+.aan-focus {
+    margin: 0 0 10px;
+    opacity: 0.95;
+}
+.aan-focus {
+    font-weight: 500;
+}
+.aan-list {
+    margin: 0 0 10px;
+    padding-left: 1.2rem;
+}
+.aan-list li { margin-bottom: 4px; }
+.aan-links {
+    margin: 0;
+    font-size: 0.8rem;
+}
+.aan-theme-light .aan-links a { color: #0369a1; }
+.aan-theme-dark .aan-links a { color: #67e8f9; }
+.aan-links a { text-decoration: underline; }

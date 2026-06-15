@@ -11,13 +11,12 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from auth import PLANS
 from database import OperationLogRepository, OrderRepository
-from src.commercial_config import payment_mode, payment_mode_message
+from src.commercial_config import payment_mode, payment_mode_message, stripe_checkout_available
 from src.plans_catalog import list_plans_for_api
 from src.services.stripe_orders import (
     construct_webhook_event,
     create_checkout_session,
     order_id_from_checkout_event,
-    stripe_checkout_available,
     stripe_webhook_configured,
 )
 from src.web_common import get_current_user, mark_order_paid, verify_payment_signature
