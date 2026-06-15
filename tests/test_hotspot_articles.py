@@ -8,10 +8,14 @@ import pytest_asyncio
 
 from src.services.hotspot_articles import (
     _rule_article_markdown,
+    _rule_suggest_topic,
     _scale_sample_label,
     build_article_fact_pack,
+    create_custom_hotspot_topic,
+    delete_custom_hotspot_topic,
     discover_hotspot_topics,
     generate_hotspot_article,
+    suggest_hotspot_topic,
 )
 from src.web_app import app
 
@@ -67,6 +71,62 @@ async def test_generate_hotspot_article_rule_based(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_generate_hotspot_article_custom_brief(monkeypatch):
+    monkeypatch.setattr("src.services.hotspot_articles.llm_is_configured", lambda: False)
+    brief = "通行证涨价后玩家为何集体差评"
+    result = await generate_hotspot_article(
+        "demo",
+        product_id="730",
+        angle="custom",
+        custom_brief=brief,
+        custom_title=f"《CS2》{brief}？基于样本评论的数据起底",
+    )
+    assert result["success"] is True
+    assert brief in result["markdown"]
+
+
+def test_rule_suggest_topic_revenue():
+    out = _rule_suggest_topic(
+        brief="新版本流水暴跌是否与通行证有关",
+        product_id="730",
+        product_name="CS2",
+        sample_label="1万",
+    )
+    assert out["angle"] == "revenue_decline"
+    assert "CS2" in out["title"]
+
+
+@pytest.mark.asyncio
+async def test_suggest_hotspot_topic_rule_based(monkeypatch):
+    monkeypatch.setattr("src.services.hotspot_articles.llm_is_configured", lambda: False)
+    result = await suggest_hotspot_topic(
+        "demo",
+        brief="氪金通行证引发口碑危机",
+        product_id="730",
+    )
+    assert result["success"] is True
+    assert result["title"]
+    assert result["angle"] in ("monetization_backlash", "sentiment_crash", "custom")
+
+
+def test_custom_hotspot_topic_crud():
+    created = create_custom_hotspot_topic(
+        "demo",
+        product_id="730",
+        title="测试自定义热点",
+        brief="测试问题描述",
+        hook="测试切入点",
+        angle="custom",
+    )
+    assert created["success"] is True
+    topic_id = created["topic"]["topic_id"]
+    topics = discover_hotspot_topics("demo", limit=30)
+    assert any(t.get("topic_id") == topic_id for t in topics)
+    deleted = delete_custom_hotspot_topic("demo", topic_id)
+    assert deleted["success"] is True
+
+
+@pytest.mark.asyncio
 async def test_hotspot_api_flow(api_client, monkeypatch):
     monkeypatch.setattr("src.services.hotspot_articles.llm_is_configured", lambda: False)
     token = (
@@ -82,8 +142,31 @@ async def test_hotspot_api_flow(api_client, monkeypatch):
     payload = topics.json()
     assert payload["success"] is True
     assert payload["topics"]
+    assert payload.get("products")
 
-    first = payload["topics"][0]
+    suggest = await api_client.post(
+        "/api/hotspot/suggest",
+        params={"token": token},
+        json={"brief": "新版本口碑下滑", "product_id": "730"},
+    )
+    assert suggest.status_code == 200, suggest.text
+    assert suggest.json()["title"]
+
+    custom = await api_client.post(
+        "/api/hotspot/custom",
+        params={"token": token},
+        json={
+            "product_id": "730",
+            "title": suggest.json()["title"],
+            "brief": "新版本口碑下滑",
+            "hook": suggest.json().get("hook", ""),
+            "angle": suggest.json().get("angle", "custom"),
+        },
+    )
+    assert custom.status_code == 200, custom.text
+    topic_id = custom.json()["topic"]["topic_id"]
+
+    first = custom.json()["topic"]
     gen = await api_client.post(
         "/api/hotspot/generate",
         params={"token": token},
@@ -109,3 +192,10 @@ async def test_hotspot_api_flow(api_client, monkeypatch):
     assert archived.status_code == 200, archived.text
     assert archived.json()["success"] is True
     assert archived.json()["archive_id"]
+
+    deleted = await api_client.delete(
+        f"/api/hotspot/custom/{topic_id}",
+        params={"token": token},
+    )
+    assert deleted.status_code == 200
+    assert deleted.json()["success"] is True

@@ -914,6 +914,24 @@ def init_database():
             )
             """
         )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS hotspot_custom_topics (
+                topic_id TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                product_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                brief TEXT NOT NULL DEFAULT '',
+                hook TEXT DEFAULT '',
+                angle TEXT DEFAULT 'custom',
+                created_at TEXT,
+                updated_at TEXT
+            )
+            """
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_hotspot_custom_user ON hotspot_custom_topics(username, created_at)"
+        )
         _ensure_sqlite_columns(
             cursor,
             "analysis_archives",

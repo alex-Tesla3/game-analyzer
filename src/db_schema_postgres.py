@@ -463,6 +463,19 @@ POSTGRES_SCHEMA_STATEMENTS = [
         PRIMARY KEY (username, game_id)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS hotspot_custom_topics (
+        topic_id TEXT PRIMARY KEY,
+        username TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        brief TEXT NOT NULL DEFAULT '',
+        hook TEXT DEFAULT '',
+        angle TEXT DEFAULT 'custom',
+        created_at TEXT,
+        updated_at TEXT
+    )
+    """,
     "CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)",
     "CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id)",
     "CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(username)",
@@ -481,5 +494,6 @@ POSTGRES_SCHEMA_STATEMENTS = [
     "CREATE INDEX IF NOT EXISTS idx_login_events_ip ON login_events(ip_address, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_game_library_genre ON game_library(genre)",
     "CREATE INDEX IF NOT EXISTS idx_analysis_archives_user ON analysis_archives(username, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_hotspot_custom_user ON hotspot_custom_topics(username, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_game_version_game ON game_version_history(game_id, released_at)",
 ]

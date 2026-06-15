@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 from collections import Counter
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from auth import LLM_CONFIG, LLM_PROVIDERS
 
+from database import db_manager
 from src.data_resolution import get_user_comments_data, get_user_metrics_data, resolve_user_data_source
 from src.mvp_data import get_mvp_analysis, product_matches, record_product
 from src.services.engagement_funnel import _comments_for_product, _is_positive_comment, _comment_text
@@ -68,6 +70,242 @@ def _provider_label() -> str:
 
 def _product_label(product_id: str, name_map: Dict[str, str]) -> str:
     return name_map.get(product_id) or str(product_id)
+
+
+def _now_iso() -> str:
+    return datetime.now().isoformat()
+
+
+class HotspotCustomTopicRepository:
+    @staticmethod
+    def list_for_user(username: str) -> List[Dict[str, Any]]:
+        rows = db_manager.execute(
+            """
+            SELECT topic_id, username, product_id, title, brief, hook, angle, created_at, updated_at
+            FROM hotspot_custom_topics
+            WHERE username = ?
+            ORDER BY created_at DESC
+            """,
+            (username,),
+        )
+        return [dict(row) for row in rows or []]
+
+    @staticmethod
+    def create(
+        *,
+        username: str,
+        product_id: str,
+        title: str,
+        brief: str = "",
+        hook: str = "",
+        angle: str = "custom",
+    ) -> Dict[str, Any]:
+        topic_id = uuid.uuid4().hex[:16]
+        now = _now_iso()
+        payload = {
+            "topic_id": topic_id,
+            "username": username,
+            "product_id": str(product_id),
+            "title": title.strip(),
+            "brief": brief.strip(),
+            "hook": hook.strip(),
+            "angle": angle or "custom",
+            "created_at": now,
+            "updated_at": now,
+        }
+        db_manager.insert("hotspot_custom_topics", payload)
+        return payload
+
+    @staticmethod
+    def delete(topic_id: str, username: str) -> bool:
+        db_manager.execute(
+            "DELETE FROM hotspot_custom_topics WHERE topic_id = ? AND username = ?",
+            (topic_id, username),
+        )
+        return True
+
+
+def list_hotspot_products(username: str) -> List[Dict[str, str]]:
+    comments = get_user_comments_data(username) or []
+    metrics = get_user_metrics_data(username) or []
+    product_ids: List[str] = []
+    for row in list(comments) + list(metrics):
+        pid = record_product(row)
+        if pid and pid not in product_ids:
+            product_ids.append(pid)
+    if not product_ids:
+        product_ids = ["730", "570"]
+    product_ids.sort(key=lambda pid: len(_comments_for_product(comments, pid)), reverse=True)
+    name_map = build_product_name_map(product_ids, username=username)
+    return [
+        {"product_id": pid, "product_name": _product_label(pid, name_map)}
+        for pid in product_ids
+    ]
+
+
+def _custom_topic_card(row: Dict[str, Any], username: str) -> Dict[str, Any]:
+    name_map = build_product_name_map([row["product_id"]], username=username)
+    product_name = _product_label(row["product_id"], name_map)
+    comments = get_user_comments_data(username) or []
+    sample = len(_comments_for_product(comments, row["product_id"]))
+    return {
+        "id": f"custom:{row['topic_id']}",
+        "topic_id": row["topic_id"],
+        "product_id": row["product_id"],
+        "product_name": product_name,
+        "angle": row.get("angle") or "custom",
+        "title": row["title"],
+        "hook": row.get("hook") or "",
+        "brief": row.get("brief") or "",
+        "sample_size": sample,
+        "source": "custom",
+        "priority": 1000,
+        "data_basis": resolve_user_data_source(username),
+    }
+
+
+def _infer_angle_from_brief(brief: str) -> str:
+    text = brief.lower()
+    if any(k in brief for k in ("流水", "收入", "营收", "暴跌", "下滑")):
+        return "revenue_decline"
+    if any(k in brief for k in ("口碑", "差评", "好评率", "舆论")):
+        return "sentiment_crash"
+    if any(k in brief for k in ("更新", "补丁", "版本", "patch")):
+        return "patch_backlash"
+    if any(k in brief for k in ("氪金", "付费", "通行证", "抽卡", "商业化")):
+        return "monetization_backlash"
+    if any(k in brief for k in ("留存", "流失", "新手", "匹配")):
+        return "retention_risk"
+    if any(k in text for k in ("revenue", "monetization", "retention", "patch")):
+        return "patch_backlash"
+    return "custom"
+
+
+def _rule_suggest_topic(
+    *,
+    brief: str,
+    product_id: str,
+    product_name: str,
+    sample_label: str,
+) -> Dict[str, str]:
+    brief = brief.strip()
+    angle = _infer_angle_from_brief(brief)
+    if angle != "custom":
+        tpl = next((t for t in _TOPIC_TEMPLATES if t["angle"] == angle), None)
+        if tpl:
+            title = tpl["title_tpl"].format(name=product_name, sample=sample_label)
+            hook = tpl["hook"]
+            if brief and brief not in title:
+                hook = brief[:120]
+            return {"title": title, "hook": hook, "angle": angle}
+
+    core = brief[:48] + ("…" if len(brief) > 48 else "")
+    title = f"《{product_name}》{core}？基于 {sample_label} 条玩家评论的数据起底"
+    return {
+        "title": title,
+        "hook": brief[:160] or f"围绕《{product_name}》的自定义热点问题展开数据复盘",
+        "angle": "custom",
+    }
+
+
+async def suggest_hotspot_topic(
+    username: str,
+    *,
+    brief: str,
+    product_id: str,
+) -> Dict[str, Any]:
+    brief = (brief or "").strip()
+    product_id = str(product_id or "").strip()
+    if not brief:
+        return {"success": False, "message": "请描述你想分析的热点问题"}
+    if not product_id:
+        return {"success": False, "message": "请选择产品"}
+
+    facts = build_article_fact_pack(username, product_id)
+    product_name = facts.get("product_name") or product_id
+    sample_label = facts.get("sample_label") or "样本"
+    fallback = _rule_suggest_topic(
+        brief=brief,
+        product_id=product_id,
+        product_name=product_name,
+        sample_label=sample_label,
+    )
+    using_llm = False
+    llm_error = None
+
+    if llm_is_configured():
+        prompt = (
+            "你是游戏行业选题编辑。根据用户描述的热点问题与产品事实，生成吸引人的深度分析标题与导语。\n"
+            "要求：\n"
+            "1. 标题参考「为什么《XX》…？基于 N 条玩家评论的数据起底」风格，但不要捏造未给出的收入数字。\n"
+            "2. hook 为 1-2 句分析切入点。\n"
+            "3. angle 从 revenue_decline|sentiment_crash|patch_backlash|monetization_backlash|retention_risk|custom 中选最贴切的一个。\n"
+            "4. 只输出 JSON："
+            '{"title":"...","hook":"...","angle":"..."}\n\n'
+            f"用户问题：{brief}\n"
+            f"产品：{product_name}（样本 {sample_label} 条）\n"
+            f"事实摘要：{json.dumps({'sentiment': facts.get('sentiment'), 'themes': facts.get('theme_counts')}, ensure_ascii=False)}"
+        )
+        try:
+            raw = await complete_prompt_with_retry(prompt, max_tokens=600, retries=1)
+            parsed = parse_json_from_llm(raw)
+            if isinstance(parsed, dict) and parsed.get("title"):
+                fallback = {
+                    "title": clean_llm_report_text(str(parsed["title"])),
+                    "hook": clean_llm_report_text(str(parsed.get("hook") or "")),
+                    "angle": str(parsed.get("angle") or fallback["angle"]),
+                }
+                using_llm = True
+            else:
+                llm_error = "AI 输出解析失败，已使用规则建议"
+        except Exception as exc:
+            llm_error = str(exc)
+
+    return {
+        "success": True,
+        "title": fallback["title"],
+        "hook": fallback["hook"],
+        "angle": fallback["angle"],
+        "brief": brief,
+        "product_id": product_id,
+        "product_name": product_name,
+        "using_llm": using_llm,
+        "llm_error": llm_error,
+    }
+
+
+def create_custom_hotspot_topic(
+    username: str,
+    *,
+    product_id: str,
+    title: str,
+    brief: str = "",
+    hook: str = "",
+    angle: str = "custom",
+) -> Dict[str, Any]:
+    title = (title or "").strip()
+    product_id = str(product_id or "").strip()
+    if not product_id:
+        return {"success": False, "message": "请选择产品"}
+    if not title:
+        return {"success": False, "message": "请填写标题"}
+    row = HotspotCustomTopicRepository.create(
+        username=username,
+        product_id=product_id,
+        title=title,
+        brief=(brief or title).strip(),
+        hook=hook.strip(),
+        angle=angle or "custom",
+    )
+    return {"success": True, "topic": _custom_topic_card(row, username)}
+
+
+def delete_custom_hotspot_topic(username: str, topic_id: str) -> Dict[str, Any]:
+    topic_id = (topic_id or "").strip()
+    if not topic_id:
+        return {"success": False, "message": "topic_id 必填"}
+    HotspotCustomTopicRepository.delete(topic_id, username)
+    return {"success": True}
 
 
 def _scale_sample_label(count: int) -> str:
@@ -153,6 +391,7 @@ def build_article_fact_pack(
     product_id: str,
     *,
     angle: str = "revenue_decline",
+    custom_brief: Optional[str] = None,
 ) -> Dict[str, Any]:
     comments = get_user_comments_data(username) or []
     metrics = get_user_metrics_data(username) or []
@@ -170,7 +409,7 @@ def build_article_fact_pack(
             product_report = report
             break
 
-    return {
+    pack = {
         "product_id": product_id,
         "product_name": product_name,
         "angle": angle,
@@ -188,6 +427,9 @@ def build_article_fact_pack(
         },
         "generated_at": datetime.now().isoformat(),
     }
+    if custom_brief:
+        pack["custom_brief"] = custom_brief.strip()
+    return pack
 
 
 def _angle_priority(angle: str, scoped_comments: Sequence[Dict[str, Any]]) -> int:
@@ -217,6 +459,12 @@ def _angle_priority(angle: str, scoped_comments: Sequence[Dict[str, Any]]) -> in
 
 
 def discover_hotspot_topics(username: str, *, limit: int = 12) -> List[Dict[str, Any]]:
+    custom_cards = [
+        _custom_topic_card(row, username)
+        for row in HotspotCustomTopicRepository.list_for_user(username)
+    ]
+    auto_limit = max(0, limit - len(custom_cards))
+
     comments = get_user_comments_data(username) or []
     metrics = get_user_metrics_data(username) or []
     name_map = build_product_name_map(username=username)
@@ -258,12 +506,13 @@ def discover_hotspot_topics(username: str, *, limit: int = 12) -> List[Dict[str,
                     "hook": tpl["hook"],
                     "sample_size": sample,
                     "priority": _angle_priority(tpl["angle"], scoped),
+                    "source": "auto",
                     "data_basis": resolve_user_data_source(username),
                 }
             )
 
     topics.sort(key=lambda row: (row.get("priority", 0), row.get("sample_size", 0)), reverse=True)
-    return topics[:limit]
+    return custom_cards + topics[:auto_limit]
 
 
 def _rule_article_markdown(facts: Dict[str, Any]) -> str:
@@ -282,8 +531,10 @@ def _rule_article_markdown(facts: Dict[str, Any]) -> str:
         "patch_backlash": f"一次更新引发的增长危机：《{name}》全网评论复盘",
         "monetization_backlash": f"氪金争议如何拖累《{name}》？评论样本里的商业化信号",
         "retention_risk": f"《{name}》留存告急？从评论样本看流失前兆",
+        "custom": facts.get("custom_brief") or f"《{name}》行业热点深度复盘",
     }.get(facts.get("angle"), f"《{name}》行业热点深度复盘")
 
+    custom_brief = (facts.get("custom_brief") or "").strip()
     lines = [
         f"# {title_angle}",
         "",
@@ -292,12 +543,17 @@ def _rule_article_markdown(facts: Dict[str, Any]) -> str:
         "",
         "## 一、热点背景",
         "",
+    ]
+    if custom_brief:
+        lines.append(f"**自定义分析焦点**：{custom_brief}")
+        lines.append("")
+    lines.extend([
         f"围绕《{name}》，近期社区讨论集中在版本体验、商业化与匹配质量等议题。"
         " 以下分析将评论情绪结构与主题频次对齐，帮助判断舆情是否可能向收入与留存传导。",
         "",
         "## 二、玩家情绪光谱",
         "",
-    ]
+    ])
     if pos_rate is not None:
         lines.append(
             f"- 样本好评率约 **{pos_rate}%**（正面 {sentiment.get('positive', 0)} / "
@@ -362,12 +618,14 @@ async def generate_hotspot_article(
     product_id: str,
     angle: str = "revenue_decline",
     custom_title: Optional[str] = None,
+    custom_brief: Optional[str] = None,
 ) -> Dict[str, Any]:
     product_id = str(product_id or "").strip()
     if not product_id:
         return {"success": False, "message": "请选择产品"}
 
-    facts = build_article_fact_pack(username, product_id, angle=angle)
+    brief = (custom_brief or "").strip() or None
+    facts = build_article_fact_pack(username, product_id, angle=angle, custom_brief=brief)
     name_map = build_product_name_map([product_id], username=username)
     product_name = _product_label(product_id, name_map)
 
@@ -377,7 +635,7 @@ async def generate_hotspot_article(
             for t in _TOPIC_TEMPLATES
             if t["angle"] == angle
         ),
-        f"《{product_name}》行业热点深度分析",
+        (brief[:60] + "…") if brief and len(brief) > 60 else (brief or f"《{product_name}》行业热点深度分析"),
     )
     title = (custom_title or "").strip() or default_title
 
@@ -386,6 +644,9 @@ async def generate_hotspot_article(
     markdown = _rule_article_markdown({**facts, "product_name": product_name})
 
     if llm_is_configured():
+        custom_focus = ""
+        if brief:
+            custom_focus = f"\n用户自定义分析焦点：{brief}\n请全文围绕该问题组织论证，并在「热点背景」中复述该焦点。\n"
         prompt = (
             "你是资深游戏行业数据记者，擅长写「热点起底」式深度分析长文。\n"
             "根据下列事实 JSON（评论样本统计、主题、公开新闻、指标摘要）撰写文章。\n"
@@ -395,7 +656,8 @@ async def generate_hotspot_article(
             "3. 结构含：热点背景、数据样本说明、情绪与主题、版本/舆情关联、对流水/留存的影响推演、运营建议。\n"
             "4. 引用 1-3 条 sample_quotes 时要保留 [正面]/[负面] 标注。\n"
             "5. 只输出 JSON："
-            '{"title":"...","summary":"80-120字导语","markdown":"完整 Markdown 正文（含 ## 小节）"}\n\n'
+            '{"title":"...","summary":"80-120字导语","markdown":"完整 Markdown 正文（含 ## 小节）"}\n'
+            f"{custom_focus}\n"
             f"{json.dumps(facts, ensure_ascii=False)}"
         )
         try:

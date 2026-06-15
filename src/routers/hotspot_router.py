@@ -11,8 +11,12 @@ from fastapi.responses import HTMLResponse
 from src.services.analysis_archive import AnalysisArchiveRepository
 from src.services.hotspot_articles import (
     build_article_fact_pack,
+    create_custom_hotspot_topic,
+    delete_custom_hotspot_topic,
     discover_hotspot_topics,
     generate_hotspot_article,
+    list_hotspot_products,
+    suggest_hotspot_topic,
 )
 from src.web_common import get_current_user
 from src.web_constants import BASE_DIR
@@ -42,8 +46,56 @@ async def list_hotspot_topics(
     return {
         "success": True,
         "topics": topics,
+        "products": list_hotspot_products(user.username),
         "data_basis": topics[0]["data_basis"] if topics else "empty",
     }
+
+
+@router.post("/api/hotspot/suggest")
+async def hotspot_suggest(
+    request: Request,
+    token: Optional[str] = Query(None),
+    body: Dict[str, Any] = Body(default_factory=dict),
+):
+    user = await get_current_user(request, token)
+    result = await suggest_hotspot_topic(
+        user.username,
+        brief=str(body.get("brief") or ""),
+        product_id=str(body.get("product_id") or ""),
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message") or "建议失败")
+    return result
+
+
+@router.post("/api/hotspot/custom")
+async def hotspot_custom_create(
+    request: Request,
+    token: Optional[str] = Query(None),
+    body: Dict[str, Any] = Body(default_factory=dict),
+):
+    user = await get_current_user(request, token)
+    result = create_custom_hotspot_topic(
+        user.username,
+        product_id=str(body.get("product_id") or ""),
+        title=str(body.get("title") or ""),
+        brief=str(body.get("brief") or ""),
+        hook=str(body.get("hook") or ""),
+        angle=str(body.get("angle") or "custom"),
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message") or "添加失败")
+    return result
+
+
+@router.delete("/api/hotspot/custom/{topic_id}")
+async def hotspot_custom_delete(
+    topic_id: str,
+    request: Request,
+    token: Optional[str] = Query(None),
+):
+    user = await get_current_user(request, token)
+    return delete_custom_hotspot_topic(user.username, topic_id)
 
 
 @router.get("/api/hotspot/facts")
@@ -73,6 +125,7 @@ async def hotspot_generate(
         product_id=product_id,
         angle=str(body.get("angle") or "revenue_decline"),
         custom_title=(body.get("title") or "").strip() or None,
+        custom_brief=(body.get("brief") or "").strip() or None,
     )
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("message") or "生成失败")
