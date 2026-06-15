@@ -12,6 +12,7 @@
         { id: "work", label: "落地指导", href: "/work" },
         { id: "library", label: "资料库", href: "/games/library" },
         { id: "comments", label: "评论分析", href: "/comments" },
+        { id: "hotspot", label: "热点深析", href: "/hotspot" },
         { id: "metrics", label: "指标详情", href: "/metrics" },
         { id: "import", label: "导入指标", href: "/import" },
         { id: "mvp", label: "真实竞品", href: "/mvp" },
@@ -35,6 +36,7 @@
         if (path.indexOf("/work") === 0) return "work";
         if (path.indexOf("/games/library") === 0) return "library";
         if (path.indexOf("/comments") === 0) return "comments";
+        if (path.indexOf("/hotspot") === 0) return "hotspot";
         if (path.indexOf("/metrics") === 0) return "metrics";
         if (path.indexOf("/import") === 0) return "import";
         if (path.indexOf("/mvp") === 0) return "mvp";

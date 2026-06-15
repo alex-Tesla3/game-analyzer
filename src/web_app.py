@@ -72,6 +72,7 @@ from src.routers.products_router import router as products_router
 from src.routers.support_router import router as support_router
 from src.routers.speech_router import router as speech_router
 from src.routers.wizard_router import router as wizard_router
+from src.routers.hotspot_router import router as hotspot_router
 from src.routers.competitor_router import router as competitor_router
 from src.routers.game_intel_router import router as game_intel_router
 from src.routers.health_router import router as health_router
@@ -197,6 +198,7 @@ app.include_router(pages_router)
 app.include_router(support_router)
 app.include_router(speech_router)
 app.include_router(wizard_router)
+app.include_router(hotspot_router)
 
 # Legacy routes read ?token=; authFetch sends Authorization: Bearer only.
 app.add_middleware(BearerTokenQueryBridgeMiddleware)

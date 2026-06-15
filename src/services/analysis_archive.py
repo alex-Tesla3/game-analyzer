@@ -13,6 +13,7 @@ ARCHIVE_CATEGORIES = [
     "竞品分析",
     "玩法拆解",
     "数据复盘",
+    "行业热点",
     "综合报告",
     "其他",
 ]
@@ -21,6 +22,7 @@ SCENARIO_CATEGORY_MAP = {
     "competitor": "竞品分析",
     "breakdown": "玩法拆解",
     "review": "数据复盘",
+    "hotspot": "行业热点",
     "daily": "数据复盘",
     "weekly": "数据复盘",
     "monthly": "数据复盘",

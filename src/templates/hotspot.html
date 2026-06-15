@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>行业热点深度分析</title>
+    <link rel="stylesheet" href="/static/css/analysis-guide.css">
+    <link rel="stylesheet" href="/static/css/scenario-workspace.css">
+    <script src="/static/js/auth-token.js"></script>
+    <script src="/static/js/data-provenance.js"></script>
+    <script src="/static/js/app-nav.js" defer></script>
+    <script src="/static/js/markdown-preview.js"></script>
+    <style>
+        :root {
+            --bg: #0f1419; --panel: #1a2332; --text: #e7ecf3; --muted: #94a3b8;
+            --accent: #f59e0b; --accent2: #06b6d4; --border: rgba(255,255,255,0.08);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .page { max-width: 1100px; margin: 0 auto; padding: 20px 24px 48px; }
+        .hero { margin: 16px 0 24px; }
+        .hero h1 { font-size: 1.45rem; margin-bottom: 8px; }
+        .hero p { color: var(--muted); line-height: 1.6; font-size: 0.92rem; }
+        .grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+        @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+        .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
+        .panel h2 { font-size: 1rem; margin-bottom: 12px; }
+        .topic-list { display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow-y: auto; }
+        .topic-card {
+            border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; cursor: pointer;
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .topic-card:hover { border-color: rgba(245,158,11,0.45); }
+        .topic-card.active { border-color: var(--accent); background: rgba(245,158,11,0.1); }
+        .topic-card h3 { font-size: 0.88rem; line-height: 1.45; margin-bottom: 6px; }
+        .topic-meta { font-size: 0.75rem; color: var(--muted); }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; align-items: center; }
+        .btn {
+            border: 1px solid var(--border); background: #243044; color: var(--text);
+            padding: 9px 16px; border-radius: 10px; cursor: pointer; font-size: 0.875rem;
+        }
+        .btn-primary { background: linear-gradient(135deg, var(--accent), #d97706); border: none; color: #111; font-weight: 600; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .status { font-size: 0.82rem; color: var(--muted); min-height: 1.2em; }
+        .article-shell { min-height: 360px; }
+        .article-shell .md-preview { line-height: 1.7; font-size: 0.95rem; }
+        .article-shell .md-preview h2 { margin: 1.2em 0 0.5em; font-size: 1.15rem; color: #fcd34d; }
+        .article-shell .md-preview h3 { margin: 1em 0 0.4em; font-size: 1rem; }
+        .article-shell .md-preview blockquote.lead { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--muted); margin-bottom: 1em; }
+        .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; background: rgba(6,182,212,0.15); color: #67e8f9; margin-left: 6px; }
+        .aan-panel { margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+    <div id="app-nav-mount"></div>
+    <div class="page">
+        <div class="hero">
+            <h1>🔥 行业热点深度分析</h1>
+            <p>
+                AI 结合平台内评论样本、指标摘要与 Steam 公开新闻，自动生成「热点起底」式长文。
+                标题示例：<em>为什么《XX》新版本流水暴跌？基于 N 条玩家评论的数据起底</em>。
+                样本不足时请先在 <a href="/mvp" style="color:#67e8f9;">/mvp</a> 抓取或 <a href="/import" style="color:#67e8f9;">导入数据</a>。
+            </p>
+            <div id="hotspot-notice"></div>
+        </div>
+        <div class="grid">
+            <aside class="panel">
+                <h2>热点选题</h2>
+                <div class="status" id="topics-status">加载中…</div>
+                <div class="topic-list" id="topic-list"></div>
+            </aside>
+            <main class="panel">
+                <div class="toolbar">
+                    <button class="btn btn-primary" id="btn-generate" disabled>✨ AI 生成深度文章</button>
+                    <button class="btn" id="btn-archive" disabled>📁 存入复盘归档</button>
+                    <button class="btn" id="btn-copy-md" disabled>复制 Markdown</button>
+                    <span class="status" id="gen-status"></span>
+                </div>
+                <div class="article-shell" id="article-view">
+                    <div class="empty">← 选择左侧热点选题，点击「AI 生成深度文章」</div>
+                </div>
+            </main>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var selected = null;
+            var lastArticle = null;
+            var token = window.getAuthToken && window.getAuthToken();
+
+            function esc(s) {
+                var d = document.createElement("div");
+                d.textContent = s || "";
+                return d.innerHTML;
+            }
+
+            function authFetch(url, opts) {
+                opts = opts || {};
+                opts.headers = opts.headers || {};
+                if (token) opts.headers.Authorization = "Bearer " + token;
+                var sep = url.indexOf("?") >= 0 ? "&" : "?";
+                return fetch(url + sep + "token=" + encodeURIComponent(token || ""), opts);
+            }
+
+            function renderTopics(topics) {
+                var list = document.getElementById("topic-list");
+                if (!topics.length) {
+                    list.innerHTML = '<div class="empty">暂无选题。请先抓取评论数据。</div>';
+                    return;
+                }
+                list.innerHTML = topics.map(function (t) {
+                    return (
+                        '<div class="topic-card" data-id="' + esc(t.id) + '">' +
+                        '<h3>' + esc(t.title) + '</h3>' +
+                        '<div class="topic-meta">' + esc(t.product_name) +
+                        ' · 样本 ' + (t.sample_size || 0) + ' 条' +
+                        (t.data_basis ? ' · ' + esc(t.data_basis) : '') +
+                        '</div></div>'
+                    );
+                }).join("");
+                list.querySelectorAll(".topic-card").forEach(function (el) {
+                    el.addEventListener("click", function () {
+                        list.querySelectorAll(".topic-card").forEach(function (c) { c.classList.remove("active"); });
+                        el.classList.add("active");
+                        var id = el.getAttribute("data-id");
+                        selected = topics.find(function (x) { return x.id === id; }) || null;
+                        document.getElementById("btn-generate").disabled = !selected;
+                    });
+                });
+            }
+
+            async function loadTopics() {
+                var status = document.getElementById("topics-status");
+                try {
+                    var res = await authFetch("/api/hotspot/topics");
+                    var data = await res.json();
+                    if (!data.success) throw new Error(data.message || "加载失败");
+                    status.textContent = "共 " + (data.topics || []).length + " 个选题 · 数据来源 " + (data.data_basis || "—");
+                    renderTopics(data.topics || []);
+                    if (window.DataProvenance && data.data_basis) {
+                        window.DataProvenance.renderBanner && window.DataProvenance.renderBanner("hotspot-notice", data.data_basis);
+                    }
+                } catch (e) {
+                    status.textContent = "加载失败：" + (e.message || e);
+                }
+            }
+
+            async function generateArticle() {
+                if (!selected) return;
+                var btn = document.getElementById("btn-generate");
+                var genStatus = document.getElementById("gen-status");
+                var view = document.getElementById("article-view");
+                btn.disabled = true;
+                genStatus.textContent = "正在生成，请稍候…";
+                view.innerHTML = '<div class="empty">AI 撰写中…</div>';
+                try {
+                    var res = await authFetch("/api/hotspot/generate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            product_id: selected.product_id,
+                            angle: selected.angle,
+                            title: selected.title,
+                        }),
+                    });
+                    var data = await res.json();
+                    if (!data.success) throw new Error(data.message || "生成失败");
+                    lastArticle = data;
+                    var badge = data.using_llm
+                        ? '<span class="badge">AI</span>'
+                        : '<span class="badge">规则引擎</span>';
+                    var html = (window.MarkdownPreview && window.MarkdownPreview.render(data.markdown)) || data.html || "";
+                    view.innerHTML = '<h2 style="margin-bottom:12px;font-size:1.1rem;">' + esc(data.title) + badge + "</h2>" + html;
+                    genStatus.textContent = data.using_llm
+                        ? "AI 长文已生成（" + (data.llm_provider || "") + "）"
+                        : (data.llm_error || "规则引擎初稿（可配置 LLM 获得更佳文风）");
+                    document.getElementById("btn-archive").disabled = false;
+                    document.getElementById("btn-copy-md").disabled = false;
+                } catch (e) {
+                    genStatus.textContent = "失败：" + (e.message || e);
+                    view.innerHTML = '<div class="empty">生成失败</div>';
+                } finally {
+                    btn.disabled = !selected;
+                }
+            }
+
+            async function archiveArticle() {
+                if (!lastArticle) return;
+                var res = await authFetch("/api/hotspot/archive", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        title: lastArticle.title,
+                        markdown: lastArticle.markdown,
+                        html: lastArticle.html,
+                        product_id: lastArticle.product_id,
+                        angle: lastArticle.angle,
+                        facts: lastArticle.facts,
+                    }),
+                });
+                var data = await res.json();
+                document.getElementById("gen-status").textContent = data.success
+                    ? "已存入复盘归档，可在 /games/review 查看"
+                    : "归档失败";
+            }
+
+            document.getElementById("btn-generate").addEventListener("click", generateArticle);
+            document.getElementById("btn-archive").addEventListener("click", archiveArticle);
+            document.getElementById("btn-copy-md").addEventListener("click", function () {
+                if (!lastArticle || !lastArticle.markdown) return;
+                navigator.clipboard.writeText(lastArticle.markdown);
+                document.getElementById("gen-status").textContent = "Markdown 已复制";
+            });
+
+            if (window.AppNav) {
+                document.getElementById("app-nav-mount").innerHTML = window.AppNav.render("hotspot");
+                window.AppNav.bind();
+            }
+            if (!token) {
+                location.href = "/login?next=" + encodeURIComponent("/hotspot");
+                return;
+            }
+            loadTopics();
+        })();
+    </script>
+</body>
+</html>
