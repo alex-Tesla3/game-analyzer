@@ -126,6 +126,8 @@ def resolve_user_data_source(username: str) -> str:
         cached_metrics and cached_metrics_usable(cached_metrics)
     ):
         return "cached"
+    if comments_dataset_usable(get_comments_data()) or cached_metrics_usable(get_metrics_data()):
+        return "mock_data"
     return "empty"
 
 
@@ -142,7 +144,7 @@ def get_user_comments_data(username: str) -> List[Dict]:
     if cached and comments_dataset_usable(cached):
         return _strip_repo_fields(cached, ("id", "cached_at"))
 
-    return []
+    return get_comments_data()
 
 
 def get_user_metrics_data(username: str) -> List[Dict]:
@@ -158,4 +160,4 @@ def get_user_metrics_data(username: str) -> List[Dict]:
     if cached and cached_metrics_usable(cached):
         return _strip_repo_fields(cached, ("id", "cached_at"))
 
-    return []
+    return get_metrics_data()

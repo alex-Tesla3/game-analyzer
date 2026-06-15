@@ -740,36 +740,61 @@ async def get_advanced_dashboard(
             note=basis_notes[0] if basis_notes else "",
         )
     else:
+        filtered_metrics = _filter_metrics_by_products(metrics, products)
         product_key = products[0] if products and products != ["all"] else "all"
-        if product_key == "all":
-            filtered_metrics = _filter_metrics_by_products(metrics, products)
-            realtime = analytics['realtime'].calculate_real_time_metrics(filtered_metrics)
-            return _annotate_advanced_response(
-                {
-                    "success": True,
-                    "compare_mode": False,
-                    "realtime": realtime,
-                    "selected_products": products,
-                },
-                simulated=True,
-                basis="mock_data",
-                note="未选择具体产品时无法展示真实评论样本趋势，当前为演示模板。",
-            )
 
-        realtime, basis, simulated = resolve_realtime_for_product(product_key, comments, metrics)
-        if simulated:
-            filtered_metrics = _filter_metrics_by_products(metrics, products)
-            realtime = analytics['realtime'].calculate_real_time_metrics(filtered_metrics)
-            return _annotate_advanced_response(
-                {
-                    "success": True,
-                    "compare_mode": False,
-                    "realtime": realtime,
-                    "selected_products": products,
-                },
-                simulated=True,
-                basis="mock_data",
-                note="当前账号尚无足够抓取/导入数据，请先于 /mvp 抓取或导入 CSV。",
+        journey, journey_basis, journey_simulated = (
+            resolve_journey_for_product(product_key, comments, metrics)
+            if product_key != "all"
+            else (None, "mock_data", True)
+        )
+        if journey_simulated or not journey:
+            journey = analytics["journey"].analyze_user_journey(products=products)
+            journey_simulated = True
+            journey_basis = "mock_data"
+
+        funnel, funnel_basis, funnel_simulated = (
+            resolve_funnel_for_product(product_key, comments, metrics)
+            if product_key != "all"
+            else (None, "mock_data", True)
+        )
+        if funnel_simulated or not funnel:
+            funnel = analytics["funnel"].create_funnel(products=products)
+            funnel_simulated = True
+            funnel_basis = "mock_data"
+
+        cohort, cohort_basis, cohort_simulated = (
+            resolve_cohort_for_product(product_key, comments, metrics)
+            if product_key != "all"
+            else (None, "mock_data", True)
+        )
+        if cohort_simulated or not cohort:
+            cohort = analytics["cohort"].create_cohort(products=products)
+            cohort_simulated = True
+            cohort_basis = "mock_data"
+
+        alerts = analytics["anomaly"].get_active_alerts(products)
+
+        if product_key == "all":
+            realtime = analytics["realtime"].calculate_real_time_metrics(filtered_metrics)
+            simulated_any = True
+            basis = _advanced_data_basis(current_user.username)
+            if basis == "empty":
+                basis = "mock_data"
+            note = "未选择具体产品时路径/漏斗/群组为演示模板；实时 KPI 来自指标样本或演示数据。"
+        else:
+            realtime, rt_basis, rt_simulated = resolve_realtime_for_product(
+                product_key, comments, metrics
+            )
+            if rt_simulated:
+                realtime = analytics["realtime"].calculate_real_time_metrics(filtered_metrics)
+            simulated_any = rt_simulated or journey_simulated or funnel_simulated or cohort_simulated
+            basis_values = {rt_basis, journey_basis, funnel_basis, cohort_basis} - {"mock_data"}
+            basis = next(iter(basis_values)) if len(basis_values) == 1 else (
+                "mixed" if basis_values else "mock_data"
+            )
+            note = realtime.get("data_note", "") if not rt_simulated else (
+                "当前账号尚无足够抓取/导入数据，请先于 /mvp 抓取或导入 CSV。"
             )
 
         return _annotate_advanced_response(
@@ -777,11 +802,15 @@ async def get_advanced_dashboard(
                 "success": True,
                 "compare_mode": False,
                 "realtime": realtime,
+                "journey": journey,
+                "funnel": funnel,
+                "cohort": cohort,
+                "alerts": alerts,
                 "selected_products": products,
             },
-            simulated=False,
+            simulated=simulated_any,
             basis=basis,
-            note=realtime.get("data_note", ""),
+            note=note,
         )
 
 # =========================================
