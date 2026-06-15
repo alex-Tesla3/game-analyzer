@@ -34,6 +34,13 @@ def test_registry_last_beacon_google_play_alias():
     assert out["app_ids"] == ["com.hnhs.endlesssea.gp"]
 
 
+def test_registry_sausage_man_google_play_alias():
+    out = resolve_google_play_inputs("Sausage Man")
+    assert out["success"] is True
+    assert out["app_ids"] == ["com.GlobalSoFunny.Sausage"]
+    assert out["resolved"][0]["via"] == "alias"
+
+
 def test_registry_last_war_taptap_alias():
     out = resolve_taptap_inputs("last war")
     assert out["success"] is True

@@ -47,12 +47,17 @@ _ALIASES: Dict[str, str] = {
     "pubg mobile": "com.tencent.ig",
     "崩坏星穹铁道": "com.HoYoverse.hkrpgoversea",
     "星穹铁道": "com.HoYoverse.hkrpgoversea",
+    "sausage man": "com.GlobalSoFunny.Sausage",
+    "sausageman": "com.GlobalSoFunny.Sausage",
+    "香肠派对": "com.GlobalSoFunny.Sausage",
+    "香肠人": "com.GlobalSoFunny.Sausage",
 }
 
 _DEMO_GAMES: Dict[str, str] = {
     "com.miHoYo.GenshinImpact": "原神",
     "com.levelinfinite.sgameGlobal": "王者荣耀国际服",
     "com.tencent.tmgp.pubgmhd": "和平精英",
+    "com.GlobalSoFunny.Sausage": "Sausage Man",
 }
 
 
@@ -126,6 +131,16 @@ class GooglePlayPublicCrawler:
             return out[:limit]
         except Exception:
             return self._offline_search(query, limit=limit)
+
+    def search_with_fallback(self, term: str, *, limit: int = 8) -> List[Dict[str, Any]]:
+        primary = self.search(term, limit=limit)
+        best = _pick_best_search_hit(term, primary)
+        if best and _score_search_hit(term, best) >= 50:
+            return primary[:limit]
+        merged = _search_gplay_multi_market(term, limit=limit)
+        if merged:
+            return merged[:limit]
+        return primary
 
     def _offline_search(self, query: str, *, limit: int) -> List[Dict[str, Any]]:
         hits: List[Dict[str, Any]] = []
@@ -411,13 +426,64 @@ def _extract_package_id(token: str) -> Optional[str]:
     return None
 
 
+def _normalize_search_query(query: str) -> str:
+    return re.sub(r"\s+", " ", (query or "").strip().lower())
+
+
+def _score_search_hit(query: str, hit: Dict[str, Any]) -> int:
+    q = _normalize_search_query(query)
+    name = _normalize_search_query(str(hit.get("name") or ""))
+    if not q or not name:
+        return 0
+    if name == q:
+        return 100
+    if q in name:
+        score = 85
+    else:
+        words = [w for w in q.split() if len(w) >= 2]
+        matched = sum(1 for w in words if w in name)
+        score = matched * 30 if words else 0
+    if "beta" in name and "beta" not in q:
+        score -= 30
+    if "legend" in name and "legend" not in q and "sausage" in q:
+        score -= 15
+    return score
+
+
+def _pick_best_search_hit(query: str, hits: Sequence[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not hits:
+        return None
+    ranked = sorted(hits, key=lambda row: _score_search_hit(query, row), reverse=True)
+    best = ranked[0]
+    if _score_search_hit(query, best) > 0:
+        return best
+    return hits[0]
+
+
+def _search_gplay_multi_market(term: str, *, limit: int = 8) -> List[Dict[str, Any]]:
+    """Merge Play Store search hits across regions when US results miss exact title matches."""
+    merged: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+    for market in ("us", "sg", "tw", "hk", "cn"):
+        for hit in GooglePlayPublicCrawler(market_country=market).search(term, limit=min(limit, 8)):
+            pkg = str(hit.get("package_id") or "")
+            if pkg and pkg not in seen:
+                seen.add(pkg)
+                merged.append(hit)
+        best = _pick_best_search_hit(term, merged)
+        if best and _score_search_hit(term, best) >= 50:
+            break
+    return merged
+
+
 def search_google_play_games(
     term: str,
     *,
     limit: int = 8,
     market_country: str = "us",
 ) -> List[Dict[str, Any]]:
-    return GooglePlayPublicCrawler(market_country=market_country).search(term, limit=limit)
+    crawler = GooglePlayPublicCrawler(market_country=market_country)
+    return crawler.search_with_fallback(term, limit=limit)
 
 
 def split_input_tokens(raw: Sequence[str] | str) -> List[str]:
@@ -474,11 +540,11 @@ def resolve_google_play_inputs(raw: Sequence[str] | str, *, max_games: int = 5) 
                 }
             )
             continue
-        hits = search_google_play_games(token, limit=5)
+        hits = search_google_play_games(token, limit=8)
         if not hits:
             errors.append(f"未找到 Google Play 游戏：{token}")
             continue
-        pick = hits[0]
+        pick = _pick_best_search_hit(token, hits) or hits[0]
         pkg = str(pick.get("package_id") or "")
         if pkg and pkg not in app_ids:
             app_ids.append(pkg)
@@ -488,6 +554,7 @@ def resolve_google_play_inputs(raw: Sequence[str] | str, *, max_games: int = 5) 
                     "app_id": pkg,
                     "name": pick.get("name"),
                     "via": "search",
+                    "match_score": _score_search_hit(token, pick),
                 }
             )
 
