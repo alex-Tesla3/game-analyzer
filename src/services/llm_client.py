@@ -76,7 +76,7 @@ def _ollama_error_message(response: Any, model: str, base: str) -> str:
     return f"Ollama 请求失败（HTTP {status}）{(': ' + err_text) if err_text else ''}"
 
 
-async def call_openai_api(prompt: str, api_key: str, model: str, endpoint: str, *, max_tokens: int = 500) -> str:
+async def call_openai_api(prompt: str, api_key: str, model: str, endpoint: str, *, max_tokens: int = 500, http_timeout: float = 60.0) -> str:
     import httpx
 
     if not api_key:
@@ -91,12 +91,12 @@ async def call_openai_api(prompt: str, api_key: str, model: str, endpoint: str, 
     }
 
     async with httpx.AsyncClient() as client:
-        response = await client.post(url, headers=headers, json=data, timeout=60.0)
+        response = await client.post(url, headers=headers, json=data, timeout=http_timeout)
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"]
 
 
-async def call_anthropic_api(prompt: str, api_key: str, model: str, *, max_tokens: int = 500) -> str:
+async def call_anthropic_api(prompt: str, api_key: str, model: str, *, max_tokens: int = 500, http_timeout: float = 60.0) -> str:
     import httpx
 
     if not api_key:
@@ -115,12 +115,12 @@ async def call_anthropic_api(prompt: str, api_key: str, model: str, *, max_token
     }
 
     async with httpx.AsyncClient() as client:
-        response = await client.post(url, headers=headers, json=data, timeout=60.0)
+        response = await client.post(url, headers=headers, json=data, timeout=http_timeout)
         response.raise_for_status()
         return response.json()["content"][0]["text"]
 
 
-async def call_gemini_api(prompt: str, api_key: str, model: str, *, max_tokens: int = 500) -> str:
+async def call_gemini_api(prompt: str, api_key: str, model: str, *, max_tokens: int = 500, http_timeout: float = 60.0) -> str:
     import httpx
 
     if not api_key:
@@ -133,7 +133,7 @@ async def call_gemini_api(prompt: str, api_key: str, model: str, *, max_tokens: 
     }
 
     async with httpx.AsyncClient() as client:
-        response = await client.post(url, headers={"Content-Type": "application/json"}, json=data, timeout=60.0)
+        response = await client.post(url, headers={"Content-Type": "application/json"}, json=data, timeout=http_timeout)
         response.raise_for_status()
         return response.json()["candidates"][0]["content"]["parts"][0]["text"]
 
@@ -192,26 +192,34 @@ async def call_ollama_api(prompt: str, model: str, endpoint: str, *, max_tokens:
         raise RuntimeError(last_error or f"Ollama 无有效响应（{base}）")
 
 
+def _http_timeout_for_tokens(max_tokens: int) -> float:
+    return max(60.0, min(180.0, max_tokens * 0.05))
+
+
 async def _complete_prompt_inner(prompt: str, *, max_tokens: int = 500) -> str:
     refresh_llm_config_from_db()
     provider = LLM_CONFIG["provider"]
     model = LLM_CONFIG["model"]
     api_key = LLM_CONFIG.get("api_key", "")
     endpoint = LLM_CONFIG.get("endpoint", "")
+    http_timeout = _http_timeout_for_tokens(max_tokens)
 
     if provider == "openai":
-        return await call_openai_api(prompt, api_key, model, endpoint, max_tokens=max_tokens)
+        return await call_openai_api(prompt, api_key, model, endpoint, max_tokens=max_tokens, http_timeout=http_timeout)
     if provider == "anthropic":
-        return await call_anthropic_api(prompt, api_key, model, max_tokens=max_tokens)
+        return await call_anthropic_api(prompt, api_key, model, max_tokens=max_tokens, http_timeout=http_timeout)
     if provider == "gemini":
-        return await call_gemini_api(prompt, api_key, model, max_tokens=max_tokens)
+        return await call_gemini_api(prompt, api_key, model, max_tokens=max_tokens, http_timeout=http_timeout)
     if provider == "ollama":
         return await call_ollama_api(prompt, model, endpoint, max_tokens=max_tokens)
     raise RuntimeError("不支持的LLM提供商")
 
 
 async def complete_prompt(prompt: str, *, max_tokens: int = 500, timeout: Optional[float] = None) -> str:
-    limit = _DEFAULT_LLM_TIMEOUT if timeout is None else timeout
+    if timeout is None and max_tokens >= 1500:
+        limit = max(_DEFAULT_LLM_TIMEOUT, 120.0)
+    else:
+        limit = _DEFAULT_LLM_TIMEOUT if timeout is None else timeout
     try:
         return await asyncio.wait_for(_complete_prompt_inner(prompt, max_tokens=max_tokens), timeout=limit)
     except asyncio.TimeoutError as exc:

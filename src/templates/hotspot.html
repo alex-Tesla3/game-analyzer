@@ -237,8 +237,10 @@
                     var html = (window.MarkdownPreview && window.MarkdownPreview.render(data.markdown)) || data.html || "";
                     view.innerHTML = '<h2 style="margin-bottom:12px;font-size:1.1rem;">' + esc(data.title) + badge + "</h2>" + html;
                     genStatus.textContent = data.using_llm
-                        ? "AI 长文已生成（" + (data.llm_provider || "") + "）"
-                        : (data.llm_error || "规则引擎初稿（可配置 LLM 获得更佳文风）");
+                        ? "AI 长文已生成（" + (data.llm_provider || "") + " / " + (data.llm_model || "") + "）"
+                        : (data.llm_configured && data.llm_error
+                            ? "LLM 已配置但生成失败：" + data.llm_error
+                            : (data.llm_error || "规则引擎初稿（未检测到 LLM 配置）"));
                     document.getElementById("btn-archive").disabled = false;
                     document.getElementById("btn-copy-md").disabled = false;
                 } catch (e) {

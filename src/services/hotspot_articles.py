@@ -588,24 +588,68 @@ def _rule_article_markdown(facts: Dict[str, Any]) -> str:
             "1. 若负面主题集中在「平衡性/匹配/性能」，优先排查版本回归与服务器质量，再评估商业化节奏。",
             "2. 若「商业化」主题抬升且好评率下滑，建议拆分付费点贡献与免费体验受损路径。",
             "3. 将本文结论与看板 KPI、复盘归档对照，设置 1–2 周可验证的实验指标。",
-            "",
-            "---",
-            f"*生成时间：{facts.get('generated_at', '')} · 规则引擎（未配置 LLM 或解析失败时回退）*",
         ]
     )
     return "\n".join(lines)
+
+
+def _strip_md_fences(text: str) -> str:
+    t = (text or "").strip()
+    if not t:
+        return ""
+    t = re.sub(r"^```(?:markdown|md|json)?\s*\n?", "", t, flags=re.IGNORECASE)
+    t = re.sub(r"\n?```\s*$", "", t)
+    return t.strip()
+
+
+def _compact_fact_pack_for_llm(facts: Dict[str, Any]) -> Dict[str, Any]:
+    compact = {
+        "product_id": facts.get("product_id"),
+        "product_name": facts.get("product_name"),
+        "angle": facts.get("angle"),
+        "sample_size": facts.get("sample_size"),
+        "sample_label": facts.get("sample_label"),
+        "data_basis": facts.get("data_basis"),
+        "sentiment": facts.get("sentiment"),
+        "theme_counts": facts.get("theme_counts"),
+        "metrics_highlights": (facts.get("metrics_highlights") or [])[:8],
+        "web_context": (facts.get("web_context") or [])[:3],
+        "mvp_signals": facts.get("mvp_signals"),
+        "sample_quotes": (facts.get("sample_quotes") or [])[:3],
+    }
+    if facts.get("custom_brief"):
+        compact["custom_brief"] = facts["custom_brief"]
+    return compact
+
+
+def _article_footer(
+    *,
+    using_llm: bool,
+    llm_configured: bool,
+    llm_error: Optional[str],
+    generated_at: str,
+    llm_provider: Optional[str] = None,
+) -> str:
+    if using_llm:
+        provider = f" · {llm_provider}" if llm_provider else ""
+        return f"\n---\n*生成时间：{generated_at} · AI 撰写{provider}*"
+    if llm_configured and llm_error:
+        return f"\n---\n*生成时间：{generated_at} · 规则引擎回退（{llm_error}）*"
+    if llm_configured:
+        return f"\n---\n*生成时间：{generated_at} · 规则引擎回退*"
+    return f"\n---\n*生成时间：{generated_at} · 规则引擎（未配置 LLM）*"
 
 
 def _parse_llm_article(raw: str, facts: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     parsed = parse_json_from_llm(raw)
     if isinstance(parsed, dict):
         title = clean_llm_report_text(str(parsed.get("title") or ""))
-        markdown = clean_llm_report_text(str(parsed.get("markdown") or parsed.get("body") or ""))
+        markdown = _strip_md_fences(str(parsed.get("markdown") or parsed.get("body") or ""))
         summary = clean_llm_report_text(str(parsed.get("summary") or ""))
         if markdown:
             return {"title": title, "summary": summary, "markdown": markdown}
-    text = clean_llm_report_text(raw)
-    if text and len(text) > 200:
+    text = _strip_md_fences(clean_llm_report_text(raw))
+    if text and len(text) > 200 and ("##" in text or text.startswith("#")):
         title_match = re.search(r"^#\s+(.+)$", text, re.MULTILINE)
         title = title_match.group(1).strip() if title_match else ""
         return {"title": title, "summary": "", "markdown": text}
@@ -641,9 +685,11 @@ async def generate_hotspot_article(
 
     using_llm = False
     llm_error = None
+    llm_configured = llm_is_configured()
+    generated_at = datetime.now().isoformat()
     markdown = _rule_article_markdown({**facts, "product_name": product_name})
 
-    if llm_is_configured():
+    if llm_configured:
         custom_focus = ""
         if brief:
             custom_focus = f"\n用户自定义分析焦点：{brief}\n请全文围绕该问题组织论证，并在「热点背景」中复述该焦点。\n"
@@ -655,22 +701,37 @@ async def generate_hotspot_article(
             "2. 明确标注数据为「平台内评论样本 + 公开新闻」，不可写成已验证的全网 20 万条除非 sample_size 接近。\n"
             "3. 结构含：热点背景、数据样本说明、情绪与主题、版本/舆情关联、对流水/留存的影响推演、运营建议。\n"
             "4. 引用 1-3 条 sample_quotes 时要保留 [正面]/[负面] 标注。\n"
-            "5. 只输出 JSON："
+            "5. 只输出 JSON，不要用 Markdown 代码块包裹："
             '{"title":"...","summary":"80-120字导语","markdown":"完整 Markdown 正文（含 ## 小节）"}\n'
             f"{custom_focus}\n"
-            f"{json.dumps(facts, ensure_ascii=False)}"
+            f"{json.dumps(_compact_fact_pack_for_llm(facts), ensure_ascii=False)}"
         )
         try:
-            raw = await complete_prompt_with_retry(prompt, max_tokens=2800, retries=1)
+            raw = await complete_prompt_with_retry(
+                prompt,
+                max_tokens=min(int(LLM_CONFIG.get("max_tokens") or 2800), 2800),
+                timeout=120,
+                retries=1,
+            )
             parsed = _parse_llm_article(raw, facts)
             if parsed and parsed.get("markdown"):
                 markdown = parsed["markdown"]
                 title = parsed.get("title") or title
                 using_llm = True
             else:
-                llm_error = "LLM 输出解析失败，已使用规则引擎"
+                llm_error = "LLM 输出解析失败（请检查模型是否支持长 JSON 输出）"
         except Exception as exc:
             llm_error = str(exc)
+
+    footer = _article_footer(
+        using_llm=using_llm,
+        llm_configured=llm_configured,
+        llm_error=llm_error,
+        generated_at=generated_at,
+        llm_provider=_provider_label() if using_llm else None,
+    )
+    if footer.strip() not in markdown:
+        markdown = markdown.rstrip() + footer
 
     return {
         "success": True,
@@ -686,8 +747,8 @@ async def generate_hotspot_article(
         "llm_provider": _provider_label() if using_llm else None,
         "llm_model": LLM_CONFIG.get("model") if using_llm else None,
         "llm_error": llm_error,
-        "llm_configured": llm_is_configured(),
-        "generated_at": datetime.now().isoformat(),
+        "llm_configured": llm_configured,
+        "generated_at": generated_at,
     }
 
 

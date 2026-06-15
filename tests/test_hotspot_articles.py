@@ -7,6 +7,7 @@ import pytest
 import pytest_asyncio
 
 from src.services.hotspot_articles import (
+    _parse_llm_article,
     _rule_article_markdown,
     _rule_suggest_topic,
     _scale_sample_label,
@@ -57,6 +58,17 @@ def test_rule_article_markdown_structure():
     assert md.startswith("# ")
     assert "热点背景" in md
     assert "数据说明" in md or "样本" in md
+    assert "未配置 LLM" not in md
+
+
+def test_parse_llm_article_accepts_plain_markdown():
+    raw = (
+        "# 测试标题\n\n## 一、热点背景\n\n"
+        + "这是 AI 直接输出的 Markdown 正文。" * 20
+    )
+    parsed = _parse_llm_article(raw, {})
+    assert parsed is not None
+    assert parsed["markdown"].startswith("# 测试标题")
 
 
 @pytest.mark.asyncio
