@@ -124,6 +124,13 @@ async def app_lifespan(app: FastAPI):
         seed_default_library()
     except Exception as exc:
         print(f"Game library seed skipped: {exc}")
+    try:
+        from src.services.demo_seed import ensure_demo_user_seed
+
+        if ensure_demo_user_seed():
+            print("Demo MVP artifacts seeded for demo user")
+    except Exception as exc:
+        print(f"Demo seed skipped: {exc}")
 
     _alert_scheduler_stop = asyncio.Event()
     _alert_scheduler_task = asyncio.create_task(_alert_scheduler_loop(_alert_scheduler_stop))

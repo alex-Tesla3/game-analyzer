@@ -15,6 +15,14 @@ def _hermetic_test_env() -> None:
     os.environ.setdefault("ALLOW_DEMO_ACCOUNTS", "true")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _seed_demo_dataset() -> None:
+    """Offline CS2/Dota artifacts so demo APIs have tenant-scoped real data in CI."""
+    from src.services.demo_seed import ensure_demo_user_seed
+
+    ensure_demo_user_seed()
+
+
 @pytest.fixture(autouse=True)
 def _reset_abuse_event_tables() -> None:
     """Prevent IP/device registration limits from leaking across tests (shared SQLite)."""
