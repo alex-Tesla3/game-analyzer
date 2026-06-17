@@ -74,6 +74,19 @@ def _strip_platform_products(
     return {**existing, "comments": comments, "metrics": metrics, "games": games}
 
 
+def filter_dataset_by_platform(dataset: Dict[str, Any], platform: str) -> Dict[str, Any]:
+    """Return dataset rows for a single platform (e.g. Google Play / TapTap)."""
+    target = _normalize_platform(platform)
+
+    def row_platform(row: Dict[str, Any]) -> str:
+        return _normalize_platform(row.get("platform") or row.get("channel") or row.get("平台"))
+
+    comments = [row for row in (dataset.get("comments") or []) if row_platform(row) == target]
+    metrics = [row for row in (dataset.get("metrics") or []) if row_platform(row) == target]
+    games = [game for game in (dataset.get("games") or []) if _normalize_platform(game.get("platform")) == target]
+    return {**dataset, "comments": comments, "metrics": metrics, "games": games}
+
+
 def merge_platform_dataset(
     platform_dataset: Dict[str, Any],
     *,
@@ -119,16 +132,39 @@ def merge_platform_dataset(
     batch_metrics = list(platform_dataset.get("metrics") or [])
     batch_analysis = analyze_actual_steam_data(batch_comments, batch_metrics)
     batch_validation = validate_analysis(batch_comments, batch_metrics, batch_analysis)
-    platform_payload = {
+
+    platform_path = os.path.join(out_dir, platform_artifact_name)
+    existing_platform: Dict[str, Any] = {"comments": [], "metrics": [], "games": []}
+    if os.path.exists(platform_path):
+        with open(platform_path, "r", encoding="utf-8") as handle:
+            existing_platform = json.load(handle)
+    existing_platform = _strip_platform_products(
+        existing_platform, platform=platform, product_ids=replace_ids
+    )
+    platform_merged: Dict[str, Any] = {
         **platform_dataset,
-        "analysis": batch_analysis,
-        "validation": batch_validation,
+        "crawled_at": datetime.now(timezone.utc).isoformat(),
+        "games": list(existing_platform.get("games") or []) + list(platform_dataset.get("games") or []),
+        "comments": list(existing_platform.get("comments") or []) + list(platform_dataset.get("comments") or []),
+        "metrics": list(existing_platform.get("metrics") or []) + list(platform_dataset.get("metrics") or []),
+        "errors": list(existing_platform.get("errors") or []) + list(platform_dataset.get("errors") or []),
     }
+    review_counts = dict(existing_platform.get("review_counts") or {})
+    review_counts.update(platform_dataset.get("review_counts") or {})
+    if review_counts:
+        platform_merged["review_counts"] = review_counts
+
+    platform_comments = list(platform_merged.get("comments") or [])
+    platform_metrics = list(platform_merged.get("metrics") or [])
+    platform_analysis = analyze_actual_steam_data(platform_comments, platform_metrics)
+    platform_validation = validate_analysis(platform_comments, platform_metrics, platform_analysis)
+    platform_merged["analysis"] = platform_analysis
+    platform_merged["validation"] = platform_validation
 
     with open(steam_path, "w", encoding="utf-8") as handle:
         json.dump(merged, handle, ensure_ascii=False, indent=2)
-    with open(os.path.join(out_dir, platform_artifact_name), "w", encoding="utf-8") as handle:
-        json.dump(platform_payload, handle, ensure_ascii=False, indent=2)
+    with open(platform_path, "w", encoding="utf-8") as handle:
+        json.dump(platform_merged, handle, ensure_ascii=False, indent=2)
     with open(os.path.join(out_dir, "analysis.json"), "w", encoding="utf-8") as handle:
         json.dump(analysis, handle, ensure_ascii=False, indent=2)
     with open(os.path.join(out_dir, "validation.json"), "w", encoding="utf-8") as handle:

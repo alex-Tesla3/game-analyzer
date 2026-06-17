@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
 from src.mvp_data import load_mvp_artifact
-from src.mvp_pipeline import DEFAULT_STEAM_APP_IDS, run_mvp_pipeline, steam_app_catalog
+from src.mvp_pipeline import DEFAULT_STEAM_APP_IDS, analyze_actual_steam_data, run_mvp_pipeline, steam_app_catalog, validate_analysis
 from src.product_registry import (
     add_custom_product,
     get_mvp_presets,
@@ -25,6 +25,7 @@ from src.services.market_locale import (
     normalize_market_country,
 )
 from src.services.mvp_storage import resolve_mvp_output_dir
+from src.services.mvp_dataset_merge import filter_dataset_by_platform
 from src.services.review_window import (
     DEFAULT_REVIEW_DAYS,
     crawl_filter_description,
@@ -182,17 +183,26 @@ async def get_latest_mvp(
         )
     channel_key = (channel or "").strip().lower()
     platform_artifacts = {
-        "google_play": "google_play_dataset",
-        "taptap": "taptap_dataset",
+        "google_play": ("google_play_dataset", "Google Play"),
+        "taptap": ("taptap_dataset", "TapTap"),
     }
     if channel_key in platform_artifacts:
-        platform_blob = load_mvp_artifact(platform_artifacts[channel_key], output_dir)
-        if platform_blob:
-            if platform_blob.get("analysis"):
-                analysis = platform_blob["analysis"]
-            if platform_blob.get("validation"):
-                validation = platform_blob["validation"]
-            dataset = platform_blob
+        artifact_name, platform_label = platform_artifacts[channel_key]
+        filtered = filter_dataset_by_platform(dataset, platform_label)
+        if filtered.get("comments"):
+            filtered_comments = list(filtered.get("comments") or [])
+            filtered_metrics = list(filtered.get("metrics") or [])
+            analysis = analyze_actual_steam_data(filtered_comments, filtered_metrics)
+            validation = validate_analysis(filtered_comments, filtered_metrics, analysis)
+            dataset = filtered
+        else:
+            platform_blob = load_mvp_artifact(artifact_name, output_dir)
+            if platform_blob:
+                if platform_blob.get("analysis"):
+                    analysis = platform_blob["analysis"]
+                if platform_blob.get("validation"):
+                    validation = platform_blob["validation"]
+                dataset = platform_blob
     return {
         "success": True,
         "dataset": dataset,
