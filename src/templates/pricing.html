@@ -544,14 +544,6 @@
 
             <div id="paymentForm">
                 <div class="payment-methods">
-                    <div class="payment-method selected" onclick="selectPaymentMethod('wechat')">
-                        <div class="icon">💚</div>
-                        <div class="name">微信支付</div>
-                    </div>
-                    <div class="payment-method" onclick="selectPaymentMethod('alipay')">
-                        <div class="icon">💙</div>
-                        <div class="name">支付宝</div>
-                    </div>
                     <div class="payment-method stripe-method" id="stripeMethod" style="display:none;" onclick="selectPaymentMethod('stripe')">
                         <div class="icon">💳</div>
                         <div class="name">银行卡 (Stripe)</div>
@@ -614,7 +606,7 @@
         }
 
         let selectedPlan = null;
-        let selectedPaymentMethod = 'wechat';
+        let selectedPaymentMethod = 'waffo';
         let currentOrderId = null;
         let paymentMode = 'demo';
         let stripeCheckoutAvailable = false;
@@ -634,7 +626,7 @@
                     const waffoEl = document.getElementById('waffoMethod');
                     if (waffoEl) waffoEl.style.display = waffoCheckoutAvailable ? 'block' : 'none';
                     if (!waffoCheckoutAvailable && selectedPaymentMethod === 'waffo') {
-                        selectedPaymentMethod = 'wechat';
+                        selectedPaymentMethod = stripeCheckoutAvailable ? 'stripe' : 'waffo';
                     }
                     renderPlans(result.plans);
                     if (result.message) {
@@ -714,7 +706,7 @@
                             ${plan.features.map(f => `<li>${f}</li>`).join('')}
                         </ul>
                         <button class="btn ${buttonClass} btn-select" 
-                                onclick="${plan.id === 'free' || plan.id === 'enterprise' ? 'contactSales()' : `selectPlan('${plan.id}')`}">
+                                onclick="${plan.id === 'free' || plan.id === 'enterprise' ? 'contactSales()' : `subscribeNow('${plan.id}')`}">
                             ${buttonText}
                         </button>
                     </div>
@@ -798,6 +790,22 @@
                     }
                 } catch (_) { /* ignore transient errors */ }
             }, 3000);
+        }
+
+        async function subscribeNow(planId) {
+            // 直接进入 Waffo Pancake 收银台; Waffo 不可用时回退到弹窗(Stripe)
+            selectedPlan = planId;
+            selectedPaymentMethod = 'waffo';
+            if (!waffoCheckoutAvailable) {
+                if (stripeCheckoutAvailable) {
+                    selectedPaymentMethod = 'stripe';
+                    selectPlan(planId);
+                    return;
+                }
+                alert('暂未开放在线支付，请联系销售开通。');
+                return;
+            }
+            await createOrder();
         }
 
         async function createOrder() {
