@@ -2,6 +2,11 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Load local .env (KEY=VALUE) before reading any configuration.
+from src.env_loader import load_env_file  # noqa: E402
+
+load_env_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"))
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Query, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, Body, UploadFile, File

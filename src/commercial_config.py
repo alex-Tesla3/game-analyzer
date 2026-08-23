@@ -36,7 +36,21 @@ def webhook_secret_configured() -> bool:
     try:
         from src.services.stripe_orders import stripe_webhook_configured
 
-        return stripe_webhook_configured()
+        if stripe_webhook_configured():
+            return True
+    except Exception:
+        pass
+    try:
+        from src.services.waffo_payment import waffo_webhook_configured
+
+        if waffo_webhook_configured():
+            return True
+    except Exception:
+        pass
+    try:
+        from src.services.waffo_pancake import pancake_webhook_configured
+
+        return pancake_webhook_configured()
     except Exception:
         return False
 
@@ -46,6 +60,24 @@ def stripe_checkout_available() -> bool:
         from src.services.stripe_orders import stripe_configured
 
         return stripe_configured()
+    except Exception:
+        return False
+
+
+def waffo_checkout_available() -> bool:
+    try:
+        from src.services.waffo_payment import waffo_configured
+
+        return waffo_configured()
+    except Exception:
+        return False
+
+
+def waffo_pancake_checkout_available() -> bool:
+    try:
+        from src.services.waffo_pancake import pancake_configured
+
+        return pancake_configured()
     except Exception:
         return False
 
@@ -138,6 +170,8 @@ def commercial_status_payload() -> Dict[str, Any]:
         "demo_accounts_enabled": demo_accounts_enabled(),
         "webhook_configured": webhook_secret_configured(),
         "stripe_checkout_available": stripe_checkout_available(),
+        "waffo_checkout_available": waffo_checkout_available() or waffo_pancake_checkout_available(),
+        "waffo_pancake_checkout_available": waffo_pancake_checkout_available(),
         "public_demo_url": public_demo_url or None,
         "pilot_contact_email": os.getenv("PILOT_CONTACT_EMAIL", "sales@gameanalyzer.com").strip(),
         "data_trust_path": "/trust",

@@ -174,6 +174,41 @@ PLAYWRIGHT_CHANNEL=chrome ./scripts/run_browser_e2e.sh
 | 在线客服 + 坐席台 | 可用 |
 | LLM 分析 | 需配置 |
 | 告警调度 | 已接入后台任务 |
-| 支付 | **演示**（Mock 二维码，非真实收款） |
+| 支付 | **演示**（Mock 二维码）；可切换 **Waffo Pancake** / **Stripe** 真实收款 |
+
+## 支付配置（可选）
+
+默认 `PAYMENT_TEST_MODE=true` 时为演示支付（Mock 二维码，非真实扣款）。
+接入真实收款只需在环境变量中配置任一网关：
+
+- **Waffo Pancake（推荐）**：在 [Waffo Pancake Dashboard](https://pancake.waffo.ai) → API & Development
+  创建 API Key 并下载商户私钥，然后设置：
+
+  ```
+  WAFFO_PANCAKE_MERCHANT_ID=MER_xxx
+  WAFFO_PANCAKE_STORE_ID=STO_xxx
+  WAFFO_PANCAKE_PRIVATE_KEY=xxx      # RSA 私钥（base64 DER PKCS#8 或 PEM）
+  WAFFO_PANCAKE_ENV=test             # test | prod（webhook 验签公钥按此选择）
+  WAFFO_PANCAKE_PRODUCT_IDS={"pro": "PROD_xxx"}
+  WAFFO_PANCAKE_CURRENCY=CNY
+  ```
+
+  一键配置（验证店铺、创建「专业版」商品、注册 `order.completed` 回调并写入 `.env`）：
+
+  ```bash
+  .venv/bin/python scripts/configure_waffo_pancake.py --public-url https://your-app.example.com
+  ```
+
+  配置后 `/pricing` 自动出现「Waffo 支付」，下单跳转 Waffo Pancake 收银台；
+  支付回调 `POST /api/payment/webhook/waffo-pancake`（`X-Waffo-Signature` RSA-SHA256 验签）确认订单。
+  回调地址需公网可达（HTTPS），通过 `APP_PUBLIC_URL` / `PUBLIC_DEMO_BASE_URL` 指定。
+
+- **Waffo Acquiring API（备用）**：`WAFFO_API_KEY` / `WAFFO_PRIVATE_KEY` / `WAFFO_PUBLIC_KEY` /
+  `WAFFO_MERCHANT_ID` / `WAFFO_ENV`，回调 `/api/payment/webhook/waffo`。
+
+- **Stripe**：设置 `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`，`/pricing` 显示银行卡支付。
+
+生产环境（`APP_ENV=production`）请设置 `PAYMENT_TEST_MODE=false` 并配置回调密钥，
+否则支付模式会进入 `blocked`。
 
 更多 MVP 流水线见 `MVP_README.md`。

@@ -23,3 +23,20 @@ services:
         generateValue: true
       - key: PAYMENT_WEBHOOK_SECRET
         generateValue: true
+      - key: APP_PUBLIC_URL
+        value: https://game-analyzer-eq8i.onrender.com
+      - key: PUBLIC_DEMO_BASE_URL
+        value: https://game-analyzer-eq8i.onrender.com
+      - key: WAFFO_PANCAKE_MERCHANT_ID
+        value: MER_2E02n0IyVwWWOYFUlJNBKr
+      - key: WAFFO_PANCAKE_STORE_ID
+        value: STO_1QlHBCNATsR3yk9YNLOzZN
+      - key: WAFFO_PANCAKE_ENV
+        value: test
+      - key: WAFFO_PANCAKE_PRODUCT_IDS
+        value: '{"pro": "PROD_5q1A4DdiYRUW8ywtRqcKfE"}'
+      - key: WAFFO_PANCAKE_CURRENCY
+        value: CNY
+      # 私钥属于敏感凭据:不同步进仓库;部署后请在 Render Dashboard 手动粘贴
+      - key: WAFFO_PANCAKE_PRIVATE_KEY
+        sync: false

@@ -556,6 +556,10 @@
                         <div class="icon">💳</div>
                         <div class="name">银行卡 (Stripe)</div>
                     </div>
+                    <div class="payment-method waffo-method" id="waffoMethod" style="display:none;" onclick="selectPaymentMethod('waffo')">
+                        <div class="icon">💰</div>
+                        <div class="name">Waffo Pancake</div>
+                    </div>
                 </div>
                 <button class="btn btn-primary btn-select" onclick="createOrder()">生成订单</button>
             </div>
@@ -614,6 +618,7 @@
         let currentOrderId = null;
         let paymentMode = 'demo';
         let stripeCheckoutAvailable = false;
+        let waffoCheckoutAvailable = false;
         let orderPollTimer = null;
 
         async function loadPlans() {
@@ -623,8 +628,14 @@
                 if (result.success) {
                     paymentMode = result.payment_mode || 'demo';
                     stripeCheckoutAvailable = !!result.stripe_checkout_available;
+                    waffoCheckoutAvailable = !!result.waffo_checkout_available;
                     const stripeEl = document.getElementById('stripeMethod');
                     if (stripeEl) stripeEl.style.display = stripeCheckoutAvailable ? 'block' : 'none';
+                    const waffoEl = document.getElementById('waffoMethod');
+                    if (waffoEl) waffoEl.style.display = waffoCheckoutAvailable ? 'block' : 'none';
+                    if (!waffoCheckoutAvailable && selectedPaymentMethod === 'waffo') {
+                        selectedPaymentMethod = 'wechat';
+                    }
                     renderPlans(result.plans);
                     if (result.message) {
                         const box = document.getElementById('demo-payment-notice');
@@ -811,7 +822,8 @@
                     document.getElementById('orderId').textContent = result.order_id;
                     document.getElementById('orderAmount').textContent = '¥' + result.amount;
                     document.getElementById('paymentMethodName').textContent = 
-                        selectedPaymentMethod === 'wechat' ? '微信' : '支付宝';
+                        selectedPaymentMethod === 'wechat' ? '微信' :
+                        selectedPaymentMethod === 'waffo' ? 'Waffo' : '支付宝';
                     
                     document.getElementById('paymentForm').style.display = 'none';
                     document.getElementById('paymentQRCode').style.display = 'block';
