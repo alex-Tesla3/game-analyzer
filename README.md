@@ -211,4 +211,36 @@ PLAYWRIGHT_CHANNEL=chrome ./scripts/run_browser_e2e.sh
 生产环境（`APP_ENV=production`）请设置 `PAYMENT_TEST_MODE=false` 并配置回调密钥，
 否则支付模式会进入 `blocked`。
 
+## AI 数据管道（Agent + Supabase）
+
+对爬取评论做「清洗 → LLM 标签 → Embedding → 聚合」，结果存 Supabase（Postgres + pgvector）：
+
+- `src/services/data_agent.py` — 管道编排（clean / label / embed / store / aggregate 可独立开关、可断点）
+- `src/services/noise_detector.py` — 水军/噪音检测：规则（重复/短模板/纯评分/爆发式刷评）+ embedding 相似度 + LLM 复核
+- `src/services/review_labeler.py` — LLM 标签（情感/主题/游戏维度/意图），LLM 不可用时自动回退规则
+- `src/services/supabase_store.py` — Supabase 数据层（reviews / review_labels / review_embeddings / noise_flags / metrics，pgvector + HNSW + RLS）
+- `src/services/llm_client.py` — 新增 `embed_texts()`，支持 OpenAI / Ollama embedding
+
+**API**：
+
+| 接口 | 说明 |
+|---|---|
+| `POST /api/agent/process` | 对指定数据集跑管道，返回分步统计与聚合 |
+| `GET /api/agent/status` | Supabase/embedding/LLM 配置状态、噪音统计 |
+| `POST /api/agent/semantic-search` | 语义检索评论（需 Supabase + embedding） |
+
+**配置**：
+
+```bash
+# Supabase(连接串含密码,只放本地 .env / Render Secret)
+SUPABASE_DATABASE_URL=postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres
+EMBEDDING_DIM=1536        # OpenAI=1536; Ollama nomic-embed-text=768
+EMBEDDING_MODEL=          # 默认按 provider 自动选择
+REPORT_EXCLUDE_NOISE=false  # true 时报告/看板自动剔除水军评论
+```
+
+**迁移已有数据**：`.venv/bin/python scripts/migrate_to_supabase.py [--embed]`
+
+`REPORT_EXCLUDE_NOISE=true` 后，现有报告/看板在读取评论时会自动跳过 `is_noise=true` 的评论（需先跑过 Agent 管道打标）。
+
 更多 MVP 流水线见 `MVP_README.md`。

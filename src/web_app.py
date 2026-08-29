@@ -84,6 +84,7 @@ from src.routers.competitor_router import router as competitor_router
 from src.routers.game_intel_router import router as game_intel_router
 from src.routers.health_router import router as health_router
 from src.routers.commercial_router import router as commercial_router
+from src.routers.agent_router import router as agent_router
 from src.middleware_limits import limits_middleware
 from src.services.report_helpers import (
     analyze_trends,
@@ -191,6 +192,7 @@ app = FastAPI(
 app.include_router(mvp_router)
 app.include_router(health_router)
 app.include_router(commercial_router)
+app.include_router(agent_router)
 app.include_router(game_intel_router)
 app.include_router(competitor_router)
 app.include_router(data_router)

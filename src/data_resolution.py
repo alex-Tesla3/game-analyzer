@@ -136,11 +136,11 @@ def get_user_comments_data(username: str) -> List[Dict]:
 
     mvp_comments, _, mvp_source = get_mvp_comments_and_metrics(resolve_mvp_output_dir(username))
     if mvp_source and mvp_comments:
-        return mvp_comments
+        return _apply_noise_filter(mvp_comments)
 
     cached = ImportedDataRepository.get_cached_comments(max_age_hours=24)
     if cached and comments_dataset_usable(cached):
-        return _strip_repo_fields(cached, ("id", "cached_at"))
+        return _apply_noise_filter(_strip_repo_fields(cached, ("id", "cached_at")))
 
     return []
 
@@ -159,3 +159,18 @@ def get_user_metrics_data(username: str) -> List[Dict]:
         return _strip_repo_fields(cached, ("id", "cached_at"))
 
     return []
+
+
+def _noise_exclusion_enabled() -> bool:
+    return os.getenv("REPORT_EXCLUDE_NOISE", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _apply_noise_filter(comments):
+    """REPORT_EXCLUDE_NOISE=true 时剔除被 Agent 标记为水军/噪音的评论。"""
+    if not _noise_exclusion_enabled():
+        return comments
+    out = []
+    for c in comments or []:
+        if not (isinstance(c, dict) and c.get("is_noise")):
+            out.append(c)
+    return out

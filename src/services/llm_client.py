@@ -434,3 +434,102 @@ def clean_llm_report_text(text: str) -> str:
     t = re.sub(r"^```(?:json)?\s*\n?", "", t, flags=re.IGNORECASE)
     t = re.sub(r"\n?```\s*$", "", t)
     return t.strip()
+
+
+# ---------------------------------------------------------------------------
+# Embeddings (OpenAI + Ollama) — 供 Agent 管道/语义检索使用
+# ---------------------------------------------------------------------------
+
+def embedding_dim() -> int:
+    try:
+        return int(os.getenv("EMBEDDING_DIM", "1536").strip())
+    except ValueError:
+        return 1536
+
+
+def default_embedding_model(provider: Optional[str] = None) -> str:
+    provider = (provider or LLM_CONFIG.get("provider", "openai")).lower()
+    return "nomic-embed-text" if provider == "ollama" else "text-embedding-3-small"
+
+
+async def _embed_openai(
+    texts: List[str],
+    model: str,
+    api_key: str,
+    endpoint: str,
+    dim: int,
+) -> List[List[float]]:
+    import httpx
+
+    if not api_key:
+        raise RuntimeError("请先配置 OpenAI API 密钥以生成 embedding")
+    base = (endpoint or "https://api.openai.com/v1").strip().rstrip("/")
+    if base.endswith("/chat/completions"):
+        base = base[: -len("/chat/completions")]
+    if not base.endswith("/embeddings"):
+        base += "/embeddings"
+    data: Dict[str, Any] = {"model": model, "input": texts}
+    if dim and model in ("text-embedding-3-small", "text-embedding-3-large"):
+        data["dimensions"] = dim
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as client:
+        response = await client.post(
+            base,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=data,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    return [item["embedding"] for item in payload["data"]]
+
+
+async def _embed_ollama(texts: List[str], model: str, endpoint: str) -> List[List[float]]:
+    import httpx
+
+    base = _ollama_base_url(endpoint)
+    async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
+        try:
+            response = await client.post(
+                f"{base}/api/embed",
+                json={"model": model, "input": texts},
+            )
+            if response.status_code == 200:
+                payload = response.json()
+                embeddings = payload.get("embeddings")
+                if embeddings:
+                    return embeddings
+        except httpx.HTTPError:
+            pass
+        # 旧版 Ollama: /api/embeddings 单条
+        embeddings = []
+        for text in texts:
+            response = await client.post(
+                f"{base}/api/embeddings",
+                json={"model": model, "prompt": text},
+            )
+            if response.status_code != 200:
+                raise RuntimeError(f"Ollama embedding 失败: {response.text[:200]}")
+            embeddings.append(response.json()["embedding"])
+        return embeddings
+
+
+async def embed_texts(texts: List[str]) -> List[List[float]]:
+    """Generate embeddings for a batch of texts using the configured provider."""
+    if not texts:
+        return []
+    refresh_llm_config_from_db()
+    provider = LLM_CONFIG.get("provider", "openai").lower()
+    model = os.getenv("EMBEDDING_MODEL", "").strip() or default_embedding_model(provider)
+    api_key = LLM_CONFIG.get("api_key", "")
+    endpoint = LLM_CONFIG.get("endpoint", "")
+    dim = embedding_dim()
+
+    if provider == "openai":
+        return await _embed_openai(texts, model, api_key, endpoint, dim)
+    if provider == "ollama":
+        return await _embed_ollama(texts, model, endpoint)
+    raise RuntimeError("当前 LLM 提供商不支持 embedding；请使用 OpenAI 或 Ollama")
+
+
+async def embed_text(text: str) -> List[float]:
+    return (await embed_texts([text]))[0]
