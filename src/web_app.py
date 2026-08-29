@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.middleware.bearer_token_bridge import BearerTokenQueryBridgeMiddleware
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
+import re
 import json
 import pandas as pd
 from typing import List, Dict, Any, Optional
@@ -1592,3 +1593,26 @@ async def remove_team_member(team_id: int, username: str, token: Optional[str] =
         raise
     except Exception as e:
         return {"success": False, "message": str(e)}
+
+
+# --- Search-engine verification files at repo root (e.g. Google Search Console) ---
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_VERIFICATION_FILE_RE = re.compile(r"^[A-Za-z0-9_-]+\.html$")
+
+
+@app.get("/{filename}", include_in_schema=False)
+async def serve_root_verification_file(filename: str):
+    """Serve search-engine / site verification files placed at the repo root.
+
+    Registered last on purpose so it never shadows existing routes; only serves
+    safe single-segment ``*.html`` files that actually exist at the project root
+    (for example ``googledc482112bcd317b2.html`` for Google Search Console).
+    """
+    if not _VERIFICATION_FILE_RE.fullmatch(filename):
+        raise HTTPException(status_code=404, detail="Not found")
+    file_path = os.path.join(_PROJECT_ROOT, filename)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Not found")
+    with open(file_path, "r", encoding="utf-8") as handle:
+        content = handle.read()
+    return HTMLResponse(content=content, media_type="text/html")
