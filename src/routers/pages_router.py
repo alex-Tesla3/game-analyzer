@@ -6,7 +6,7 @@ import os
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from auth import PLANS
 from src.data_catalog import derive_data_catalog, enrich_catalog_from_context, restrict_catalog_to_dataset
@@ -491,3 +491,75 @@ async def get_sync_status(token: Optional[str] = Query(None)):
         "available_platforms": ["Steam", "TapTap", "Google Play", "App Store"]
     }
 
+
+# ---------------------------------------------------------------------------
+# SEO: sitemap.xml + robots.txt
+# ---------------------------------------------------------------------------
+
+# (path, priority, changefreq) — 公开页面
+_PUBLIC_PAGES = [
+    ("/", "1.0", "daily"),
+    ("/pricing", "0.9", "weekly"),
+    ("/showcase", "0.9", "weekly"),
+    ("/dashboard", "0.8", "weekly"),
+    ("/guide", "0.8", "weekly"),
+    ("/work", "0.7", "weekly"),
+    ("/mvp", "0.7", "weekly"),
+    ("/hotspot", "0.7", "daily"),
+    ("/games/library", "0.7", "weekly"),
+    ("/games/review", "0.7", "weekly"),
+    ("/games/compare", "0.6", "monthly"),
+    ("/trust", "0.6", "monthly"),
+    ("/team", "0.5", "monthly"),
+    ("/alerts", "0.5", "monthly"),
+    ("/api-docs", "0.5", "monthly"),
+    ("/comments", "0.4", "monthly"),
+    ("/metrics", "0.4", "monthly"),
+    ("/privacy", "0.3", "yearly"),
+    ("/terms", "0.3", "yearly"),
+    ("/login", "0.3", "monthly"),
+    ("/forgot-password", "0.2", "yearly"),
+]
+
+
+def _site_base_url() -> str:
+    """公开站点根地址(生产为 Render 域名)。"""
+    return (
+        os.getenv("PUBLIC_DEMO_BASE_URL", "").strip().rstrip("/")
+        or os.getenv("APP_PUBLIC_URL", "").strip().rstrip("/")
+        or "https://game-analyzer-eq8i.onrender.com"
+    )
+
+
+@router.get("/sitemap.xml", response_class=Response, include_in_schema=False)
+async def sitemap_xml():
+    base = _site_base_url()
+    urls = "\n".join(
+        "  <url>\n"
+        f"    <loc>{base}{path}</loc>\n"
+        f"    <changefreq>{freq}</changefreq>\n"
+        f"    <priority>{priority}</priority>\n"
+        "  </url>"
+        for path, priority, freq in _PUBLIC_PAGES
+    )
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f"{urls}\n"
+        "</urlset>\n"
+    )
+    return Response(content=xml, media_type="application/xml")
+
+
+@router.get("/robots.txt", response_class=Response, include_in_schema=False)
+async def robots_txt():
+    base = _site_base_url()
+    content = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /admin\n"
+        "Disallow: /agent/console\n"
+        "Disallow: /api/\n"
+        f"Sitemap: {base}/sitemap.xml\n"
+    )
+    return Response(content=content, media_type="text/plain")
