@@ -14,6 +14,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from src.middleware.bearer_token_bridge import BearerTokenQueryBridgeMiddleware
+from src.middleware.ga_inject import inject_google_analytics
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 import re
@@ -238,6 +239,12 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
+
+
+# Google Analytics (GA4 / gtag.js) 注入 —— 所有 HTML 页面自动埋点
+@app.middleware("http")
+async def google_analytics_middleware(request: Request, call_next):
+    return await inject_google_analytics(request, call_next)
 
 static_dir = os.path.join(BASE_DIR, "static")
 if os.path.exists(static_dir):
