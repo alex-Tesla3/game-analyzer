@@ -23,9 +23,6 @@ import os
 import re
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-import psycopg2
-import psycopg2.extras
-
 _ENV_URL = "SUPABASE_DATABASE_URL"
 _DEFAULT_DIM = 1536
 
@@ -53,6 +50,8 @@ def sslmode() -> str:
 
 def connect():
     """Open a psycopg2 connection to Supabase."""
+    import psycopg2
+
     if not enabled():
         raise RuntimeError("SUPABASE_DATABASE_URL not configured")
     return psycopg2.connect(database_url(), sslmode=sslmode(), connect_timeout=20)
@@ -384,6 +383,8 @@ def semantic_search(
     sql += " ORDER BY re.embedding <=> %s::vector LIMIT %s"
     params += [_vec_to_string(query_vector), int(limit)]
 
+    import psycopg2.extras
+
     with connect() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(sql, params)
@@ -427,6 +428,8 @@ def get_reviews(
     sql += " ORDER BY r.created_at DESC LIMIT %s OFFSET %s"
     params += [int(limit), int(offset)]
 
+    import psycopg2.extras
+
     with connect() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(sql, params)
@@ -448,6 +451,8 @@ def noise_summary() -> List[Dict[str, Any]]:
     SELECT flag_type, COUNT(*) AS count, ROUND(AVG(confidence)::numeric, 2) AS avg_confidence
     FROM noise_flags GROUP BY flag_type ORDER BY count DESC
     """
+    import psycopg2.extras
+
     with connect() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(sql)
