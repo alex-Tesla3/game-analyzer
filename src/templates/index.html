@@ -1325,6 +1325,36 @@
             </div>
         </div>
 
+        <div id="ai-themes-panel" class="section" style="display:none; margin-top: 16px;">
+            <h3 style="margin-bottom: 12px;">🤖 AI 主题洞察</h3>
+            <div id="ai-themes-list" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;"></div>
+        </div>
+        <script>
+        (async function () {
+            try {
+                const token = typeof getAuthToken === 'function' ? getAuthToken() : localStorage.getItem('access_token');
+                if (!token) return;
+                const res = await fetch('/api/agent/themes?token=' + encodeURIComponent(token));
+                const data = await res.json();
+                const list = document.getElementById('ai-themes-list');
+                if (data.success && data.themes && data.themes.length && list) {
+                    list.innerHTML = data.themes.map(function (t) {
+                        const issues = (t.key_issues || []).map(function (k) {
+                            return '<span style="display:inline-block;background:rgba(56,189,248,.12);color:#7dd3fc;border-radius:6px;padding:2px 8px;font-size:0.75rem;margin:2px 4px 2px 0;">' + k + '</span>';
+                        }).join('');
+                        return '<div style="background:var(--bg-card,#1e293b);border:1px solid var(--border-color,#334155);border-radius:12px;padding:14px;">' +
+                            '<div style="font-weight:600;color:#38bdf8;">' + (t.theme_name || '主题') + '</div>' +
+                            '<div style="color:#94a3b8;font-size:0.85rem;margin:6px 0;">' + (t.description || '') + '</div>' +
+                            issues +
+                            '<div style="font-size:0.75rem;color:#64748b;margin-top:8px;">' + (t.member_count || 0) + ' 条评论 · 相似度 ' + Number(t.avg_similarity || 0).toFixed(2) + '</div>' +
+                            '</div>';
+                    }).join('');
+                    document.getElementById('ai-themes-panel').style.display = 'block';
+                }
+            } catch (e) { /* 面板不可用时静默 */ }
+        })();
+        </script>
+
         <div class="main-content">
             <div class="section">
                 <div style="display: flex; gap: 8px; margin-bottom: 20px;">

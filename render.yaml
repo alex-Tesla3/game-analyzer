@@ -39,6 +39,8 @@ services:
         value: CNY
       - key: GOOGLE_ANALYTICS_ID
         value: G-70XNK1WHPX
+      - key: AUTO_PROCESS_AFTER_CRAWL
+        value: "true"
       # 私钥属于敏感凭据:不同步进仓库;部署后请在 Render Dashboard 手动粘贴
       - key: WAFFO_PANCAKE_PRIVATE_KEY
         sync: false

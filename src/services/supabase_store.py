@@ -573,6 +573,28 @@ def get_reviews(
     return out
 
 
+def get_theme_clusters(limit: int = 20) -> List[Dict[str, Any]]:
+    """最近的主题簇(按时间倒序)。"""
+    sql = """
+    SELECT cluster_id, game_id, theme_name, description, key_issues,
+           representative_review_id, member_count, avg_similarity
+    FROM theme_clusters ORDER BY created_at DESC LIMIT %s
+    """
+    with connect() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, (int(limit),))
+            rows = cur.fetchall()
+    out = []
+    for row in rows:
+        d = dict(row)
+        try:
+            d["key_issues"] = json.loads(d.get("key_issues") or "[]")
+        except (ValueError, TypeError):
+            d["key_issues"] = []
+        out.append(d)
+    return out
+
+
 def noise_summary() -> List[Dict[str, Any]]:
     """Counts of noise flags by type."""
     sql = """

@@ -95,3 +95,40 @@ def test_migrate_endpoint_requires_admin(client, monkeypatch):
     token = _register_and_token(client)
     res = client.post("/api/agent/migrate", params={"token": token}, json={})
     assert res.status_code == 403
+
+
+def test_agent_themes_empty_without_data(client, monkeypatch):
+    monkeypatch.delenv("SUPABASE_DATABASE_URL", raising=False)
+    token = _register_and_token(client)
+    res = client.get("/api/agent/themes", params={"token": token})
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["success"] is True
+    assert body["themes"] == []
+
+
+def test_agent_themes_from_dataset(client, tmp_path, monkeypatch):
+    monkeypatch.delenv("SUPABASE_DATABASE_URL", raising=False)
+    token = _register_and_token(client)
+    # 构造一个带 themes 的数据集放到默认路径(会被 resolve_dataset 读到)
+    import json
+    import os
+
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "mvp", "steam_dataset.json")
+    assert os.path.isfile(path)
+    orig = json.load(open(path, encoding="utf-8"))
+    orig["themes"] = [
+        {"cluster_id": "clu_1", "theme_name": "反作弊", "description": "外挂多",
+         "key_issues": ["外挂"], "member_count": 3, "avg_similarity": 0.9}
+    ]
+    json.dump(orig, open(path, "w", encoding="utf-8"), ensure_ascii=False)
+    try:
+        res = client.get("/api/agent/themes", params={"token": token})
+        assert res.status_code == 200, res.text
+        themes = res.json()["themes"]
+        assert len(themes) >= 1
+        assert themes[0]["theme_name"] == "反作弊"
+    finally:
+        # 还原
+        orig.pop("themes", None)
+        json.dump(orig, open(path, "w", encoding="utf-8"), ensure_ascii=False)

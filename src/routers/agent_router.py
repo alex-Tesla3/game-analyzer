@@ -65,6 +65,27 @@ async def agent_process(request: Request, token: Optional[str] = Query(None)):
     return report
 
 
+@router.get("/api/agent/themes")
+async def agent_themes(token: Optional[str] = Query(None)):
+    """当前用户数据集的 AI 主题簇(优先数据集 JSON, 回退 Supabase)。"""
+    if not token:
+        raise HTTPException(status_code=401, detail="Token required")
+    current_user = await get_current_user(token)
+
+    themes = []
+    from src.services.data_agent import resolve_dataset
+
+    dataset, _ = resolve_dataset(current_user.username)
+    if dataset:
+        themes = dataset.get("themes") or []
+    if not themes and supabase_store.enabled():
+        try:
+            themes = supabase_store.get_theme_clusters(limit=20)
+        except Exception:
+            themes = []
+    return {"success": True, "themes": themes}
+
+
 @router.post("/api/agent/migrate")
 async def agent_migrate(request: Request, token: Optional[str] = Query(None)):
     """把本地数据集迁移到 Supabase(管理员 token 或 X-Migrate-Secret 触发)。
