@@ -204,8 +204,8 @@ def schema_dim() -> Optional[int]:
                 row = cur.fetchone()
                 if not row:
                     return None
-                # vector typmod = dim + 4 (header)
-                return int(row[0]) - 4
+                # pgvector typmod 直接为维度值
+                return int(row[0])
     except Exception:
         return None
 
@@ -364,6 +364,85 @@ def upsert_metrics(rows: Iterable[Dict[str, Any]]) -> int:
         for m in rows
     ]
     return _exec_many(sql, data)
+
+
+def write_batch(
+    *,
+    games: Iterable[Dict[str, Any]] = (),
+    reviews: Iterable[Dict[str, Any]] = (),
+    labels: Iterable[Dict[str, Any]] = (),
+    embeddings: Iterable[Dict[str, Any]] = (),
+    noise_flags: Iterable[Dict[str, Any]] = (),
+    metrics: Iterable[Dict[str, Any]] = (),
+) -> Dict[str, int]:
+    """单连接批量写入(一次网络窗口完成所有 upsert, 适合不稳定网络)。"""
+    import psycopg2.extras
+
+    counts = {"games": 0, "reviews": 0, "labels": 0, "embeddings": 0, "noise_flags": 0, "metrics": 0}
+    with connect() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            def _run(sql, rows):
+                if not rows:
+                    return 0
+                cur.executemany(sql, rows)
+                return len(rows)
+
+            counts["games"] = _run(
+                """INSERT INTO games (game_id, platform, name, genre, metadata, updated_at)
+                   VALUES (%s,%s,%s,%s,%s,now())
+                   ON CONFLICT (game_id) DO UPDATE SET name=EXCLUDED.name, genre=EXCLUDED.genre,
+                       metadata=EXCLUDED.metadata, updated_at=now()""",
+                [(g["game_id"], g.get("platform", "steam"), g.get("name", g["game_id"]),
+                  g.get("genre"), json.dumps(g.get("metadata") or {}, ensure_ascii=False)) for g in games],
+            )
+            counts["reviews"] = _run(
+                """INSERT INTO reviews (review_id, game_id, platform, username, author, title,
+                        content, lang, rating, helpful, review_date, raw)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (review_id) DO UPDATE SET content=EXCLUDED.content,
+                       rating=EXCLUDED.rating, review_date=EXCLUDED.review_date, raw=EXCLUDED.raw""",
+                [(r["review_id"], r["game_id"], r.get("platform", "steam"), r.get("username"),
+                  r.get("author"), r.get("title"), r.get("content", ""), r.get("lang"),
+                  r.get("rating"), r.get("helpful", 0), r.get("review_date"),
+                  json.dumps(r.get("raw") or {}, ensure_ascii=False)) for r in reviews],
+            )
+            counts["labels"] = _run(
+                """INSERT INTO review_labels (review_id, sentiment, topics, aspects, intent,
+                        spam_probability, label_source, model, labeled_at)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,now())
+                   ON CONFLICT (review_id) DO UPDATE SET sentiment=EXCLUDED.sentiment,
+                       topics=EXCLUDED.topics, aspects=EXCLUDED.aspects, intent=EXCLUDED.intent,
+                       spam_probability=EXCLUDED.spam_probability,
+                       label_source=EXCLUDED.label_source, model=EXCLUDED.model""",
+                [(l["review_id"], l.get("sentiment"), json.dumps(l.get("topics") or [], ensure_ascii=False),
+                  json.dumps(l.get("aspects") or {}, ensure_ascii=False), l.get("intent"),
+                  l.get("spam_probability"), l.get("label_source", "llm"), l.get("model")) for l in labels],
+            )
+            counts["embeddings"] = _run(
+                """INSERT INTO review_embeddings (review_id, embedding, model)
+                   VALUES (%s, %s::vector, %s)
+                   ON CONFLICT (review_id) DO UPDATE SET embedding=EXCLUDED.embedding,
+                       model=EXCLUDED.model, created_at=now()""",
+                [(r["review_id"], _vec_to_string(r["embedding"]), r.get("model", "")) for r in embeddings],
+            )
+            counts["noise_flags"] = _run(
+                """INSERT INTO noise_flags (review_id, flag_type, reason, confidence, detector)
+                   VALUES (%s,%s,%s,%s,%s)
+                   ON CONFLICT (review_id, flag_type) DO UPDATE SET reason=EXCLUDED.reason,
+                       confidence=EXCLUDED.confidence, detector=EXCLUDED.detector""",
+                [(f["review_id"], f["flag_type"], f.get("reason"), f.get("confidence", 0.0),
+                  f.get("detector", "rule")) for f in noise_flags],
+            )
+            counts["metrics"] = _run(
+                """INSERT INTO metrics (game_id, platform, metric_date, metric_type, value, raw)
+                   VALUES (%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (game_id, platform, metric_date, metric_type) DO UPDATE SET
+                       value=EXCLUDED.value, raw=EXCLUDED.raw""",
+                [(m["game_id"], m.get("platform", "steam"), m.get("metric_date"),
+                  m["metric_type"], m.get("value"), json.dumps(m.get("raw") or {}, ensure_ascii=False)) for m in metrics],
+            )
+        conn.commit()
+    return counts
 
 
 # ---------------------------------------------------------------------------

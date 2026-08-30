@@ -41,8 +41,16 @@ _TOPIC_KEYWORDS = {
     "story": ["剧情", "故事", "世界观", "角色"],
     "audio": ["音效", "音乐", "配音", "声音"],
 }
-_SENTIMENT_NEG = ["差", "烂", "垃圾", "卡", "bug", "挂", "失望", "退款", "坑", "慢", "贵", "恶心", "不好"]
-_SENTIMENT_POS = ["好", "棒", "喜欢", "赞", "推荐", "神", "满意", "爽", "爱了", "好玩", "优秀"]
+_SENTIMENT_NEG = [
+    "差", "烂", "垃圾", "卡", "bug", "挂", "失望", "退款", "坑", "慢", "贵", "恶心", "不好",
+    "cheater", "cheat", "broken", "broke", "crash", "lag", "worse", "terrible", "awful",
+    "hate", "boring", "unplayable", "sucks", "bad", "frustrating",
+]
+_SENTIMENT_POS = [
+    "好", "棒", "喜欢", "赞", "推荐", "神", "满意", "爽", "爱了", "好玩", "优秀",
+    "great", "awesome", "love", "fun", "excellent", "amazing", "best", "fantastic",
+    "recommend", "good", "nice", "smooth",
+]
 
 
 def _rule_label(review: Dict[str, Any]) -> Dict[str, Any]:

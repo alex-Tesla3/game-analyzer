@@ -246,16 +246,17 @@ async def run_data_agent(
                 }
                 for m in metrics
             ]
-            stats = {
-                "games": supabase_store.upsert_games(game_rows),
-                "reviews": supabase_store.upsert_reviews(review_rows),
-                "labels": supabase_store.upsert_labels(labels),
-                "embeddings": supabase_store.upsert_embeddings(
-                    [{"review_id": rid, "embedding": vec, "model": "default"} for rid, vec in embeddings.items()]
-                ),
-                "noise_flags": supabase_store.upsert_noise_flags(report.get("noise_flags") or []),
-                "metrics": supabase_store.upsert_metrics(metric_rows),
-            }
+            stats = supabase_store.write_batch(
+                games=game_rows,
+                reviews=review_rows,
+                labels=labels,
+                embeddings=[
+                    {"review_id": rid, "embedding": vec, "model": "default"}
+                    for rid, vec in embeddings.items()
+                ],
+                noise_flags=report.get("noise_flags") or [],
+                metrics=metric_rows,
+            )
             report["steps"]["store"] = stats
         except Exception as exc:
             report["steps"]["store"] = {"error": str(exc)}
