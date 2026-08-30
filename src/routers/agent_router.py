@@ -65,6 +65,31 @@ async def agent_process(request: Request, token: Optional[str] = Query(None)):
     return report
 
 
+@router.post("/api/agent/migrate")
+async def agent_migrate(request: Request, token: Optional[str] = Query(None)):
+    """把本地数据集迁移到 Supabase(管理员 token 或 X-Migrate-Secret 触发)。
+
+    在 Render 上执行, 云端到 Supabase 网络稳定, 无需 Shell。
+    """
+    import os as _os
+
+    secret = request.headers.get("X-Migrate-Secret", "")
+    expected_secret = _os.getenv("MIGRATE_SECRET", "").strip()
+    if token:
+        user = await get_current_user(token)
+        if getattr(user, "role", "") != "admin":
+            raise HTTPException(status_code=403, detail="需要管理员权限")
+    elif not expected_secret or secret != expected_secret:
+        raise HTTPException(status_code=401, detail="需要管理员 token 或 MIGRATE_SECRET")
+
+    body = await request.json() if await request.body() else {}
+    embed = bool(body.get("embed", False))
+
+    from src.services.supabase_migrate import run_migration
+
+    return run_migration(embed=embed)
+
+
 @router.post("/api/agent/semantic-search")
 async def semantic_search(request: Request, token: Optional[str] = Query(None)):
     if not token:

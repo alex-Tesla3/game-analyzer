@@ -70,3 +70,28 @@ def test_agent_process_offline(client, tmp_path, monkeypatch):
     body = res.json()
     assert body["success"] is True
     assert body["aggregate"]["clean_reviews"] == 1
+
+
+def test_migrate_endpoint_auth(client, monkeypatch):
+    monkeypatch.delenv("SUPABASE_DATABASE_URL", raising=False)
+    # 无凭据 -> 401
+    res = client.post("/api/agent/migrate", json={})
+    assert res.status_code == 401
+
+    # 错误 secret -> 401
+    monkeypatch.setenv("MIGRATE_SECRET", "correct-horse")
+    res = client.post("/api/agent/migrate", json={}, headers={"X-Migrate-Secret": "wrong"})
+    assert res.status_code == 401
+
+    # 正确 secret -> 进入迁移逻辑(未配置 Supabase -> success False, 不报 500)
+    res = client.post("/api/agent/migrate", json={}, headers={"X-Migrate-Secret": "correct-horse"})
+    assert res.status_code == 200
+    assert res.json()["success"] is False
+    assert "SUPABASE_DATABASE_URL" in res.json()["error"]
+
+
+def test_migrate_endpoint_requires_admin(client, monkeypatch):
+    monkeypatch.delenv("SUPABASE_DATABASE_URL", raising=False)
+    token = _register_and_token(client)
+    res = client.post("/api/agent/migrate", params={"token": token}, json={})
+    assert res.status_code == 403
