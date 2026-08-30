@@ -18,6 +18,7 @@ from src.product_registry import (
     resolve_mvp_crawl_targets,
 )
 from src.services.google_play_pipeline import run_google_play_pipeline
+from src.services.auto_process import maybe_trigger_auto_process
 from src.services.market_locale import (
     default_market_for_channel,
     get_market_profile,
@@ -300,6 +301,9 @@ async def run_steam_mvp(
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Steam MVP pipeline failed: {exc}") from exc
+    if result.get("success"):
+        maybe_trigger_auto_process(username, output_dir)
+
     return {
         "success": result["success"],
         "username": username,

@@ -154,6 +154,19 @@ CREATE TABLE IF NOT EXISTS noise_flags (
 );
 CREATE INDEX IF NOT EXISTS idx_noise_flags_review ON noise_flags(review_id);
 
+CREATE TABLE IF NOT EXISTS theme_clusters (
+    cluster_id     TEXT PRIMARY KEY,
+    game_id        TEXT NOT NULL,
+    theme_name     TEXT,
+    description    TEXT,
+    key_issues     JSONB NOT NULL DEFAULT '[]'::jsonb,
+    representative_review_id TEXT,
+    member_count   INT NOT NULL DEFAULT 0,
+    avg_similarity REAL NOT NULL DEFAULT 0,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_theme_clusters_game ON theme_clusters(game_id);
+
 CREATE TABLE IF NOT EXISTS metrics (
     id          BIGSERIAL PRIMARY KEY,
     game_id     TEXT NOT NULL,
@@ -172,6 +185,7 @@ ALTER TABLE reviews          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE review_labels    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE review_embeddings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE noise_flags      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE theme_clusters   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE metrics          ENABLE ROW LEVEL SECURITY;
 """
 
@@ -374,11 +388,12 @@ def write_batch(
     embeddings: Iterable[Dict[str, Any]] = (),
     noise_flags: Iterable[Dict[str, Any]] = (),
     metrics: Iterable[Dict[str, Any]] = (),
+    theme_clusters: Iterable[Dict[str, Any]] = (),
 ) -> Dict[str, int]:
     """单连接批量写入(一次网络窗口完成所有 upsert, 适合不稳定网络)。"""
     import psycopg2.extras
 
-    counts = {"games": 0, "reviews": 0, "labels": 0, "embeddings": 0, "noise_flags": 0, "metrics": 0}
+    counts = {"games": 0, "reviews": 0, "labels": 0, "embeddings": 0, "noise_flags": 0, "metrics": 0, "theme_clusters": 0}
     with connect() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             def _run(sql, rows):
@@ -432,6 +447,19 @@ def write_batch(
                        confidence=EXCLUDED.confidence, detector=EXCLUDED.detector""",
                 [(f["review_id"], f["flag_type"], f.get("reason"), f.get("confidence", 0.0),
                   f.get("detector", "rule")) for f in noise_flags],
+            )
+            counts["theme_clusters"] = _run(
+                """INSERT INTO theme_clusters (cluster_id, game_id, theme_name, description, key_issues,
+                        representative_review_id, member_count, avg_similarity)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (cluster_id) DO UPDATE SET theme_name=EXCLUDED.theme_name,
+                       description=EXCLUDED.description, key_issues=EXCLUDED.key_issues,
+                       representative_review_id=EXCLUDED.representative_review_id,
+                       member_count=EXCLUDED.member_count, avg_similarity=EXCLUDED.avg_similarity""",
+                [(c["cluster_id"], c["game_id"], c.get("theme_name"), c.get("description"),
+                  json.dumps(c.get("key_issues") or [], ensure_ascii=False),
+                  c.get("representative_review_id"), c.get("member_count", 0),
+                  c.get("avg_similarity", 0.0)) for c in theme_clusters],
             )
             counts["metrics"] = _run(
                 """INSERT INTO metrics (game_id, platform, metric_date, metric_type, value, raw)

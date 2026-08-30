@@ -144,8 +144,9 @@ async def run_data_agent(
     from src.services import supabase_store
     from src.services.noise_detector import apply_noise_flags, detect_noise
     from src.services.review_labeler import label_reviews
+    from src.services.theme_clustering import cluster_reviews, llm_theme_for_cluster
 
-    steps = steps or ["clean", "label", "embed", "store", "aggregate"]
+    steps = steps or ["clean", "label", "embed", "cluster", "store", "aggregate"]
     dataset = None
     path = dataset_path
     if path:
@@ -217,7 +218,28 @@ async def run_data_agent(
         except Exception as exc:
             report["steps"]["embed"] = {"error": str(exc), "embedded": len(embeddings)}
 
-    # 4) store -> Supabase
+    # 4) cluster: 基于向量聚类 + LLM 提炼主题(在 LLM 标签之后, 聚合之前)
+    clusters: List[Dict[str, Any]] = []
+    theme_rows: List[Dict[str, Any]] = []
+    if "cluster" in steps and embeddings:
+        try:
+            clusters = cluster_reviews(reviews, embeddings)
+            for cluster in clusters:
+                theme = await llm_theme_for_cluster(reviews, cluster)
+                theme_rows.append({
+                    **cluster,
+                    "theme_name": theme.get("theme_name"),
+                    "description": theme.get("description"),
+                    "key_issues": theme.get("key_issues") or [],
+                })
+            report["steps"]["cluster"] = {
+                "clusters": len(clusters),
+                "members": sum(c.get("member_count", 0) for c in clusters),
+            }
+        except Exception as exc:
+            report["steps"]["cluster"] = {"error": str(exc)}
+
+    # 5) store -> Supabase
     if "store" in steps and supabase_store.enabled():
         try:
             supabase_store.ensure_schema()
@@ -256,6 +278,7 @@ async def run_data_agent(
                 ],
                 noise_flags=report.get("noise_flags") or [],
                 metrics=metric_rows,
+                theme_clusters=theme_rows,
             )
             report["steps"]["store"] = stats
         except Exception as exc:
@@ -278,6 +301,18 @@ async def run_data_agent(
             "sentiment": {k: v for k, v in sent.items() if k},
             "top_topics": topics.most_common(10),
             "avg_rating": round(sum(ratings) / len(ratings), 2) if ratings else None,
+            "clusters": [
+                {
+                    "cluster_id": c.get("cluster_id"),
+                    "theme_name": c.get("theme_name"),
+                    "description": c.get("description"),
+                    "key_issues": c.get("key_issues"),
+                    "member_count": c.get("member_count"),
+                    "avg_similarity": c.get("avg_similarity"),
+                    "representative_review_id": c.get("representative_review_id"),
+                }
+                for c in theme_rows
+            ],
         }
 
     # 6) 写回数据集(供现有报告/看板消费 is_noise/label)
@@ -302,6 +337,11 @@ async def run_data_agent(
             "steps": list(steps),
             "summary": report.get("aggregate", {}),
         }
+        if theme_rows:
+            dataset["themes"] = [
+                {k: c.get(k) for k in ("cluster_id", "theme_name", "description", "key_issues", "member_count", "avg_similarity")}
+                for c in theme_rows
+            ]
         try:
             _save_dataset(dataset, path)
             report["saved_back"] = True
