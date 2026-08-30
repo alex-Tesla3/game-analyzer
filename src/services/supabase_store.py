@@ -48,13 +48,34 @@ def sslmode() -> str:
     return os.getenv("SUPABASE_SSLMODE", "require").strip() or "require"
 
 
+def _connect_retries() -> int:
+    try:
+        return max(1, int(os.getenv("SUPABASE_CONNECT_RETRIES", "12").strip()))
+    except ValueError:
+        return 12
+
+
 def connect():
-    """Open a psycopg2 connection to Supabase."""
+    """Open a psycopg2 connection to Supabase (with retry for flaky networks)."""
     import psycopg2
+    import time
 
     if not enabled():
         raise RuntimeError("SUPABASE_DATABASE_URL not configured")
-    return psycopg2.connect(database_url(), sslmode=sslmode(), connect_timeout=20)
+    url = database_url()
+    # 可选: 固定解析 IP(网络路由不稳定时用 SUPABASE_HOSTADDR 指定)
+    hostaddr = os.getenv("SUPABASE_HOSTADDR", "").strip()
+    if hostaddr:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}hostaddr={hostaddr}"
+    last_error: Exception | None = None
+    for attempt in range(_connect_retries()):
+        try:
+            return psycopg2.connect(url, sslmode=sslmode(), connect_timeout=8)
+        except Exception as exc:  # noqa: BLE001 - 网络间歇性, 需要重试
+            last_error = exc
+            time.sleep(1.5)
+    raise RuntimeError(f"无法连接 Supabase(重试 {_connect_retries()} 次): {last_error}")
 
 
 def _validate_identifier(name: str) -> str:
