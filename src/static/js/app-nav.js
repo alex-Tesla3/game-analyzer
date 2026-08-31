@@ -11,13 +11,8 @@
 
     var MORE = [
         { id: "work", label: "落地指导", href: "/work" },
-        { id: "library", label: "资料库", href: "/games/library" },
-        { id: "comments", label: "评论分析", href: "/comments" },
         { id: "hotspot", label: "热点深析", href: "/hotspot" },
-        { id: "metrics", label: "指标详情", href: "/metrics" },
-        { id: "import", label: "导入指标", href: "/import" },
         { id: "mvp", label: "真实竞品", href: "/mvp" },
-        { id: "team", label: "团队协作", href: "/team" },
         { id: "pricing", label: "订阅套餐", href: "/pricing" },
     ];
 

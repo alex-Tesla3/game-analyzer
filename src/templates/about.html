@@ -7,21 +7,29 @@
 <meta name="description" content="游戏舆情 AI 分析平台（内容站）与 Game Analyzer 数据分析工具（数据产品）的业务定位、职责边界与相互关系说明。">
 <link rel="canonical" href="https://game-analyzer-eq8i.onrender.com/about">
 <style>
+:root { --ink:#17202d; --muted:#707986; --paper:#f5f6f2; --line:#e3e5df; --orange:#e85e2c; --navy:#172337; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; background: #0f1419; color: #e7ecf3; line-height: 1.75; }
-.wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 56px; }
-h1 { font-size: 1.7rem; margin-bottom: 10px; }
-.sub { color: #94a3b8; margin-bottom: 32px; }
-.card { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); border-radius: 14px; padding: 20px 22px; margin-bottom: 16px; }
-.card h2 { font-size: 1.05rem; margin-bottom: 10px; }
-.card ul { padding-left: 18px; color: #d6d3d1; font-size: .92rem; }
-.card li { margin: 4px 0; }
-.sys-a h2 { color: #a5b4fc; }
-.sys-b h2 { color: #6ee7b7; }
-.rel { border-left: 3px solid #f59e0b; padding: 14px 16px; background: rgba(245,158,11,.08); border-radius: 0 12px 12px 0; color: #fcd34d; font-size: .92rem; margin-bottom: 16px; }
-.boundary { font-size: .85rem; color: #94a3b8; margin-top: 24px; padding: 14px 16px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; }
-.footer { text-align: center; color: #64748b; font-size: .78rem; padding: 24px 16px 40px; }
-.footer a { color: #94a3b8; text-decoration: none; margin: 0 6px; }
+body { font-family: Arial, "Microsoft YaHei", sans-serif; background: var(--paper); color: var(--ink); line-height: 1.8; }
+.wrap { max-width: 900px; margin: 0 auto; padding: 48px 28px 56px; }
+.eyebrow { color: var(--orange); font-weight: bold; font-size: 11px; letter-spacing: .13em; }
+h1 { font-family: Georgia, "SimSun", serif; font-size: 34px; margin: 12px 0 8px; }
+.sub { color: var(--muted); font-size: 14px; margin-bottom: 30px; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; margin-bottom: 16px; }
+.card h2 { font-size: 15px; margin-bottom: 12px; }
+.card ul { padding-left: 18px; color: #4b5563; font-size: 13px; }
+.card li { margin: 6px 0; }
+.sys-a h2 { color: #4338ca; }
+.sys-b h2 { color: #15803d; }
+.rel { border-left: 3px solid var(--orange); padding: 14px 18px; background: #fff; border-radius: 0 12px 12px 0; color: #7c2d12; font-size: 13px; margin-bottom: 16px; }
+.boundary { font-size: 12px; color: #6b7280; margin-top: 22px; padding: 16px 18px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+.boundary a { color: var(--orange); }
+.actions { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 10px; }
+.actions a { display: inline-block; padding: 10px 16px; border-radius: 9px; text-decoration: none; font-size: 13px; font-weight: bold; }
+.a { background: var(--navy); color: #fff; }
+.b { background: var(--orange); color: #fff; }
+.home { background: #fff; border: 1px solid var(--line); color: var(--ink); }
+.footer { text-align: center; color: #8c939c; font-size: 11px; padding: 24px 16px 40px; border-top: 1px solid var(--line); }
+.footer a { color: #8c939c; text-decoration: none; margin: 0 6px; }
 </style>
 </head>
 <body>
@@ -61,9 +69,9 @@ h1 { font-size: 1.7rem; margin-bottom: 10px; }
   </div>
 
   <div style="margin-top:28px;display:flex;flex-wrap:wrap;gap:10px;">
-    <a href="/game-public-opinion-ai-analysis" style="color:#a5b4fc;text-decoration:none;border:1px solid rgba(165,180,252,.3);padding:8px 14px;border-radius:8px;font-size:.88rem;">进入系统 A（内容站）</a>
-    <a href="/login?redirect=/dashboard" style="color:#6ee7b7;text-decoration:none;border:1px solid rgba(110,231,183,.3);padding:8px 14px;border-radius:8px;font-size:.88rem;">进入系统 B（数据工具）</a>
-    <a href="/" style="color:#94a3b8;text-decoration:none;border:1px solid rgba(255,255,255,.15);padding:8px 14px;border-radius:8px;font-size:.88rem;">返回首页</a>
+    <a class="a" href="/game-public-opinion-ai-analysis">进入系统 A（内容站）</a>
+    <a class="b" href="/login?redirect=/dashboard">进入系统 B（数据工具）</a>
+    <a class="home" href="/">返回首页</a>
   </div>
 </main>
 <footer class="footer">

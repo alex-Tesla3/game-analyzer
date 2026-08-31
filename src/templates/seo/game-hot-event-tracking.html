@@ -12,67 +12,93 @@
 <meta property="og:type" content="website">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"游戏热点事件追踪与复盘 | Online game hot event tracking","url":"https://game-analyzer-eq8i.onrender.com/game-hot-event-tracking","description":"游戏热点事件如何全周期追踪与复盘：发现、升温、扩散、回落阶段保持来源与时间可回查，形成事件摘要、代表观点与证据清单。"}</script>
 <style>
+:root { --ink:#17202d; --muted:#707986; --paper:#f5f6f2; --line:#e3e5df; --orange:#e85e2c; --navy:#172337; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; background: #0f1419; color: #e7ecf3; line-height: 1.7; }
-.topbar { position: sticky; top: 0; z-index: 100; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; padding: 10px 24px; background: rgba(15,20,25,.92); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255,255,255,.08); font-size: .85rem; }
-.topbar a { color: #94a3b8; text-decoration: none; }
-.topbar a:hover { color: #67e8f9; }
-.topbar .brand { font-weight: 700; color: #e7ecf3; margin-right: 8px; }
-.wrap { max-width: 1080px; margin: 0 auto; padding: 56px 24px 48px; }
-.hero { text-align: center; margin-bottom: 40px; }
-.hero h1 { font-size: 2.1rem; letter-spacing: -0.02em; margin-bottom: 12px; }
-.hero .sub { color: #94a3b8; max-width: 760px; margin: 0 auto 20px; font-size: 1.02rem; }
-.badges { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 24px; }
-.badge { padding: 4px 12px; border-radius: 999px; font-size: .78rem; }
-.badge.real { background: rgba(16,185,129,.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,.35); }
-.badge.demo { background: rgba(245,158,11,.15); color: #fcd34d; border: 1px solid rgba(245,158,11,.35); }
-.badge.keyword { background: rgba(56,189,248,.12); color: #7dd3fc; border: 1px solid rgba(56,189,248,.3); }
-.cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
-.btn { padding: 12px 24px; border-radius: 12px; font-weight: 600; text-decoration: none; display: inline-block; }
-.btn-primary { background: linear-gradient(135deg,#06b6d4,#0891b2); color: #fff; }
-.btn-ghost { background: rgba(255,255,255,.08); color: #e7ecf3; border: 1px solid rgba(255,255,255,.15); }
-.btn-demo { background: linear-gradient(135deg,#8b5cf6,#6d28d9); color: #fff; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 16px; margin: 28px 0; }
-.card { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); border-radius: 14px; padding: 20px; }
-.card h3 { color: #06b6d4; font-size: 1rem; margin-bottom: 10px; }
-.card p, .card li { color: #94a3b8; font-size: .88rem; }
-.card ul { padding-left: 18px; }
-.section-title { font-size: 1.15rem; color: #c4b5fd; margin: 28px 0 8px; }
-.boundary { margin: 28px 0; padding: 18px; border-radius: 12px; background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25); font-size: .85rem; }
-.boundary h3 { color: #fcd34d; margin-bottom: 10px; font-size: .95rem; }
-.boundary ul { color: #d6d3d1; padding-left: 18px; }
-.boundary .ok { color: #6ee7b7; }
-.boundary .warn { color: #fcd34d; }
-.xlinks { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0; }
-.xlinks a { color: #7dd3fc; text-decoration: none; font-size: .88rem; border: 1px solid rgba(125,211,252,.3); padding: 6px 12px; border-radius: 8px; }
-.xlinks a:hover { background: rgba(125,211,252,.1); }
-.footer { text-align: center; color: #64748b; font-size: .78rem; padding: 28px 16px 40px; border-top: 1px solid rgba(255,255,255,.06); }
-.footer a { color: #94a3b8; text-decoration: none; margin: 0 6px; }
-.flow { margin: 28px 0; padding: 18px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
-.flow h3 { color: #c4b5fd; margin-bottom: 10px; font-size: .95rem; }
-.flow ol { color: #94a3b8; font-size: .88rem; padding-left: 20px; }
-.sysnote { margin: 0 auto 28px; max-width: 900px; padding: 14px 18px; border-radius: 12px; background: rgba(56,189,248,.08); border: 1px solid rgba(56,189,248,.3); font-size: .85rem; color: #d6d3d1; text-align: left; }
-.sysnote strong { color: #7dd3fc; }
-.sysnote .sys-a { color: #a5b4fc; }
-.sysnote .sys-b { color: #6ee7b7; }
+body { font-family: Arial, "Microsoft YaHei", sans-serif; background: var(--paper); color: var(--ink); line-height: 1.75; }
+.topbar { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; gap: 6px 16px; padding: 10px 28px; background: #f5f6f2ee; backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); font-size: 12px; }
+.brand { display: flex; gap: 10px; align-items: center; margin-right: 10px; }
+.logo { width: 34px; height: 34px; border-radius: 10px; background: var(--orange); color: #fff; display: grid; place-items: center; font-size: 18px; }
+.brand b { font-size: 13px; }
+.brand b i { font-style: normal; color: #f48b65; }
+.brand small { display: block; color: #9ca9ba; font-size: 10px; }
+.topbar a { color: #707986; text-decoration: none; }
+.topbar a:hover { color: var(--orange); }
+.topbar a.active { color: var(--orange); font-weight: bold; }
+.topbar .sep { color: #cbd0c8; }
+.wrap { max-width: 1220px; margin: 0 auto; padding: 38px 38px 48px; }
+.sysnote { margin-bottom: 22px; padding: 13px 16px; border-radius: 10px; background: #ffffff0a; border: 1px solid var(--line); color: #727b86; font-size: 11px; background: #fff; }
+.sysnote strong { color: var(--orange); }
+.sysnote a { color: var(--orange); }
+.hero { display: grid; grid-template-columns: 1.25fr 0.75fr; gap: 40px; align-items: center; padding: 26px 0 40px; }
+.hero-left .tag { color: var(--orange); font-weight: bold; font-size: 11px; letter-spacing: .13em; }
+.hero-left h1 { font-family: Georgia, "SimSun", serif; font-size: 40px; line-height: 1.2; margin: 14px 0; }
+.hero-left p { color: var(--muted); font-size: 15px; line-height: 1.9; }
+.buttons { display: flex; gap: 10px; margin: 22px 0; flex-wrap: wrap; }
+.buttons a.btn { display: inline-block; height: 42px; border-radius: 9px; padding: 10px 17px; font-weight: bold; text-decoration: none; font-size: 13px; }
+.buttons .btn-primary { background: var(--orange); color: #fff; }
+.buttons .btn-ghost { background: #fff; border: 1px solid var(--line); color: var(--ink); }
+.buttons .btn-demo { background: var(--navy); color: #fff; }
+.keywords { font-size: 11px; color: #858e98; }
+.keywords b { background: #e9ebe5; padding: 5px 8px; border-radius: 5px; margin-right: 8px; font-weight: normal; }
+.hero-right .chart { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 21px; }
+.chart-head b { display: block; margin-top: 5px; font-size: 13px; }
+.pill { display: inline-block; background: #fff2ec; color: #c64c23; border-radius: 20px; padding: 7px 10px; font-size: 10px; }
+.chart .stats { border-top: 1px solid var(--line); padding-top: 14px; display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 14px; }
+.chart .stats div { text-align: center; border-right: 1px solid var(--line); }
+.chart .stats div:last-child { border: 0; }
+.chart .stats b, .chart .stats small { display: block; }
+.chart .stats small { color: #939aa3; font-size: 10px; }
+.section { margin-top: 34px; }
+.section-title { display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px; }
+.section-title .eyebrow { color: var(--orange); font-weight: bold; font-size: 10px; letter-spacing: .13em; }
+.section-title h2 { font: 26px Georgia, "SimSun", serif; margin: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 13px; padding: 18px; }
+.card h3 { color: var(--orange); font-size: 13px; margin-bottom: 10px; }
+.card p, .card li { color: #7e8792; font-size: 11px; line-height: 1.7; }
+.card ul { padding-left: 16px; }
+.card a { color: var(--orange); font-size: 11px; }
+.flow { margin-top: 24px; background: var(--navy); color: #fff; border-radius: 14px; padding: 20px 22px; }
+.flow h3 { color: #f48b65; font-size: 13px; margin-bottom: 10px; }
+.flow ol { color: #aeb9c8; font-size: 12px; padding-left: 20px; }
+.boundary { margin-top: 24px; background: #fff; border: 1px solid var(--line); border-radius: 13px; padding: 18px 20px; font-size: 11px; }
+.boundary h3 { color: var(--orange); margin-bottom: 10px; font-size: 12px; }
+.boundary ul { color: #727b86; padding-left: 18px; line-height: 1.8; }
+.boundary .ok { color: #1a7f37; }
+.boundary .warn { color: #b45309; }
+.xlinks { margin-top: 18px; }
+.xlinks a { display: inline-block; color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: #fff; padding: 8px 12px; border-radius: 8px; font-size: 11px; margin: 0 8px 8px 0; }
+.xlinks a:hover { border-color: var(--orange); color: var(--orange); }
+.footer { text-align: center; color: #8c939c; font-size: 10px; padding: 26px 16px 40px; border-top: 1px solid var(--line); }
+.footer a { color: #8c939c; text-decoration: none; margin: 0 6px; }
 </style>
 </head>
 <body>
-<header class="topbar"><span class="brand">🎮 游戏舆情 AI 分析</span><a href="/game-public-opinion-ai-analysis">平台首页</a><a href="/ai-game-opinion-monitoring-system">AI 监测系统</a><span style="color:#64748b;font-size:.8rem;"> · 内容支撑页</span><a href="/dashboard" style="margin-left:auto;color:#86efac;">进入看板 →</a></header>
+<header class="topbar">
+<span class="brand"><span class="logo">◈</span><span><b>游戏舆情 <i>AI 分析</i></b><small>Game Analyzer · 内容站</small></span></span><a href="/game-public-opinion-ai-analysis">平台首页</a><a href="/ai-game-opinion-monitoring-system">AI 监测系统</a><span style="color:#64748b;font-size:.8rem;"> · 内容支撑页</span>
+<a href="/login?redirect=/dashboard" style="margin-left:auto;">进入数据工具 →</a></header>
 <main class="wrap">
   <div class="sysnote">
     <strong>两系统定位</strong>：本页属于 <span class="sys-a">「游戏舆情 AI 分析平台」内容站</span> —— 对外能力介绍与行业科普（不含实时数据）。
     实际的抓取、分析与看板在 <span class="sys-b">「Game Analyzer 数据分析工具」</span> 中完成，<a href="/login?redirect=/dashboard" style="color:#7dd3fc;">登录后进入 →</a>
   </div>
   <section class="hero">
-    <h1>⌁ 游戏热点事件追踪与复盘</h1>
-    <p class="sub">事件信息跨平台扩散，观点随时间和渠道变化；全周期追踪并保留来源与时间可回查，趋势结论需由工具数据计算。</p>
-    <div class="badges">
-      <span class="badge keyword">主关键词：Online game hot event tracking</span>
+    <div class="hero-left">
+      <div class="tag">AI 舆情分析</div>
+      <h1>⌁ 游戏热点事件追踪与复盘</h1>
+      <p>事件信息跨平台扩散，观点随时间和渠道变化；全周期追踪并保留来源与时间可回查，趋势结论需由工具数据计算。</p>
+      <div class="buttons"><a class="btn btn-demo" href="/login?redirect=/hotspot">进入数据工具 · 看热点</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a></div>
+      <div class="keywords"><b>主关键词：Online game hot event tracking</b></div>
     </div>
-    <div class="cta"><a class="btn btn-demo" href="/login?redirect=/hotspot">进入数据工具 · 看热点</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a></div>
+    <div class="hero-right">
+      <div class="chart">
+        <div class="chart-head"><div><b>舆情信号概览</b></div><span class="pill">结构演示 · 待工具验证</span></div>
+        <svg viewBox="0 0 300 120" preserveAspectRatio="none" style="width:100%;height:120px;"><path d="M0,90 L40,80 L80,88 L120,60 L160,70 L200,42 L240,54 L300,24" fill="none" stroke="#e85e2c" stroke-width="3"/></svg>
+        <div class="stats"><div><b>—</b><small>真实声量</small></div><div><b>—</b><small>主题组</small></div><div><b>—</b><small>证据来源</small></div></div>
+      </div>
+    </div>
   </section>
-  <h2 class="section-title">事件追踪方法</h2>
+  <div class="section-title"><span class="eyebrow">CORE CAPABILITIES</span><h2>事件追踪方法</h2></div>
   <div class="grid"><div class="card"><h3>传播特征</h3><p>事件信息跨平台扩散，观点随时间、渠道与关键节点变化。</p></div><div class="card"><h3>人工追踪短板</h3><p>信息分散且更新频繁，容易漏掉关键转折与反向证据。</p></div><div class="card"><h3>全周期追踪</h3><p>发现、升温、扩散、回落与复盘阶段，保持来源与时间可回查。</p></div><div class="card"><h3>趋势研判</h3><p>趋势图展示结构；真实声量与增幅必须由工具数据计算，未核验不写结论。</p></div><div class="card"><h3>报告产出</h3><p></p><ul><li>事件摘要</li><li>代表观点</li><li>证据清单</li><li>风险提示</li><li>待验证项</li></ul></div></div>
   
   
@@ -89,7 +115,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 <p style="margin-top:8px;"><a href="/game-public-opinion-ai-analysis" style="color:#7dd3fc;font-size:.85rem;">前往 →</a></p></div><div class="card"><h3 style="color:#8b5cf6;">3. 查看热点深析</h3>
 <p>登录后浏览基于公开数据的 AI 行业热点文章。</p>
 <p style="margin-top:8px;"><a href="/hotspot" style="color:#7dd3fc;font-size:.85rem;">前往 →</a></p></div></div>
-  <div class="cta" style="margin-top:20px;"><a class="btn btn-demo" href="/login?redirect=/hotspot">进入数据工具 · 看热点</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a></div>
+  <div class="buttons" style="margin-top:26px;"><a class="btn btn-demo" href="/login?redirect=/hotspot">进入数据工具 · 看热点</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a></div>
 </main>
 <footer class="footer">
   <div>游戏舆情 AI 分析 · <a href="/">产品首页</a> · <a href="/dashboard">运营看板</a> · <a href="/guide">分析向导</a> · <a href="/pricing">订阅</a> · <a href="/trust">数据边界</a> · <a href="/about">两系统定位</a> · <a href="/privacy">隐私</a></div>

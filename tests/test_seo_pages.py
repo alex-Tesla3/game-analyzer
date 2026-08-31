@@ -115,3 +115,20 @@ def test_sitemap_includes_about(monkeypatch):
     monkeypatch.setenv("PUBLIC_DEMO_BASE_URL", "https://game-analyzer-eq8i.onrender.com")
     res = _client().get("/sitemap.xml")
     assert "https://game-analyzer-eq8i.onrender.com/about" in res.text
+
+
+def test_prototype_style_applied():
+    html = _client().get("/game-public-opinion-ai-analysis").text
+    assert "#f5f6f2" in html        # 原型纸感背景
+    assert "#e85e2c" in html        # 原型橙色主色
+    assert "#172337" in html        # 原型海军蓝
+    assert "Georgia" in html        # 衬线标题
+    assert "结构演示 · 待工具验证" in html  # 诚实标注
+    assert "NEXUS" not in html
+
+
+def test_landing_prototype_style():
+    html = _client().get("/").text
+    assert "#f5f6f2" in html
+    assert "#e85e2c" in html
+    assert "Georgia" in html
