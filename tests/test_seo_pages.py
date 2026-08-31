@@ -55,3 +55,33 @@ def test_sitemap_includes_seo_pages(monkeypatch):
 def test_unknown_seo_path_404():
     res = _client().get("/game-public-opinion-ai-analysis-unknown")
     assert res.status_code == 404
+
+
+def test_no_nexus_branding():
+    c = _client()
+    for path in EXPECTED:
+        html = c.get(path).text
+        assert "NEXUS" not in html, f"{path} 仍含 NEXUS 标志"
+
+
+def test_topbar_links_use_urls_not_labels():
+    html = _client().get("/game-negative-public-opinion-monitoring").text
+    # href 必须是 URL, 文字是标签
+    assert 'href="/game-public-opinion-ai-analysis">平台首页' in html
+    assert 'href="/ai-game-opinion-monitoring-system">AI 监测系统' in html
+    assert 'href="平台首页"' not in html
+
+
+def test_next_steps_causal_path_present():
+    html = _client().get("/game-negative-public-opinion-monitoring").text
+    assert "下一步 · 推荐路径" in html
+    assert "了解 AI 监测系统" in html
+    assert "回到平台总览" in html
+    assert "查看负面预警" in html
+
+
+def test_hub_page_lists_five_scenarios():
+    html = _client().get("/game-public-opinion-ai-analysis").text
+    assert "5 大能力场景" in html
+    assert "/game-negative-public-opinion-monitoring" in html
+    assert "/cross-platform-game-opinion-aggregation" in html

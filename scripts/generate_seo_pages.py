@@ -59,13 +59,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 </style>"""
 
 NAV_ITEMS = [
-    ("主题首页", "/game-public-opinion-ai-analysis"),
+    ("平台首页", "/game-public-opinion-ai-analysis"),
     ("AI 监测系统", "/ai-game-opinion-monitoring-system"),
-    ("负面风险", "/game-negative-public-opinion-monitoring"),
-    ("玩家体验", "/mobile-game-player-experience-analysis"),
-    ("热点追踪", "/game-hot-event-tracking"),
+]
+HUB_LINKS = [
+    ("负面风险识别", "/game-negative-public-opinion-monitoring"),
+    ("玩家体验分析", "/mobile-game-player-experience-analysis"),
+    ("热点事件追踪", "/game-hot-event-tracking"),
     ("商业化争议", "/game-monetization-controversy-monitoring"),
-    ("跨平台预警", "/cross-platform-game-opinion-aggregation"),
+    ("跨平台聚合", "/cross-platform-game-opinion-aggregation"),
 ]
 
 ALL_PAGES = {
@@ -79,18 +81,21 @@ ALL_PAGES = {
 }
 
 
-def _xlinks(current: str) -> str:
-    items = "".join(
-        f'<a href="{url}">{name}</a>'
-        for url, name in ALL_PAGES.items()
-        if url != current
+def _next_steps(page: dict) -> str:
+    """因果路径: 信息查询 -> 上级(主题首页/产品页) -> 行动(体验/看板/试用)。"""
+    steps = page.get("next_steps") or []
+    cards = "".join(
+        f"""<div class="card"><h3 style="color:#8b5cf6;">{i + 1}. {step["title"]}</h3>
+<p>{step.get("desc","")}</p>
+<p style="margin-top:8px;"><a href="{step["href"]}" style="color:#7dd3fc;font-size:.85rem;">前往 →</a></p></div>"""
+        for i, step in enumerate(steps)
     )
-    return f'<div class="xlinks"><span style="color:#64748b;font-size:.85rem;">相关页面：</span>{items}</div>'
+    return f'<h2 class="section-title">下一步 · 推荐路径</h2><div class="grid">{cards}</div>'
 
 
 def render(page: dict) -> str:
     url = page["url"]
-    x = _xlinks(url)
+    x = _next_steps(page)
     cards = "".join(
         f"""<div class="card"><h3>{sec["title"]}</h3><p>{sec.get("text","")}</p>"""
         + ("<ul>" + "".join(f"<li>{li}</li>" for li in sec["list"]) + "</ul>" if sec.get("list") else "")
@@ -104,14 +109,24 @@ def render(page: dict) -> str:
 <li class="warn">⚠ 需工具核验 / 待业务数据：{page["pending"]}</li>
 <li>不编造内容：未完成工具核验的数据不作为业务结论（详见 <a href="/trust" style="color:#7dd3fc;">数据与订阅说明</a>）。</li>
 </ul></div>"""
+    hub = ""
+    if url in [href for _, href in NAV_ITEMS]:
+        hub_cards = "".join(
+            f'<div class="card"><h3>{name}</h3><p><a href="{href}" style="color:#7dd3fc;font-size:.85rem;">了解详情 →</a></p></div>'
+            for name, href in HUB_LINKS
+        )
+        hub = f'<h2 class="section-title">5 大能力场景</h2><div class="grid">{hub_cards}</div>'
+
     flow = ""
     if page.get("flow"):
         flow = f'<div class="flow"><h3>{page["flow"]["title"]}</h3><ol>' + "".join(f"<li>{li}</li>" for li in page["flow"]["list"]) + "</ol></div>"
 
     nav = "".join(
-        f'<a href="{u}" class="active" style="color:#67e8f9;">{n}</a>' if u == url else f'<a href="{u}">{n}</a>'
-        for u, n in NAV_ITEMS
+        f'<a href="{href}" class="active" style="color:#67e8f9;">{name}</a>' if href == url else f'<a href="{href}">{name}</a>'
+        for name, href in NAV_ITEMS
     )
+    if url not in [href for _, href in NAV_ITEMS]:
+        nav += '<span style="color:#64748b;font-size:.8rem;"> · 内容支撑页</span>' 
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -129,7 +144,7 @@ def render(page: dict) -> str:
 {STYLE}
 </head>
 <body>
-<header class="topbar"><span class="brand">🎮 NEXUS INSIGHT</span>{nav}<a href="/dashboard" style="margin-left:auto;color:#86efac;">进入看板 →</a></header>
+<header class="topbar"><span class="brand">🎮 游戏舆情 AI 分析</span>{nav}<a href="/dashboard" style="margin-left:auto;color:#86efac;">进入看板 →</a></header>
 <main class="wrap">
   <section class="hero">
     <h1>{page["h1"]}</h1>
@@ -142,6 +157,7 @@ def render(page: dict) -> str:
   <h2 class="section-title">{page.get("section_heading","核心内容")}</h2>
   <div class="grid">{cards}</div>
   {flow}
+  {hub}
   {boundary}
   {x}
   <div class="cta" style="margin-top:20px;">{page["cta"]}</div>
@@ -312,9 +328,70 @@ PAGES = [
 ]
 
 
+_NEXT_STEPS = {
+    "/game-public-opinion-ai-analysis": [
+        {"title": "深入了解 AI 监测系统", "href": "/ai-game-opinion-monitoring-system",
+         "desc": "查看系统功能、效率对比与适用用户，判断是否匹配你的场景。"},
+        {"title": "按场景了解能力", "href": "/game-negative-public-opinion-monitoring",
+         "desc": "负面风险 / 玩家体验 / 热点追踪 / 商业化争议 / 跨平台聚合 5 大内容页。"},
+        {"title": "开始体验", "href": "/guide",
+         "desc": "登录后进入分析向导，用公开评论跑一份真实舆情报告。"},
+    ],
+    "/ai-game-opinion-monitoring-system": [
+        {"title": "回到平台总览", "href": "/game-public-opinion-ai-analysis",
+         "desc": "从全站入口重新了解平台定位与整体能力。"},
+        {"title": "按场景了解能力", "href": "/game-negative-public-opinion-monitoring",
+         "desc": "负面风险 / 玩家体验 / 热点追踪 / 商业化争议 / 跨平台聚合。"},
+        {"title": "预约试用 / Demo", "href": "/pricing",
+         "desc": "提交试用申请，体验 AI 舆情监测能力。"},
+    ],
+    "/game-negative-public-opinion-monitoring": [
+        {"title": "了解 AI 监测系统", "href": "/ai-game-opinion-monitoring-system",
+         "desc": "把负面风险识别接入系统化的 AI 舆情监测。"},
+        {"title": "回到平台总览", "href": "/game-public-opinion-ai-analysis",
+         "desc": "查看平台整体能力与其它场景。"},
+        {"title": "开始体验 · 查看负面预警", "href": "/dashboard",
+         "desc": "登录后进入看板，查看基于公开评论的预警与趋势。"},
+    ],
+    "/mobile-game-player-experience-analysis": [
+        {"title": "了解 AI 监测系统", "href": "/ai-game-opinion-monitoring-system",
+         "desc": "把玩家体验分析纳入系统化监测。"},
+        {"title": "回到平台总览", "href": "/game-public-opinion-ai-analysis",
+         "desc": "查看平台整体能力与其它场景。"},
+        {"title": "开始体验 · 分析玩家体验", "href": "/guide",
+         "desc": "登录后进入分析向导，聚类 BUG/卡顿/掉线等反馈。"},
+    ],
+    "/game-hot-event-tracking": [
+        {"title": "了解 AI 监测系统", "href": "/ai-game-opinion-monitoring-system",
+         "desc": "把热点追踪接入系统化的 AI 舆情监测。"},
+        {"title": "回到平台总览", "href": "/game-public-opinion-ai-analysis",
+         "desc": "查看平台整体能力与其它场景。"},
+        {"title": "查看热点深析", "href": "/hotspot",
+         "desc": "登录后浏览基于公开数据的 AI 行业热点文章。"},
+    ],
+    "/game-monetization-controversy-monitoring": [
+        {"title": "了解 AI 监测系统", "href": "/ai-game-opinion-monitoring-system",
+         "desc": "把商业化争议监测纳入系统化方案。"},
+        {"title": "回到平台总览", "href": "/game-public-opinion-ai-analysis",
+         "desc": "查看平台整体能力与其它场景。"},
+        {"title": "开始体验 · 分析商业化舆情", "href": "/guide",
+         "desc": "登录后进入分析向导，聚类氪金/平衡等争议反馈。"},
+    ],
+    "/cross-platform-game-opinion-aggregation": [
+        {"title": "了解 AI 监测系统", "href": "/ai-game-opinion-monitoring-system",
+         "desc": "把跨平台聚合与预警接入系统化方案。"},
+        {"title": "回到平台总览", "href": "/game-public-opinion-ai-analysis",
+         "desc": "查看平台整体能力与其它场景。"},
+        {"title": "查看看板", "href": "/dashboard",
+         "desc": "登录后进入看板，查看跨平台聚合数据。"},
+    ],
+}
+
+
 def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for page in PAGES:
+        page["next_steps"] = _NEXT_STEPS[page["url"]]
         html = render(page)
         path = OUT_DIR / (page["url"].strip("/") + ".html")
         path.write_text(html, encoding="utf-8")

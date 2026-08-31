@@ -2,6 +2,7 @@
 (function (global) {
     var PRIMARY = [
         { id: "home", label: "首页", href: "/", icon: "🏠", home: true },
+        { id: "platform", label: "舆情平台", href: "/game-public-opinion-ai-analysis", icon: "📡" },
         { id: "guide", label: "分析向导", href: "/guide", icon: "🧭" },
         { id: "dashboard", label: "数据看板", href: "/dashboard", icon: "📊" },
         { id: "compare", label: "竞品分析", href: "/games/compare", icon: "⚔️" },
@@ -28,6 +29,13 @@
 
     function detectActive(fallback) {
         var path = location.pathname.replace(/\/$/, "") || "/";
+        if (path.indexOf("/game-public-opinion-ai-analysis") === 0
+            || path.indexOf("/ai-game-opinion-monitoring-system") === 0
+            || path.indexOf("/game-negative-public-opinion-monitoring") === 0
+            || path.indexOf("/mobile-game-player-experience-analysis") === 0
+            || path.indexOf("/game-hot-event-tracking") === 0
+            || path.indexOf("/game-monetization-controversy-monitoring") === 0
+            || path.indexOf("/cross-platform-game-opinion-aggregation") === 0) return "platform";
         if (path === "/" || path === "/welcome") return "home";
         if (path === "/dashboard") return "dashboard";
         if (path.indexOf("/guide") === 0) return "guide";
