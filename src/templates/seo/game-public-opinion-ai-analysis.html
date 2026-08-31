@@ -51,22 +51,30 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .flow { margin: 28px 0; padding: 18px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
 .flow h3 { color: #c4b5fd; margin-bottom: 10px; font-size: .95rem; }
 .flow ol { color: #94a3b8; font-size: .88rem; padding-left: 20px; }
+.sysnote { margin: 0 auto 28px; max-width: 900px; padding: 14px 18px; border-radius: 12px; background: rgba(56,189,248,.08); border: 1px solid rgba(56,189,248,.3); font-size: .85rem; color: #d6d3d1; text-align: left; }
+.sysnote strong { color: #7dd3fc; }
+.sysnote .sys-a { color: #a5b4fc; }
+.sysnote .sys-b { color: #6ee7b7; }
 </style>
 </head>
 <body>
 <header class="topbar"><span class="brand">🎮 游戏舆情 AI 分析</span><a href="/game-public-opinion-ai-analysis" class="active" style="color:#67e8f9;">平台首页</a><a href="/ai-game-opinion-monitoring-system">AI 监测系统</a><a href="/dashboard" style="margin-left:auto;color:#86efac;">进入看板 →</a></header>
 <main class="wrap">
+  <div class="sysnote">
+    <strong>两系统定位</strong>：本页属于 <span class="sys-a">「游戏舆情 AI 分析平台」内容站</span> —— 对外能力介绍与行业科普（不含实时数据）。
+    实际的抓取、分析与看板在 <span class="sys-b">「Game Analyzer 数据分析工具」</span> 中完成，<a href="/login?redirect=/dashboard" style="color:#7dd3fc;">登录后进入 →</a>
+  </div>
   <section class="hero">
     <h1>🎮 游戏舆情 AI 分析平台</h1>
     <p class="sub">AI 全域游戏舆情监控、风险识别与口碑分析一体化：抓取 Steam / TapTap / Google Play 公开评论，语义聚类提炼主题，跨平台聚合预警，来源可回查。</p>
     <div class="badges">
       <span class="badge real">公开评论真数据</span><span class="badge keyword">主关键词：游戏舆情分析</span><span class="badge demo">经营指标需业务数据核验</span>
     </div>
-    <div class="cta"><a class="btn btn-demo" href="/guide">🚀 开始 AI 分析</a><a class="btn btn-primary" href="/pricing">申请试用</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解 AI 监测系统</a></div>
+    <div class="cta"><a class="btn btn-demo" href="/login?redirect=/guide">🚀 进入数据工具（登录后分析）</a><a class="btn btn-primary" href="/pricing">申请试用</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解 AI 监测系统</a></div>
   </section>
   <h2 class="section-title">平台核心能力</h2>
   <div class="grid"><div class="card"><h3>负面舆情监控</h3><p>负面评价、玩家投诉、BUG 反馈与集中扩散线索，聚类去重后保留代表样本与出处。</p></div><div class="card"><h3>玩家口碑分析</h3><p>情感与主题标签（性能/匹配/外挂/付费…）聚类，定位高频负面体验与版本反馈。</p></div><div class="card"><h3>热点事件追踪</h3><p>发现、升温、扩散、回落全周期记录，事件摘要与证据清单可回查。</p></div><div class="card"><h3>跨平台聚合预警</h3><p>统一保存来源平台、时间、原文与链接，按规则阈值 + AI 分类分级预警。</p></div></div>
-  <div class="flow"><h3>证据与 AI 的分工</h3><ol><li>公开来源：页面、商店评论、社区与媒体（已接入 Steam / TapTap / Google Play）。</li><li>规则整理：去重、分组、评分；AI 研判：聚类、摘要、提示。</li><li>人工核验：确认、修正、留痕；未核验数据不作为业务结论。</li></ol></div>
+  <div class="flow"><h3>两系统关系（业务边界）</h3><ol><li>系统 A「游戏舆情 AI 分析平台」：本内容站 —— 对外能力介绍、行业科普与 SEO 获客，不承载实时数据。</li><li>系统 B「Game Analyzer 数据分析工具」：实际产品 —— 抓取公开评论、清洗打标、看板与报告，需登录使用。</li><li>两者关系：内容站负责「讲清能力、引入用户」，数据工具负责「落地分析」，互不混用、单向引导。</li></ol></div>
   <h2 class="section-title">5 大能力场景</h2><div class="grid"><div class="card"><h3>负面风险识别</h3><p><a href="/game-negative-public-opinion-monitoring" style="color:#7dd3fc;font-size:.85rem;">了解详情 →</a></p></div><div class="card"><h3>玩家体验分析</h3><p><a href="/mobile-game-player-experience-analysis" style="color:#7dd3fc;font-size:.85rem;">了解详情 →</a></p></div><div class="card"><h3>热点事件追踪</h3><p><a href="/game-hot-event-tracking" style="color:#7dd3fc;font-size:.85rem;">了解详情 →</a></p></div><div class="card"><h3>商业化争议</h3><p><a href="/game-monetization-controversy-monitoring" style="color:#7dd3fc;font-size:.85rem;">了解详情 →</a></p></div><div class="card"><h3>跨平台聚合</h3><p><a href="/cross-platform-game-opinion-aggregation" style="color:#7dd3fc;font-size:.85rem;">了解详情 →</a></p></div></div>
   <div class="boundary"><h3>⚠ 数据边界 · 🎮 游戏舆情 AI 分析平台</h3>
 <ul>
@@ -81,7 +89,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 <p style="margin-top:8px;"><a href="/game-negative-public-opinion-monitoring" style="color:#7dd3fc;font-size:.85rem;">前往 →</a></p></div><div class="card"><h3 style="color:#8b5cf6;">3. 开始体验</h3>
 <p>登录后进入分析向导，用公开评论跑一份真实舆情报告。</p>
 <p style="margin-top:8px;"><a href="/guide" style="color:#7dd3fc;font-size:.85rem;">前往 →</a></p></div></div>
-  <div class="cta" style="margin-top:20px;"><a class="btn btn-demo" href="/guide">🚀 开始 AI 分析</a><a class="btn btn-primary" href="/pricing">申请试用</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解 AI 监测系统</a></div>
+  <div class="cta" style="margin-top:20px;"><a class="btn btn-demo" href="/login?redirect=/guide">🚀 进入数据工具（登录后分析）</a><a class="btn btn-primary" href="/pricing">申请试用</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解 AI 监测系统</a></div>
 </main>
 <footer class="footer">
   <div>游戏舆情 AI 分析 · <a href="/">产品首页</a> · <a href="/dashboard">运营看板</a> · <a href="/guide">分析向导</a> · <a href="/pricing">订阅</a> · <a href="/trust">数据边界</a> · <a href="/privacy">隐私</a></div>

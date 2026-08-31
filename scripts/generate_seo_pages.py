@@ -56,6 +56,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .flow { margin: 28px 0; padding: 18px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
 .flow h3 { color: #c4b5fd; margin-bottom: 10px; font-size: .95rem; }
 .flow ol { color: #94a3b8; font-size: .88rem; padding-left: 20px; }
+.sysnote { margin: 0 auto 28px; max-width: 900px; padding: 14px 18px; border-radius: 12px; background: rgba(56,189,248,.08); border: 1px solid rgba(56,189,248,.3); font-size: .85rem; color: #d6d3d1; text-align: left; }
+.sysnote strong { color: #7dd3fc; }
+.sysnote .sys-a { color: #a5b4fc; }
+.sysnote .sys-b { color: #6ee7b7; }
 </style>"""
 
 NAV_ITEMS = [
@@ -146,6 +150,10 @@ def render(page: dict) -> str:
 <body>
 <header class="topbar"><span class="brand">🎮 游戏舆情 AI 分析</span>{nav}<a href="/dashboard" style="margin-left:auto;color:#86efac;">进入看板 →</a></header>
 <main class="wrap">
+  <div class="sysnote">
+    <strong>两系统定位</strong>：本页属于 <span class="sys-a">「游戏舆情 AI 分析平台」内容站</span> —— 对外能力介绍与行业科普（不含实时数据）。
+    实际的抓取、分析与看板在 <span class="sys-b">「Game Analyzer 数据分析工具」</span> 中完成，<a href="/login?redirect=/dashboard" style="color:#7dd3fc;">登录后进入 →</a>
+  </div>
   <section class="hero">
     <h1>{page["h1"]}</h1>
     <p class="sub">{page["sub"]}</p>
@@ -191,16 +199,16 @@ PAGES = [
             {"title": "跨平台聚合预警", "text": "统一保存来源平台、时间、原文与链接，按规则阈值 + AI 分类分级预警。"},
         ],
         "flow": {
-            "title": "证据与 AI 的分工",
+            "title": "两系统关系（业务边界）",
             "list": [
-                "公开来源：页面、商店评论、社区与媒体（已接入 Steam / TapTap / Google Play）。",
-                "规则整理：去重、分组、评分；AI 研判：聚类、摘要、提示。",
-                "人工核验：确认、修正、留痕；未核验数据不作为业务结论。",
+                "系统 A「游戏舆情 AI 分析平台」：本内容站 —— 对外能力介绍、行业科普与 SEO 获客，不承载实时数据。",
+                "系统 B「Game Analyzer 数据分析工具」：实际产品 —— 抓取公开评论、清洗打标、看板与报告，需登录使用。",
+                "两者关系：内容站负责「讲清能力、引入用户」，数据工具负责「落地分析」，互不混用、单向引导。",
             ],
         },
         "real": "评论情感与主题聚类、负面/正面声量趋势（时间窗内评论数）、跨平台聚合（已接入平台）、热词与高频问题。",
         "pending": "真实声量与全平台覆盖率、DAU/留存/收入影响、转化漏斗、商业化争议对经营结果的影响。",
-        "cta": '<a class="btn btn-demo" href="/guide">🚀 开始 AI 分析</a><a class="btn btn-primary" href="/pricing">申请试用</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解 AI 监测系统</a>',
+        "cta": '<a class="btn btn-demo" href="/login?redirect=/guide">🚀 进入数据工具（登录后分析）</a><a class="btn btn-primary" href="/pricing">申请试用</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解 AI 监测系统</a>',
     },
     {
         "url": "/ai-game-opinion-monitoring-system",
@@ -243,7 +251,7 @@ PAGES = [
         ],
         "real": "负面评论识别、主题聚类（性能/外挂/平衡等）、负面声量趋势与代表样本。",
         "pending": "典型负面舆情处置案例、风控落地流程、真实影响量级。",
-        "cta": '<a class="btn btn-demo" href="/dashboard">查看负面预警</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解 AI 监测系统</a>',
+        "cta": '<a class="btn btn-demo" href="/login?redirect=/dashboard">进入数据工具 · 查看预警</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解 AI 监测系统</a>',
     },
     {
         "url": "/mobile-game-player-experience-analysis",
@@ -265,7 +273,7 @@ PAGES = [
         ],
         "real": "BUG/卡顿/掉线等主题聚类与代表样本、问题声量（时间窗内评论数）、按游戏/平台的分布。",
         "pending": "手游常见问题台账、优化落地案例、对留存与版本评价的实际影响。",
-        "cta": '<a class="btn btn-demo" href="/guide">分析玩家体验</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a>',
+        "cta": '<a class="btn btn-demo" href="/login?redirect=/guide">进入数据工具 · 分析体验</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a>',
     },
     {
         "url": "/game-hot-event-tracking",
@@ -285,7 +293,7 @@ PAGES = [
         ],
         "real": "评论时间序列与声量（时间窗内评论数）、热词、事件相关评论聚类与代表样本。",
         "pending": "全平台真实声量与增幅、传播路径（短视频/论坛）、事件复盘模板与行业报告样例。",
-        "cta": '<a class="btn btn-demo" href="/hotspot">查看热点文章</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a>',
+        "cta": '<a class="btn btn-demo" href="/login?redirect=/hotspot">进入数据工具 · 看热点</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a>',
     },
     {
         "url": "/game-monetization-controversy-monitoring",
@@ -304,7 +312,7 @@ PAGES = [
         ],
         "real": "氪金/平衡/概率等主题聚类、争议评论声量与代表样本、正反观点分布。",
         "pending": "商业化舆情优化方案、数值调整参考案例、对收入与留存的实际影响。",
-        "cta": '<a class="btn btn-demo" href="/guide">分析商业化舆情</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a>',
+        "cta": '<a class="btn btn-demo" href="/login?redirect=/guide">进入数据工具 · 分析争议</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a>',
     },
     {
         "url": "/cross-platform-game-opinion-aggregation",
@@ -323,7 +331,7 @@ PAGES = [
         ],
         "real": "已接入平台（Steam / TapTap / Google Play）评论聚合、跨平台对比、按主题/情感聚合预警。",
         "pending": "短视频/论坛等更多平台覆盖、预警分级规则明细、定制化服务内容。",
-        "cta": '<a class="btn btn-demo" href="/dashboard">查看看板</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a>',
+        "cta": '<a class="btn btn-demo" href="/login?redirect=/dashboard">进入数据工具 · 看板</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a>',
     },
 ]
 

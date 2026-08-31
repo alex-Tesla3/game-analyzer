@@ -51,18 +51,26 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .flow { margin: 28px 0; padding: 18px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
 .flow h3 { color: #c4b5fd; margin-bottom: 10px; font-size: .95rem; }
 .flow ol { color: #94a3b8; font-size: .88rem; padding-left: 20px; }
+.sysnote { margin: 0 auto 28px; max-width: 900px; padding: 14px 18px; border-radius: 12px; background: rgba(56,189,248,.08); border: 1px solid rgba(56,189,248,.3); font-size: .85rem; color: #d6d3d1; text-align: left; }
+.sysnote strong { color: #7dd3fc; }
+.sysnote .sys-a { color: #a5b4fc; }
+.sysnote .sys-b { color: #6ee7b7; }
 </style>
 </head>
 <body>
 <header class="topbar"><span class="brand">🎮 游戏舆情 AI 分析</span><a href="/game-public-opinion-ai-analysis">平台首页</a><a href="/ai-game-opinion-monitoring-system">AI 监测系统</a><span style="color:#64748b;font-size:.8rem;"> · 内容支撑页</span><a href="/dashboard" style="margin-left:auto;color:#86efac;">进入看板 →</a></header>
 <main class="wrap">
+  <div class="sysnote">
+    <strong>两系统定位</strong>：本页属于 <span class="sys-a">「游戏舆情 AI 分析平台」内容站</span> —— 对外能力介绍与行业科普（不含实时数据）。
+    实际的抓取、分析与看板在 <span class="sys-b">「Game Analyzer 数据分析工具」</span> 中完成，<a href="/login?redirect=/dashboard" style="color:#7dd3fc;">登录后进入 →</a>
+  </div>
   <section class="hero">
     <h1>📱 手游玩家体验舆情分析</h1>
     <p class="sub">面向 BUG、闪退、卡顿、掉线与服务器异常等高频负面体验的舆情分析方法，把问题簇、声量口径与原文证据交给产品与运维核验。</p>
     <div class="badges">
       <span class="badge keyword">主关键词：Mobile game bug public opinion feedback</span><span class="badge keyword">支持：Server lag public opinion discussion</span>
     </div>
-    <div class="cta"><a class="btn btn-demo" href="/guide">分析玩家体验</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a></div>
+    <div class="cta"><a class="btn btn-demo" href="/login?redirect=/guide">进入数据工具 · 分析体验</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a></div>
   </section>
   <h2 class="section-title">玩家体验分析方法</h2>
   <div class="grid"><div class="card"><h3>高频负面体验</h3><p></p><ul><li>BUG / 闪退</li><li>卡顿 / 掉帧</li><li>掉线 / 排队</li><li>服务器异常 / 延迟</li></ul></div><div class="card"><h3>运营影响</h3><p>可能影响口碑、留存与版本评价；实际影响需业务数据核验。</p></div><div class="card"><h3>自动分析方法</h3><p></p><ul><li>抓取公开反馈</li><li>语义去重</li><li>相似聚类</li><li>代表样本选择</li><li>标签归类</li></ul></div><div class="card"><h3>版本优化思路</h3><p>将问题簇、声量口径和原文证据交给产品及运维核验后排期修复。</p></div></div>
@@ -81,7 +89,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 <p style="margin-top:8px;"><a href="/game-public-opinion-ai-analysis" style="color:#7dd3fc;font-size:.85rem;">前往 →</a></p></div><div class="card"><h3 style="color:#8b5cf6;">3. 开始体验 · 分析玩家体验</h3>
 <p>登录后进入分析向导，聚类 BUG/卡顿/掉线等反馈。</p>
 <p style="margin-top:8px;"><a href="/guide" style="color:#7dd3fc;font-size:.85rem;">前往 →</a></p></div></div>
-  <div class="cta" style="margin-top:20px;"><a class="btn btn-demo" href="/guide">分析玩家体验</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a></div>
+  <div class="cta" style="margin-top:20px;"><a class="btn btn-demo" href="/login?redirect=/guide">进入数据工具 · 分析体验</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a></div>
 </main>
 <footer class="footer">
   <div>游戏舆情 AI 分析 · <a href="/">产品首页</a> · <a href="/dashboard">运营看板</a> · <a href="/guide">分析向导</a> · <a href="/pricing">订阅</a> · <a href="/trust">数据边界</a> · <a href="/privacy">隐私</a></div>

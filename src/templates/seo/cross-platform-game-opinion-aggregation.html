@@ -51,18 +51,26 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .flow { margin: 28px 0; padding: 18px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
 .flow h3 { color: #c4b5fd; margin-bottom: 10px; font-size: .95rem; }
 .flow ol { color: #94a3b8; font-size: .88rem; padding-left: 20px; }
+.sysnote { margin: 0 auto 28px; max-width: 900px; padding: 14px 18px; border-radius: 12px; background: rgba(56,189,248,.08); border: 1px solid rgba(56,189,248,.3); font-size: .85rem; color: #d6d3d1; text-align: left; }
+.sysnote strong { color: #7dd3fc; }
+.sysnote .sys-a { color: #a5b4fc; }
+.sysnote .sys-b { color: #6ee7b7; }
 </style>
 </head>
 <body>
 <header class="topbar"><span class="brand">🎮 游戏舆情 AI 分析</span><a href="/game-public-opinion-ai-analysis">平台首页</a><a href="/ai-game-opinion-monitoring-system">AI 监测系统</a><span style="color:#64748b;font-size:.8rem;"> · 内容支撑页</span><a href="/dashboard" style="margin-left:auto;color:#86efac;">进入看板 →</a></header>
 <main class="wrap">
+  <div class="sysnote">
+    <strong>两系统定位</strong>：本页属于 <span class="sys-a">「游戏舆情 AI 分析平台」内容站</span> —— 对外能力介绍与行业科普（不含实时数据）。
+    实际的抓取、分析与看板在 <span class="sys-b">「Game Analyzer 数据分析工具」</span> 中完成，<a href="/login?redirect=/dashboard" style="color:#7dd3fc;">登录后进入 →</a>
+  </div>
   <section class="hero">
     <h1>◎ 跨平台游戏舆情聚合与预警</h1>
     <p class="sub">把分散在社区、论坛与媒体中的舆情统一聚合，保存来源平台、时间、原文 ID 与链接；规则阈值 + AI 分类共同产生分级预警。</p>
     <div class="badges">
       <span class="badge keyword">主关键词：Cross-platform game public opinion aggregation</span>
     </div>
-    <div class="cta"><a class="btn btn-demo" href="/dashboard">查看看板</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a></div>
+    <div class="cta"><a class="btn btn-demo" href="/login?redirect=/dashboard">进入数据工具 · 看板</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a></div>
   </section>
   <h2 class="section-title">聚合与预警方案</h2>
   <div class="grid"><div class="card"><h3>分散监控痛点</h3><p>社区、论坛、短视频和媒体内容分散，时间与口径不一致。</p></div><div class="card"><h3>公开渠道聚合</h3><p></p><ul><li>统一保存来源平台</li><li>发布时间</li><li>原文 ID / 链接</li><li>采集时间</li></ul></div><div class="card"><h3>分级预警机制</h3><p>由规则阈值与 AI 分类共同产生提示；具体规则待业务确认。</p></div><div class="card"><h3>运营适配场景</h3><p></p><ul><li>版本发布</li><li>服务器异常</li><li>热点争议</li><li>商业化活动监测</li></ul></div></div>
@@ -81,7 +89,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 <p style="margin-top:8px;"><a href="/game-public-opinion-ai-analysis" style="color:#7dd3fc;font-size:.85rem;">前往 →</a></p></div><div class="card"><h3 style="color:#8b5cf6;">3. 查看看板</h3>
 <p>登录后进入看板，查看跨平台聚合数据。</p>
 <p style="margin-top:8px;"><a href="/dashboard" style="color:#7dd3fc;font-size:.85rem;">前往 →</a></p></div></div>
-  <div class="cta" style="margin-top:20px;"><a class="btn btn-demo" href="/dashboard">查看看板</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a></div>
+  <div class="cta" style="margin-top:20px;"><a class="btn btn-demo" href="/login?redirect=/dashboard">进入数据工具 · 看板</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解监测系统</a></div>
 </main>
 <footer class="footer">
   <div>游戏舆情 AI 分析 · <a href="/">产品首页</a> · <a href="/dashboard">运营看板</a> · <a href="/guide">分析向导</a> · <a href="/pricing">订阅</a> · <a href="/trust">数据边界</a> · <a href="/privacy">隐私</a></div>

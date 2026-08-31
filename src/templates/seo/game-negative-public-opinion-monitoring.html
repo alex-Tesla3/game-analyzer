@@ -51,18 +51,26 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .flow { margin: 28px 0; padding: 18px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
 .flow h3 { color: #c4b5fd; margin-bottom: 10px; font-size: .95rem; }
 .flow ol { color: #94a3b8; font-size: .88rem; padding-left: 20px; }
+.sysnote { margin: 0 auto 28px; max-width: 900px; padding: 14px 18px; border-radius: 12px; background: rgba(56,189,248,.08); border: 1px solid rgba(56,189,248,.3); font-size: .85rem; color: #d6d3d1; text-align: left; }
+.sysnote strong { color: #7dd3fc; }
+.sysnote .sys-a { color: #a5b4fc; }
+.sysnote .sys-b { color: #6ee7b7; }
 </style>
 </head>
 <body>
 <header class="topbar"><span class="brand">🎮 游戏舆情 AI 分析</span><a href="/game-public-opinion-ai-analysis">平台首页</a><a href="/ai-game-opinion-monitoring-system">AI 监测系统</a><span style="color:#64748b;font-size:.8rem;"> · 内容支撑页</span><a href="/dashboard" style="margin-left:auto;color:#86efac;">进入看板 →</a></header>
 <main class="wrap">
+  <div class="sysnote">
+    <strong>两系统定位</strong>：本页属于 <span class="sys-a">「游戏舆情 AI 分析平台」内容站</span> —— 对外能力介绍与行业科普（不含实时数据）。
+    实际的抓取、分析与看板在 <span class="sys-b">「Game Analyzer 数据分析工具」</span> 中完成，<a href="/login?redirect=/dashboard" style="color:#7dd3fc;">登录后进入 →</a>
+  </div>
   <section class="hero">
     <h1>⚠ 游戏负面舆情风险识别</h1>
     <p class="sub">从公开评论中发现负面风险线索：负面评价、玩家投诉、BUG 反馈与集中扩散，AI 聚类去重后保留代表样本与出处。</p>
     <div class="badges">
       <span class="badge keyword">主关键词：Game negative public opinion monitoring</span>
     </div>
-    <div class="cta"><a class="btn btn-demo" href="/dashboard">查看负面预警</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解 AI 监测系统</a></div>
+    <div class="cta"><a class="btn btn-demo" href="/login?redirect=/dashboard">进入数据工具 · 查看预警</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解 AI 监测系统</a></div>
   </section>
   <h2 class="section-title">风险识别方法</h2>
   <div class="grid"><div class="card"><h3>核心风险场景</h3><p></p><ul><li>负面评价集中出现</li><li>玩家投诉与退款诉求</li><li>BUG / 闪退 / 卡顿反馈</li><li>同一问题跨平台扩散</li></ul></div><div class="card"><h3>传统风控痛点</h3><p></p><ul><li>人工检索覆盖有限</li><li>响应滞后</li><li>重复内容干扰判断</li><li>缺少来源留痕</li></ul></div><div class="card"><h3>AI 识别逻辑</h3><p></p><ul><li>公开内容抓取</li><li>语义聚类去重</li><li>风险分类与主题提炼</li><li>代表样本与出处保留</li></ul></div><div class="card"><h3>落地应用方法</h3><p>AI 提示风险，运营人员核验来源、判断影响并选择处置动作；未核验不作为结论。</p></div></div>
@@ -81,7 +89,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 <p style="margin-top:8px;"><a href="/game-public-opinion-ai-analysis" style="color:#7dd3fc;font-size:.85rem;">前往 →</a></p></div><div class="card"><h3 style="color:#8b5cf6;">3. 开始体验 · 查看负面预警</h3>
 <p>登录后进入看板，查看基于公开评论的预警与趋势。</p>
 <p style="margin-top:8px;"><a href="/dashboard" style="color:#7dd3fc;font-size:.85rem;">前往 →</a></p></div></div>
-  <div class="cta" style="margin-top:20px;"><a class="btn btn-demo" href="/dashboard">查看负面预警</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解 AI 监测系统</a></div>
+  <div class="cta" style="margin-top:20px;"><a class="btn btn-demo" href="/login?redirect=/dashboard">进入数据工具 · 查看预警</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解 AI 监测系统</a></div>
 </main>
 <footer class="footer">
   <div>游戏舆情 AI 分析 · <a href="/">产品首页</a> · <a href="/dashboard">运营看板</a> · <a href="/guide">分析向导</a> · <a href="/pricing">订阅</a> · <a href="/trust">数据边界</a> · <a href="/privacy">隐私</a></div>

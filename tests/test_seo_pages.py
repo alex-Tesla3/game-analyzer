@@ -85,3 +85,19 @@ def test_hub_page_lists_five_scenarios():
     assert "5 大能力场景" in html
     assert "/game-negative-public-opinion-monitoring" in html
     assert "/cross-platform-game-opinion-aggregation" in html
+
+
+def test_two_system_positioning_clear():
+    html = _client().get("/game-public-opinion-ai-analysis").text
+    assert "两系统定位" in html
+    assert "Game Analyzer 数据分析工具" in html
+    assert "两系统关系（业务边界）" in html
+    # CTA 明确进入数据工具(带登录回跳)
+    assert "进入数据工具" in html
+    assert "/login?redirect=" in html
+
+
+def test_content_pages_show_positioning_note():
+    html = _client().get("/game-negative-public-opinion-monitoring").text
+    assert "两系统定位" in html
+    assert "不含实时数据" in html
