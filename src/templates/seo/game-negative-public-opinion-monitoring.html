@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>游戏负面舆情风险识别 | Game negative public opinion monitoring</title>
+<meta name="description" content="游戏负面舆情如何识别：负面评价、玩家投诉、BUG 反馈与集中扩散线索的 AI 识别逻辑（公开抓取、语义聚类、风险分类、代表样本与出处保留）。">
+<meta name="keywords" content="Game negative public opinion monitoring,游戏负面舆情,游戏舆情风险识别,游戏差评分析,游戏 BUG 反馈监测">
+<link rel="canonical" href="https://game-analyzer-eq8i.onrender.com/game-negative-public-opinion-monitoring">
+<meta property="og:title" content="游戏负面舆情风险识别 | Game negative public opinion monitoring">
+<meta property="og:description" content="游戏负面舆情如何识别：负面评价、玩家投诉、BUG 反馈与集中扩散线索的 AI 识别逻辑（公开抓取、语义聚类、风险分类、代表样本与出处保留）。">
+<meta property="og:type" content="website">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"游戏负面舆情风险识别 | Game negative public opinion monitoring","url":"https://game-analyzer-eq8i.onrender.com/game-negative-public-opinion-monitoring","description":"游戏负面舆情如何识别：负面评价、玩家投诉、BUG 反馈与集中扩散线索的 AI 识别逻辑（公开抓取、语义聚类、风险分类、代表样本与出处保留）。"}</script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; background: #0f1419; color: #e7ecf3; line-height: 1.7; }
+.topbar { position: sticky; top: 0; z-index: 100; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; padding: 10px 24px; background: rgba(15,20,25,.92); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255,255,255,.08); font-size: .85rem; }
+.topbar a { color: #94a3b8; text-decoration: none; }
+.topbar a:hover { color: #67e8f9; }
+.topbar .brand { font-weight: 700; color: #e7ecf3; margin-right: 8px; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 56px 24px 48px; }
+.hero { text-align: center; margin-bottom: 40px; }
+.hero h1 { font-size: 2.1rem; letter-spacing: -0.02em; margin-bottom: 12px; }
+.hero .sub { color: #94a3b8; max-width: 760px; margin: 0 auto 20px; font-size: 1.02rem; }
+.badges { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 24px; }
+.badge { padding: 4px 12px; border-radius: 999px; font-size: .78rem; }
+.badge.real { background: rgba(16,185,129,.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,.35); }
+.badge.demo { background: rgba(245,158,11,.15); color: #fcd34d; border: 1px solid rgba(245,158,11,.35); }
+.badge.keyword { background: rgba(56,189,248,.12); color: #7dd3fc; border: 1px solid rgba(56,189,248,.3); }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+.btn { padding: 12px 24px; border-radius: 12px; font-weight: 600; text-decoration: none; display: inline-block; }
+.btn-primary { background: linear-gradient(135deg,#06b6d4,#0891b2); color: #fff; }
+.btn-ghost { background: rgba(255,255,255,.08); color: #e7ecf3; border: 1px solid rgba(255,255,255,.15); }
+.btn-demo { background: linear-gradient(135deg,#8b5cf6,#6d28d9); color: #fff; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 16px; margin: 28px 0; }
+.card { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); border-radius: 14px; padding: 20px; }
+.card h3 { color: #06b6d4; font-size: 1rem; margin-bottom: 10px; }
+.card p, .card li { color: #94a3b8; font-size: .88rem; }
+.card ul { padding-left: 18px; }
+.section-title { font-size: 1.15rem; color: #c4b5fd; margin: 28px 0 8px; }
+.boundary { margin: 28px 0; padding: 18px; border-radius: 12px; background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25); font-size: .85rem; }
+.boundary h3 { color: #fcd34d; margin-bottom: 10px; font-size: .95rem; }
+.boundary ul { color: #d6d3d1; padding-left: 18px; }
+.boundary .ok { color: #6ee7b7; }
+.boundary .warn { color: #fcd34d; }
+.xlinks { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0; }
+.xlinks a { color: #7dd3fc; text-decoration: none; font-size: .88rem; border: 1px solid rgba(125,211,252,.3); padding: 6px 12px; border-radius: 8px; }
+.xlinks a:hover { background: rgba(125,211,252,.1); }
+.footer { text-align: center; color: #64748b; font-size: .78rem; padding: 28px 16px 40px; border-top: 1px solid rgba(255,255,255,.06); }
+.footer a { color: #94a3b8; text-decoration: none; margin: 0 6px; }
+.flow { margin: 28px 0; padding: 18px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+.flow h3 { color: #c4b5fd; margin-bottom: 10px; font-size: .95rem; }
+.flow ol { color: #94a3b8; font-size: .88rem; padding-left: 20px; }
+</style>
+</head>
+<body>
+<header class="topbar"><span class="brand">🎮 NEXUS INSIGHT</span><a href="主题首页">/game-public-opinion-ai-analysis</a><a href="AI 监测系统">/ai-game-opinion-monitoring-system</a><a href="负面风险">/game-negative-public-opinion-monitoring</a><a href="玩家体验">/mobile-game-player-experience-analysis</a><a href="热点追踪">/game-hot-event-tracking</a><a href="商业化争议">/game-monetization-controversy-monitoring</a><a href="跨平台预警">/cross-platform-game-opinion-aggregation</a><a href="/dashboard" style="margin-left:auto;color:#86efac;">进入看板 →</a></header>
+<main class="wrap">
+  <section class="hero">
+    <h1>⚠ 游戏负面舆情风险识别</h1>
+    <p class="sub">从公开评论中发现负面风险线索：负面评价、玩家投诉、BUG 反馈与集中扩散，AI 聚类去重后保留代表样本与出处。</p>
+    <div class="badges">
+      <span class="badge keyword">主关键词：Game negative public opinion monitoring</span>
+    </div>
+    <div class="cta"><a class="btn btn-demo" href="/dashboard">查看负面预警</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解 AI 监测系统</a></div>
+  </section>
+  <h2 class="section-title">风险识别方法</h2>
+  <div class="grid"><div class="card"><h3>核心风险场景</h3><p></p><ul><li>负面评价集中出现</li><li>玩家投诉与退款诉求</li><li>BUG / 闪退 / 卡顿反馈</li><li>同一问题跨平台扩散</li></ul></div><div class="card"><h3>传统风控痛点</h3><p></p><ul><li>人工检索覆盖有限</li><li>响应滞后</li><li>重复内容干扰判断</li><li>缺少来源留痕</li></ul></div><div class="card"><h3>AI 识别逻辑</h3><p></p><ul><li>公开内容抓取</li><li>语义聚类去重</li><li>风险分类与主题提炼</li><li>代表样本与出处保留</li></ul></div><div class="card"><h3>落地应用方法</h3><p>AI 提示风险，运营人员核验来源、判断影响并选择处置动作；未核验不作为结论。</p></div></div>
+  
+  <div class="boundary"><h3>⚠ 数据边界 · ⚠ 游戏负面舆情风险识别</h3>
+<ul>
+<li class="ok">✅ 可由公开数据计算：负面评论识别、主题聚类（性能/外挂/平衡等）、负面声量趋势与代表样本。</li>
+<li class="warn">⚠ 需工具核验 / 待业务数据：典型负面舆情处置案例、风控落地流程、真实影响量级。</li>
+<li>不编造内容：未完成工具核验的数据不作为业务结论（详见 <a href="/trust" style="color:#7dd3fc;">数据与订阅说明</a>）。</li>
+</ul></div>
+  <div class="xlinks"><span style="color:#64748b;font-size:.85rem;">相关页面：</span><a href="/game-public-opinion-ai-analysis">主题首页</a><a href="/ai-game-opinion-monitoring-system">AI 监测系统</a><a href="/mobile-game-player-experience-analysis">玩家体验</a><a href="/game-hot-event-tracking">热点追踪</a><a href="/game-monetization-controversy-monitoring">商业化争议</a><a href="/cross-platform-game-opinion-aggregation">跨平台预警</a></div>
+  <div class="cta" style="margin-top:20px;"><a class="btn btn-demo" href="/dashboard">查看负面预警</a><a class="btn btn-ghost" href="/ai-game-opinion-monitoring-system">了解 AI 监测系统</a></div>
+</main>
+<footer class="footer">
+  <div>游戏舆情 AI 分析 · <a href="/">产品首页</a> · <a href="/dashboard">运营看板</a> · <a href="/guide">分析向导</a> · <a href="/pricing">订阅</a> · <a href="/trust">数据边界</a> · <a href="/privacy">隐私</a></div>
+  <div style="margin-top:8px;">基于公开评论数据（Steam / TapTap / Google Play）；经营类指标需接入业务数据后计算。</div>
+</footer>
+</body>
+</html>

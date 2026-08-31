@@ -563,3 +563,31 @@ async def robots_txt():
         f"Sitemap: {base}/sitemap.xml\n"
     )
     return Response(content=content, media_type="text/plain")
+
+
+# ---------------------------------------------------------------------------
+# SEO 内容页（游戏舆情 AI 分析平台）
+# ---------------------------------------------------------------------------
+
+_SEO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates", "seo")
+
+_SEO_PAGES = [
+    ("/game-public-opinion-ai-analysis", "game-public-opinion-ai-analysis.html", "0.8", "weekly"),
+    ("/ai-game-opinion-monitoring-system", "ai-game-opinion-monitoring-system.html", "0.8", "weekly"),
+    ("/game-negative-public-opinion-monitoring", "game-negative-public-opinion-monitoring.html", "0.7", "weekly"),
+    ("/mobile-game-player-experience-analysis", "mobile-game-player-experience-analysis.html", "0.7", "weekly"),
+    ("/game-hot-event-tracking", "game-hot-event-tracking.html", "0.7", "weekly"),
+    ("/game-monetization-controversy-monitoring", "game-monetization-controversy-monitoring.html", "0.6", "monthly"),
+    ("/cross-platform-game-opinion-aggregation", "cross-platform-game-opinion-aggregation.html", "0.7", "weekly"),
+]
+
+for _path, _file, _priority, _freq in _SEO_PAGES:
+    async def _seo_content_page(_file=_file):
+        return _read_html_page(os.path.join(_SEO_DIR, _file), "seo")
+
+    router.add_api_route(_path, _seo_content_page, methods=["GET"], include_in_schema=False)
+
+# 把 SEO 页加入站点地图
+for _path, _file, _priority, _freq in _SEO_PAGES:
+    if _path not in [item[0] for item in _PUBLIC_PAGES]:
+        _PUBLIC_PAGES.append((_path, _priority, _freq))
