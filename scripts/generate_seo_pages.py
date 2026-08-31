@@ -171,7 +171,7 @@ def render(page: dict) -> str:
   <div class="cta" style="margin-top:20px;">{page["cta"]}</div>
 </main>
 <footer class="footer">
-  <div>游戏舆情 AI 分析 · <a href="/">产品首页</a> · <a href="/dashboard">运营看板</a> · <a href="/guide">分析向导</a> · <a href="/pricing">订阅</a> · <a href="/trust">数据边界</a> · <a href="/privacy">隐私</a></div>
+  <div>游戏舆情 AI 分析 · <a href="/">产品首页</a> · <a href="/dashboard">运营看板</a> · <a href="/guide">分析向导</a> · <a href="/pricing">订阅</a> · <a href="/trust">数据边界</a> · <a href="/about">两系统定位</a> · <a href="/privacy">隐私</a></div>
   <div style="margin-top:8px;">基于公开评论数据（Steam / TapTap / Google Play）；经营类指标需接入业务数据后计算。</div>
 </footer>
 </body>

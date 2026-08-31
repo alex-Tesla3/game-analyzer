@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>两系统定位说明 · 游戏舆情 AI 分析平台 & Game Analyzer</title>
+<meta name="description" content="游戏舆情 AI 分析平台（内容站）与 Game Analyzer 数据分析工具（数据产品）的业务定位、职责边界与相互关系说明。">
+<link rel="canonical" href="https://game-analyzer-eq8i.onrender.com/about">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; background: #0f1419; color: #e7ecf3; line-height: 1.75; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 56px; }
+h1 { font-size: 1.7rem; margin-bottom: 10px; }
+.sub { color: #94a3b8; margin-bottom: 32px; }
+.card { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); border-radius: 14px; padding: 20px 22px; margin-bottom: 16px; }
+.card h2 { font-size: 1.05rem; margin-bottom: 10px; }
+.card ul { padding-left: 18px; color: #d6d3d1; font-size: .92rem; }
+.card li { margin: 4px 0; }
+.sys-a h2 { color: #a5b4fc; }
+.sys-b h2 { color: #6ee7b7; }
+.rel { border-left: 3px solid #f59e0b; padding: 14px 16px; background: rgba(245,158,11,.08); border-radius: 0 12px 12px 0; color: #fcd34d; font-size: .92rem; margin-bottom: 16px; }
+.boundary { font-size: .85rem; color: #94a3b8; margin-top: 24px; padding: 14px 16px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; }
+.footer { text-align: center; color: #64748b; font-size: .78rem; padding: 24px 16px 40px; }
+.footer a { color: #94a3b8; text-decoration: none; margin: 0 6px; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1>两系统定位说明</h1>
+  <p class="sub">本项目由两个相互独立、单向引导的系统组成，职责边界如下。</p>
+
+  <div class="card sys-a">
+    <h2>🎯 系统 A：游戏舆情 AI 分析平台（内容站）</h2>
+    <ul>
+      <li><strong>定位</strong>：对外品牌与 SEO 获客的内容站。</li>
+      <li><strong>职责</strong>：讲清平台能力、行业科普、按关键词承接搜索流量，引导用户进入数据工具。</li>
+      <li><strong>页面</strong>：主题首页 / AI 监测系统 / 负面风险 / 玩家体验 / 热点追踪 / 商业化争议 / 跨平台聚合（7 页，见底部链接）。</li>
+      <li><strong>数据</strong>：<span style="color:#fcd34d;">不含实时数据</span>，仅展示能力介绍与数据边界说明，不编造内容。</li>
+      <li><strong>边界</strong>：CTA 单向引导到系统 B（登录后使用），不做数据承载。</li>
+    </ul>
+  </div>
+
+  <div class="card sys-b">
+    <h2>⚙ 系统 B：Game Analyzer 数据分析工具（数据产品）</h2>
+    <ul>
+      <li><strong>定位</strong>：实际落地的数据分析工具，需登录使用。</li>
+      <li><strong>职责</strong>：抓取 Steam / TapTap / Google Play 公开评论 → 清洗（去水军）→ LLM 标签 / 聚类 / 向量检索 → 看板 / 报告 / 预警。</li>
+      <li><strong>页面</strong>：首页落地 / 分析向导 / 数据看板 / 竞品对比 / 复盘归档 / 热点深析 / 订阅。</li>
+      <li><strong>数据</strong>：<span style="color:#6ee7b7;">真实公开数据</span>；经营类指标（收入/留存/漏斗）需接入业务数据，不可验证的功能已下线。</li>
+    </ul>
+  </div>
+
+  <div class="rel">
+    <strong>两者关系</strong>：系统 A 负责「讲清能力、引入用户」，系统 B 负责「落地分析、产出数据」；
+    用户路径为 <em>搜索/内容 → 能力认知（A）→ 登录体验（B）→ 看板/报告（B）</em>，互不混用。
+  </div>
+
+  <div class="boundary">
+    数据边界口径：评论抓取、情感/主题聚类、负面预警、热点、跨平台聚合等可由公开数据验证；
+    实时营收、用户路径/漏斗、留存、LTV 等依赖内部埋点/经营数据，已下线或标注"需业务数据核验"（详见 <a href="/trust" style="color:#7dd3fc;">数据与订阅说明</a>）。
+  </div>
+
+  <div style="margin-top:28px;display:flex;flex-wrap:wrap;gap:10px;">
+    <a href="/game-public-opinion-ai-analysis" style="color:#a5b4fc;text-decoration:none;border:1px solid rgba(165,180,252,.3);padding:8px 14px;border-radius:8px;font-size:.88rem;">进入系统 A（内容站）</a>
+    <a href="/login?redirect=/dashboard" style="color:#6ee7b7;text-decoration:none;border:1px solid rgba(110,231,183,.3);padding:8px 14px;border-radius:8px;font-size:.88rem;">进入系统 B（数据工具）</a>
+    <a href="/" style="color:#94a3b8;text-decoration:none;border:1px solid rgba(255,255,255,.15);padding:8px 14px;border-radius:8px;font-size:.88rem;">返回首页</a>
+  </div>
+</main>
+<footer class="footer">
+  <div>
+    <a href="/game-public-opinion-ai-analysis">游戏舆情 AI 分析平台</a>
+    <a href="/ai-game-opinion-monitoring-system">AI 监测系统</a>
+    <a href="/dashboard">数据看板</a>
+    <a href="/pricing">订阅</a>
+    <a href="/trust">数据边界</a>
+    <a href="/about">两系统定位</a>
+  </div>
+</footer>
+</body>
+</html>

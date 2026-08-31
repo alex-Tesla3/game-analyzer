@@ -211,6 +211,15 @@ PLAYWRIGHT_CHANNEL=chrome ./scripts/run_browser_e2e.sh
 生产环境（`APP_ENV=production`）请设置 `PAYMENT_TEST_MODE=false` 并配置回调密钥，
 否则支付模式会进入 `blocked`。
 
+## 两系统定位
+
+| 系统 | 定位 | 职责 | 数据 |
+|---|---|---|---|
+| **A · 游戏舆情 AI 分析平台** | 对外内容站 / SEO 获客 | 讲清能力、行业科普、按关键词承接搜索流量 | 不含实时数据，不编造内容 |
+| **B · Game Analyzer 数据分析工具** | 数据产品（登录使用） | 抓取公开评论 → 清洗/标签/聚类/看板/报告/预警 | 真实公开数据；经营类指标需业务数据，不可验证功能已下线 |
+
+用户路径：`搜索/内容 → 能力认知(A) → 登录体验(B) → 看板/报告(B)`。详见页面 `/about`。
+
 ## AI 数据管道（Agent + Supabase）
 
 对爬取评论做「清洗 → LLM 标签 → Embedding → 聚合」，结果存 Supabase（Postgres + pgvector）：

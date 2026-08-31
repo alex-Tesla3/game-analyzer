@@ -48,6 +48,11 @@ async def home():
     return _read_html_page(LANDING_FILE, "landing")
 
 
+@router.get("/about", response_class=HTMLResponse)
+async def about_page():
+    return _read_html_page(os.path.join(BASE_DIR, "templates", "about.html"), "about")
+
+
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page():
     return _read_html_page(HTML_FILE, "dashboard")
@@ -517,6 +522,7 @@ _PUBLIC_PAGES = [
     ("/metrics", "0.4", "monthly"),
     ("/privacy", "0.3", "yearly"),
     ("/terms", "0.3", "yearly"),
+    ("/about", "0.6", "monthly"),
     ("/login", "0.3", "monthly"),
     ("/forgot-password", "0.2", "yearly"),
 ]

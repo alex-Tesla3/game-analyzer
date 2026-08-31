@@ -101,3 +101,17 @@ def test_content_pages_show_positioning_note():
     html = _client().get("/game-negative-public-opinion-monitoring").text
     assert "两系统定位" in html
     assert "不含实时数据" in html
+
+
+def test_about_page_documents_two_systems():
+    res = _client().get("/about")
+    assert res.status_code == 200
+    assert "两系统定位说明" in res.text
+    assert "系统 A" in res.text and "系统 B" in res.text
+    assert "不含实时数据" in res.text
+
+
+def test_sitemap_includes_about(monkeypatch):
+    monkeypatch.setenv("PUBLIC_DEMO_BASE_URL", "https://game-analyzer-eq8i.onrender.com")
+    res = _client().get("/sitemap.xml")
+    assert "https://game-analyzer-eq8i.onrender.com/about" in res.text
