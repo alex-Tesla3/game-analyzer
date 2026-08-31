@@ -112,9 +112,8 @@ async def test_advanced_dashboard_returns_realtime(api_client):
         "/api/advanced/dashboard",
         params={"token": token, "product_ids": "", "compare_mode": "false"},
     )
-    assert res.status_code == 200
+    # 高级分析(实时营收/漏斗/预测)依赖内部业务数据, 已下线
+    assert res.status_code == 410
     body = res.json()
-    assert body["success"] is True
-    assert body.get("realtime", {}).get("online_users", 0) > 0
-    assert isinstance(body.get("journey", {}).get("nodes"), list)
-    assert body.get("journey", {}).get("nodes")
+    assert body["success"] is False
+    assert "已下线" in body["message"]

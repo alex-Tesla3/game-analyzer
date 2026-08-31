@@ -248,6 +248,28 @@ async def add_security_headers(request: Request, call_next):
 async def google_analytics_middleware(request: Request, call_next):
     return await inject_google_analytics(request, call_next)
 
+
+# 不可用外部公开数据验证的功能统一下线(依赖内部埋点/经营数据)
+_UNVERIFIABLE_FEATURE_PREFIXES = ("/api/advanced", "/api/predictive", "/api/abtest")
+_UNVERIFIABLE_MESSAGE = (
+    "该功能依赖内部业务数据（埋点/经营数据），外部公开数据无法验证，已下线。"
+    "可验证能力：Steam/TapTap/Google Play 公开评论抓取、情感与主题分析、负面预警、热点追踪、跨平台聚合。"
+)
+
+
+@app.middleware("http")
+async def disable_unverifiable_features(request: Request, call_next):
+    if request.url.path.startswith(_UNVERIFIABLE_FEATURE_PREFIXES):
+        return JSONResponse(
+            status_code=410,
+            content={
+                "success": False,
+                "code": "feature_disabled",
+                "message": _UNVERIFIABLE_MESSAGE,
+            },
+        )
+    return await call_next(request)
+
 static_dir = os.path.join(BASE_DIR, "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")

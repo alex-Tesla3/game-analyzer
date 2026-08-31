@@ -140,40 +140,17 @@ async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = None, 
         return
     
     await websocket.accept()
-    active_connections.append(websocket)
-    
     try:
-        from src.data_resolution import get_user_metrics_data
-        from src.api_meta import with_simulated
-
-        products = _parse_product_ids(product_ids)
-        metrics_data = get_user_metrics_data(current_user.username)
-        
-        if products != ['all']:
-            filtered_metrics = [m for m in metrics_data if m.get('product') in products]
-        else:
-            filtered_metrics = metrics_data
-        
-        initial_data = with_simulated(
-            analytics['realtime'].calculate_real_time_metrics(filtered_metrics),
-            basis="user_data",
-        )
-        await websocket.send_json(initial_data)
-        
-        while True:
-            await asyncio.sleep(5)
-            new_data = with_simulated(
-                analytics['realtime'].calculate_real_time_metrics(filtered_metrics),
-                basis="user_data",
-            )
-            await websocket.send_json(new_data)
-    
-    except WebSocketDisconnect:
+        await websocket.send_json({
+            "success": False,
+            "code": "feature_disabled",
+            "message": "实时营收曲线依赖内部业务数据（埋点/经营数据），外部公开数据无法验证，已下线。",
+        })
+        await websocket.close(code=1000)
+    except Exception:
+        pass
+    if websocket in active_connections:
         active_connections.remove(websocket)
-    except Exception as e:
-        print(f"WebSocket error: {str(e)}")
-        if websocket in active_connections:
-            active_connections.remove(websocket)
 
 
 # --- AI analysis ---

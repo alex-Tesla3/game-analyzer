@@ -450,11 +450,11 @@ async def test_anomaly_detection_test_accepts_json_body(api_client):
         params={"token": token},
         json={"metric_name": "revenue", "current_value": 5000},
     )
-    assert response.status_code == 200, response.text
+    # 依赖内部业务数据的功能已下线(410)
+    assert response.status_code == 410, response.text
     body = response.json()
-    assert body["success"] is True
-    assert "anomaly_result" in body
-    assert "is_anomaly" in body["anomaly_result"]
+    assert body["success"] is False
+    assert "已下线" in body["message"]
 
 
 def test_no_duplicate_route_method_pairs():
